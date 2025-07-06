@@ -1,50 +1,18 @@
 {
   "version": 2,
   "name": "supchaissac",
-  "builds": [
+  "buildCommand": "cd SupChaissac && npm install && npm run build",
+  "outputDirectory": "SupChaissac/dist",
+  "installCommand": "cd SupChaissac && npm install",
+  "framework": null,
+  "rewrites": [
     {
-      "src": "server/index.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": [
-          "server/**",
-          "shared/**",
-          "package.json"
-        ]
-      }
-    },
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "client/dist"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/server/index.ts"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "/client/dist/assets/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/client/dist/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "env": {
     "NODE_ENV": "production"
   },
-  "functions": {
-    "server/index.ts": {
-      "maxDuration": 30
-    }
-  },
-  "regions": ["fra1"],
-  "github": {
-    "silent": true
-  }
+  "regions": ["fra1"]
 }
