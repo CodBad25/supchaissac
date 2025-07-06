@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Heures Supplémentaires</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f4f8;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .login-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-title {
+            text-align: center;
+            color: #2563eb;
+            margin-bottom: 24px;
+        }
+        .login-subtitle {
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 24px;
+        }
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .login-button {
+            padding: 12px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: left;
+        }
+        .login-button:hover {
+            background-color: #1d4ed8;
+        }
+        .dashboard-container {
+            display: none;
+        }
+        .header {
+            background-color: white;
+            padding: 16px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-title {
+            margin: 0;
+            font-size: 20px;
+            color: #1e3a8a;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .user-badge {
+            background-color: #dbeafe;
+            color: #1e40af;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 14px;
+        }
+        .logout-button {
+            padding: 4px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background-color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-top: 32px;
+        }
+        .card-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 16px;
+        }
+        .card-text {
+            color: #4b5563;
+            margin-bottom: 16px;
+        }
+        .info-box {
+            background-color: #dbeafe;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 16px;
+            color: #1e40af;
+        }
+        .info-title {
+            font-weight: 500;
+        }
+        .info-text {
+            font-size: 14px;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Écran de connexion -->
+    <div id="login-screen" class="login-container">
+        <div class="login-card">
+            <h1 class="login-title">Gestion des Heures Supplémentaires</h1>
+            <h2 class="login-subtitle">Choisissez un profil</h2>
+            <div class="button-container">
+                <button class="login-button" onclick="login('Sophie Martin')">
+                    Sophie Martin (Enseignante)
+                </button>
+                <button class="login-button" onclick="login('Jean Dupont')">
+                    Jean Dupont (Direction)
+                </button>
+                <button class="login-button" onclick="login('Admin')">
+                    Admin (Administrateur)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Écran tableau de bord -->
+    <div id="dashboard-screen" class="dashboard-container">
+        <header class="header">
+            <h1 class="header-title">Gestion des Heures Supplémentaires</h1>
+            <div class="user-info">
+                <span id="user-badge" class="user-badge">Sophie Martin</span>
+                <button class="logout-button" onclick="logout()">Déconnexion</button>
+            </div>
+        </header>
+
+        <div class="container">
+            <div class="card">
+                <h2 class="card-title">Bienvenue, <span id="user-name">Sophie Martin</span></h2>
+                <p class="card-text">Vous êtes connecté à l'application de gestion des heures supplémentaires.</p>
+                <div class="info-box">
+                    <p class="info-title">Interface de démonstration</p>
+                    <p class="info-text">Cette interface simplifiée est destinée à la phase de développement et de test.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function login(name) {
+            console.log("Login clicked for:", name);
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('dashboard-screen').style.display = 'block';
+            document.getElementById('user-badge').textContent = name;
+            document.getElementById('user-name').textContent = name;
+        }
+
+        function logout() {
+            console.log("Logout clicked");
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('dashboard-screen').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

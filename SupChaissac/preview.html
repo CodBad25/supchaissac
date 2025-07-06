@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aperçu SupChaissac - Application Améliorée</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #f5f5f5;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1;
+    }
+    .status-badge::before {
+      content: "";
+      display: block;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 9999px;
+      margin-right: 0.25rem;
+    }
+    .status-submitted {
+      background-color: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+    }
+    .status-submitted::before {
+      background-color: #374151;
+    }
+    .status-validated {
+      background-color: #d1fae5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .status-validated::before {
+      background-color: #065f46;
+    }
+    .status-rejected {
+      background-color: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+    .status-rejected::before {
+      background-color: #b91c1c;
+    }
+    .type-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1;
+    }
+    .type-badge::before {
+      content: "";
+      display: block;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 9999px;
+      margin-right: 0.25rem;
+    }
+    .type-rcd {
+      background-color: #ede9fe;
+      color: #5b21b6;
+      border: 1px solid #ddd6fe;
+    }
+    .type-rcd::before {
+      background-color: #5b21b6;
+    }
+    .type-df {
+      background-color: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+    .type-df::before {
+      background-color: #1e40af;
+    }
+    .type-autre {
+      background-color: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .type-autre::before {
+      background-color: #92400e;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8 text-center">Aperçu de l'Application SupChaissac Améliorée</h1>
+    
+    <!-- Vue Secrétariat -->
+    <div class="mb-12">
+      <h2 class="text-2xl font-semibold mb-4">Vue Secrétariat</h2>
+      
+      <div class="bg-white rounded-lg shadow p-4 mb-8">
+        <!-- Navigation par onglets -->
+        <div class="flex border-b mb-4">
+          <button class="px-4 py-2 font-medium text-sm border-b-2 border-blue-500 text-blue-600">Tableau de bord</button>
+          <button class="px-4 py-2 font-medium text-sm text-gray-500">Validation des heures</button>
+          <button class="px-4 py-2 font-medium text-sm text-gray-500">Historique</button>
+        </div>
+        
+        <!-- Contenu de l'onglet -->
+        <div>
+          <!-- Cartes statistiques -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+              <div class="text-lg font-semibold">3</div>
+              <div class="text-sm">Séances à valider</div>
+            </div>
+            
+            <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+              <div class="text-lg font-semibold">12</div>
+              <div class="text-sm">Séances validées</div>
+            </div>
+            
+            <div class="bg-red-50 p-4 rounded-lg border border-red-100">
+              <div class="text-lg font-semibold">2</div>
+              <div class="text-sm">Séances rejetées</div>
+            </div>
+          </div>
+          
+          <!-- Tableau des sessions -->
+          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enseignant</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Détails</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                  <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="font-medium">25/03/2025</div>
+                    <div class="text-xs text-gray-500">M2</div>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">MARTIN Sophie</td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="type-badge type-rcd">RCD</span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
+                    <span class="font-medium">3C</span> - Mme LAURENT Marie
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="status-badge status-submitted">Soumise</span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-right">
+                    <button class="bg-white border border-gray-300 rounded-md px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                      Voir
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="font-medium">26/03/2025</div>
+                    <div class="text-xs text-gray-500">S1</div>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">PETIT Marie</td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="type-badge type-df">Devoirs Faits</span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
+                    <span class="font-medium">4A</span> - 8 élèves
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="status-badge status-validated">Validée</span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-right">
+                    <button class="bg-white border border-gray-300 rounded-md px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                      Voir
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="font-medium">27/03/2025</div>
+                    <div class="text-xs text-gray-500">M4</div>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">DUBOIS Pierre</td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="type-badge type-autre">Autre</span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
+                    <span class="italic">Réunion de préparation conseil de classe</span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="status-badge status-rejected">Refusée</span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-right">
+                    <button class="bg-white border border-gray-300 rounded-md px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                      Voir
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <!-- Pagination -->
+            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+              <div class="flex-1 flex justify-between sm:hidden">
+                <button class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                  Précédent
+                </button>
+                <button class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                  Suivant
+                </button>
+              </div>
+              <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-center">
+                <div>
+                  <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                      <span class="sr-only">Précédent</span>
+                      <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                      </svg>
+                    </button>
+                    <button class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-blue-50 text-sm font-medium text-blue-600 hover:bg-blue-50">
+                      1
+                    </button>
+                    <button class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                      2
+                    </button>
+                    <button class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                      3
+                    </button>
+                    <button class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                      <span class="sr-only">Suivant</span>
+                      <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                      </svg>
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Modale de détail de session -->
+      <div class="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl max-w-[600px] w-full mx-4">
+          <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+              <div>
+                <h3 class="text-lg font-semibold">Détails de la séance</h3>
+                <p class="text-sm text-gray-500">25 mars 2025, M2</p>
+              </div>
+              <span class="type-badge type-rcd">RCD</span>
+            </div>
+            
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <p class="text-sm font-medium text-gray-500">Enseignant</p>
+                  <p class="font-medium">MARTIN Sophie</p>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-500">Statut</p>
+                  <span class="status-badge status-submitted">Soumise</span>
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <p class="text-sm font-medium text-gray-500">Date de saisie</p>
+                  <p class="text-sm">25/03/2025 08:35</p>
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <p class="text-sm font-medium text-gray-500">Professeur remplacé</p>
+                  <p class="font-medium">Mme LAURENT Marie</p>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-500">Classe</p>
+                  <p class="font-medium">3C</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-8 flex justify-end space-x-3">
+              <button class="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Fermer
+              </button>
+              <button class="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700">
+                Refuser
+              </button>
+              <button class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
+                Valider
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Vue mobile -->
+    <div class="mb-12">
+      <h2 class="text-2xl font-semibold mb-4">Vue Mobile</h2>
+      
+      <div class="max-w-sm mx-auto">
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+          <!-- En-tête mobile -->
+          <div class="p-4 border-b">
+            <div class="flex justify-between items-center">
+              <h3 class="font-medium">Validation des heures</h3>
+              <button class="p-1 rounded-full bg-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Navigation par onglets mobile -->
+          <div class="flex border-b">
+            <button class="flex-1 px-2 py-2 text-xs font-medium text-gray-500">Tableau</button>
+            <button class="flex-1 px-2 py-2 text-xs font-medium border-b-2 border-blue-500 text-blue-600">Validation</button>
+            <button class="flex-1 px-2 py-2 text-xs font-medium text-gray-500">Historique</button>
+          </div>
+          
+          <!-- Liste des sessions mobile -->
+          <div class="divide-y">
+            <div class="p-4">
+              <div class="flex justify-between items-start mb-2">
+                <div>
+                  <div class="font-medium">25/03/2025</div>
+                  <div class="text-xs text-gray-500">M2</div>
+                </div>
+                <span class="type-badge type-rcd">RCD</span>
+              </div>
+              <div class="mb-2">
+                <div class="text-sm">MARTIN Sophie</div>
+                <div class="text-xs text-gray-600">3C - Mme LAURENT Marie</div>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="status-badge status-submitted">Soumise</span>
+                <button class="bg-white border border-gray-300 rounded-md px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                  Voir
+                </button>
+              </div>
+            </div>
+            
+            <div class="p-4">
+              <div class="flex justify-between items-start mb-2">
+                <div>
+                  <div class="font-medium">26/03/2025</div>
+                  <div class="text-xs text-gray-500">S1</div>
+                </div>
+                <span class="type-badge type-df">DF</span>
+              </div>
+              <div class="mb-2">
+                <div class="text-sm">PETIT Marie</div>
+                <div class="text-xs text-gray-600">4A - 8 élèves</div>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="status-badge status-validated">Validée</span>
+                <button class="bg-white border border-gray-300 rounded-md px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                  Voir
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Pagination mobile -->
+          <div class="p-4 border-t flex justify-center">
+            <div class="flex space-x-1">
+              <button class="w-8 h-8 flex items-center justify-center rounded border border-gray-300 bg-white">
+                <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+              </button>
+              <button class="w-8 h-8 flex items-center justify-center rounded border border-blue-500 bg-blue-50 text-blue-600">
+                1
+              </button>
+              <button class="w-8 h-8 flex items-center justify-center rounded border border-gray-300 bg-white">
+                2
+              </button>
+              <button class="w-8 h-8 flex items-center justify-center rounded border border-gray-300 bg-white">
+                <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

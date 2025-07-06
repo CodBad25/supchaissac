@@ -1,0 +1,50 @@
+## 🛠️ Mise à jour du modèle et du workflow des sessions dans SupChaissac
+
+Je souhaite simplifier et renforcer le workflow de validation des heures dans mon application. Voici les changements à appliquer dans l’ensemble du projet :
+
+---
+
+### ✅ 1. Remplacer les statuts existants par les suivants :
+
+Merci de remplacer complètement l’énumération `session_status` par ces valeurs :
+
+- `SUBMITTED` → Créé par l’enseignant
+- `INCOMPLETE` → À compléter (il manque une info ou un document)
+- `REVIEWED` → Vérifié (par le secrétariat ou le principal)
+- `VALIDATED` → Validé par le principal (peut être transformé)
+- `READY_FOR_PAYMENT` → En attente de saisie manuelle par le secrétariat
+- `PAID` → Payée (statut final)
+- `REJECTED` → Refusé définitivement
+
+⚠️ Attention : ces statuts remplacent ceux existants (`PENDING_REVIEW`, etc.). Il faut donc adapter en conséquence tous les contrôleurs, tests, composants React et affichages.
+
+---
+
+### ✅ 2. Ajouter le champ `originalType` à la table des sessions
+
+Ce champ est du même type que `type` (`session_type`). Il doit :
+
+- Être initialisé à la création avec la même valeur que `type`
+- Ne jamais être modifié ensuite, même si le `type` est transformé
+- Permettre de tracer qu'une session a été déclarée comme "AUTRE" puis transformée
+
+Exemple : une session déclarée comme `AUTRE` puis validée comme `RCD` doit garder `originalType = AUTRE`, `type = RCD`.
+
+---
+
+### ✅ 3. Adapter la logique métier de transformation
+
+- Lorsqu’un principal valide une session, il doit pouvoir **changer le type** (ex: AUTRE → HSE)
+- Seul le principal peut faire cette transformation
+- Si possible, une trace ou un commentaire lié à la transformation doit être conservé (dans un log, ou champ texte, ou historique)
+
+---
+
+### ✅ 4. Impacts attendus
+
+Merci d’adapter :
+- Le modèle Drizzle (ajout du champ, nouvelle enum)
+- Les validations Zod
+- Les appels API concernés (création, mise à jour, validation)
+- Le frontend React (formulaires, dashboard, filtres, affichage des statuts)
+- Les statistiques (elles doivent utiliser `type`, pas `originalType`)

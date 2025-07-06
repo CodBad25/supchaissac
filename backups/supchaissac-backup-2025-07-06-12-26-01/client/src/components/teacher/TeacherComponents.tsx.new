@@ -1,0 +1,698 @@
+// Composants de l'interface enseignant
+import { useState } from 'react';
+import { addWeeks, subWeeks, format, parseISO, isToday, set, addDays, startOfWeek } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { 
+  Table, TableBody, TableCell, TableHead, 
+  TableHeader, TableRow 
+} from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useToast } from "@/hooks/use-toast";
+
+export function TeacherView() {
+  // États pour le suivi des heures
+  const [hasPacte, setHasPacte] = useState(true);
+  const [totalHours] = useState({ total: 36, rcd: 15, devoirsFaits: 21 });
+  const [completedHours] = useState({ rcd: 8, devoirsFaits: 12, autres: 3 });
+  
+  // État pour la navigation entre les onglets
+  const [activeTab, setActiveTab] = useState("dashboard");
+  
+  // État pour la semaine actuelle
+  const [currentWeek, setCurrentWeek] = useState(new Date());
+  
+  // États pour les modales
+  const [isSessionFormOpen, setIsSessionFormOpen] = useState(false);
+  const [isRCDModalOpen, setIsRCDModalOpen] = useState(false);
+  const [isDevoirsFaitsModalOpen, setIsDevoirsFaitsModalOpen] = useState(false);
+  const [isAutreModalOpen, setIsAutreModalOpen] = useState(false);
+  
+  // État pour stocker les détails du créneau sélectionné
+  const [selectedSlot, setSelectedSlot] = useState<{
+    date: Date;
+    timeSlot: string;
+  } | null>(null);
+  
+  // État pour les formulaires
+  const [sessionType, setSessionType] = useState<'RCD' | 'DEVOIRS_FAITS' | 'AUTRE'>('RCD');
+  const [rcdForm, setRCDForm] = useState({
+    className: '',
+    replacedTeacherPrefix: 'M.',
+    replacedTeacherLastName: '',
+    replacedTeacherFirstName: '',
+  });
+  const [devoirsFaitsForm, setDevoirsFaitsForm] = useState({
+    gradeLevel: '6e',
+    studentCount: 1,
+    studentsList: [] as string[]
+  });
+  const [autreForm, setAutreForm] = useState({
+    description: ''
+  });
+  
+  // Fonctions pour la navigation des semaines
+  const goToPreviousWeek = () => {
+    setCurrentWeek(prevWeek => subWeeks(prevWeek, 1));
+  };
+  
+  const goToNextWeek = () => {
+    setCurrentWeek(prevWeek => addWeeks(prevWeek, 1));
+  };
+  
+  const goToToday = () => {
+    setCurrentWeek(new Date());
+  };
+  
+  // Générer les jours de la semaine courante
+  const generateWeekDays = () => {
+    const startOfWeek = set(currentWeek, { 
+      hours: 0, minutes: 0, seconds: 0, milliseconds: 0
+    });
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1); // Lundi
+    
+    const days = [];
+    for (let i = 0; i < 5; i++) { // Lundi à vendredi (5 jours)
+      const day = new Date(startOfWeek);
+      day.setDate(day.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  };
+  
+  // Obtenir les créneaux horaires
+  const getTimeSlots = () => {
+    return [
+      { id: 'M1', label: '8h-9h', morning: true },
+      { id: 'M2', label: '9h-10h', morning: true },
+      { id: 'M3', label: '10h-11h', morning: true },
+      { id: 'M4', label: '11h-12h', morning: true },
+      { id: 'S1', label: '13h-14h', morning: false },
+      { id: 'S2', label: '14h-15h', morning: false },
+      { id: 'S3', label: '15h-16h', morning: false },
+      { id: 'S4', label: '16h-17h', morning: false },
+    ];
+  };
+  
+  // Vérifier si une session est pour un jour et créneau donnés
+  const getSessionsForDay = (date: Date, timeSlot?: string) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const filteredSessions = sessions.filter(session => 
+      session.date === dateStr && (!timeSlot || session.timeSlot === timeSlot)
+    );
+    return filteredSessions;
+  };
+  
+  // Fonction pour ouvrir la modale en fonction du type de séance
+  const openSessionModal = (type: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE') => {
+    setSessionType(type);
+    if (type === 'RCD') {
+      setIsRCDModalOpen(true);
+    } else if (type === 'DEVOIRS_FAITS') {
+      setIsDevoirsFaitsModalOpen(true);
+    } else {
+      setIsAutreModalOpen(true);
+    }
+  };
+  
+  // Fonction pour ouvrir le formulaire de sélection du type de séance
+  const openSessionForm = (date?: Date, timeSlot?: string) => {
+    if (date && timeSlot) {
+      setSelectedSlot({ date, timeSlot });
+    } else {
+      setSelectedSlot(null);
+    }
+    setIsSessionFormOpen(true);
+  };
+  
+  // Fonction pour gérer la sélection d'un créneau
+  const handleSlotClick = (day: number, slot: string) => {
+    const date = new Date(currentWeek);
+    date.setDate(date.getDate() + day);
+    openSessionForm(date, slot);
+  };
+  
+  // Fonction pour soumettre le formulaire RCD
+  const handleRCDSubmit = () => {
+    // Logic to handle RCD form submission
+    console.log('RCD Form:', rcdForm);
+    setIsRCDModalOpen(false);
+    // Vous pourriez ajouter ici la logique pour ajouter la séance
+  };
+  
+  // Fonction pour soumettre le formulaire Devoirs Faits
+  const handleDevoirsFaitsSubmit = () => {
+    // Logic to handle Devoirs Faits form submission
+    console.log('Devoirs Faits Form:', devoirsFaitsForm);
+    setIsDevoirsFaitsModalOpen(false);
+    // Vous pourriez ajouter ici la logique pour ajouter la séance
+  };
+  
+  // Fonction pour soumettre le formulaire Autre
+  const handleAutreSubmit = () => {
+    // Logic to handle Autre form submission
+    console.log('Autre Form:', autreForm);
+    setIsAutreModalOpen(false);
+    // Vous pourriez ajouter ici la logique pour ajouter la séance
+  };
+  
+  // Fonction pour ajouter un élève à la liste
+  const addStudent = () => {
+    setDevoirsFaitsForm(prev => ({
+      ...prev,
+      studentsList: [...prev.studentsList, '']
+    }));
+  };
+  
+  // Fonction pour supprimer un élève de la liste
+  const removeStudent = (index: number) => {
+    setDevoirsFaitsForm(prev => ({
+      ...prev,
+      studentsList: prev.studentsList.filter((_, i) => i !== index)
+    }));
+  };
+  
+  // Fonction pour mettre à jour un élève dans la liste
+  const updateStudent = (index: number, value: string) => {
+    setDevoirsFaitsForm(prev => {
+      const newList = [...prev.studentsList];
+      newList[index] = value;
+      return {
+        ...prev,
+        studentsList: newList
+      };
+    });
+  };
+  
+  // Séances fictives pour la démonstration
+  const [sessions] = useState([
+    {
+      id: 1,
+      type: 'RCD',
+      date: '2025-03-05',
+      timeSlot: 'M3',
+      status: 'PENDING_REVIEW',
+      className: '5e',
+      replacedTeacherName: 'M. DUBOIS Jean',
+    },
+    {
+      id: 2,
+      type: 'DEVOIRS_FAITS',
+      date: '2025-03-06',
+      timeSlot: 'S2',
+      status: 'VALIDATED',
+      gradeLevel: '6e',
+      studentCount: 15,
+    },
+    {
+      id: 3,
+      type: 'AUTRE',
+      date: '2025-03-10',
+      timeSlot: 'M3',
+      status: 'PAID',
+      description: 'Réunion de coordination pédagogique',
+    }
+  ]);
+  
+  return (
+    <div className="space-y-6">
+      {/* Modales pour les formulaires de séances */}
+      <Dialog open={isSessionFormOpen} onOpenChange={setIsSessionFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choisir le type de séance</DialogTitle>
+            <DialogDescription>
+              Sélectionnez le type de séance que vous souhaitez déclarer {selectedSlot && ` pour le créneau ${selectedSlot.timeSlot} du ${format(selectedSlot.date, 'dd/MM/yyyy')}`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-4">
+              <RadioGroup 
+                value={sessionType} 
+                onValueChange={(value) => setSessionType(value as 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE')}
+                className="space-y-3"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="RCD" id="rcd" />
+                  <Label htmlFor="rcd" className="font-medium">Remplacement de Courte Durée (RCD)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="DEVOIRS_FAITS" id="devoirs" />
+                  <Label htmlFor="devoirs" className="font-medium">Devoirs Faits</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="AUTRE" id="autre" />
+                  <Label htmlFor="autre" className="font-medium">Autre</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSessionFormOpen(false)}>Fermer</Button>
+            <Button onClick={() => openSessionModal(sessionType)}>Continuer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Modale pour RCD */}
+      <Dialog open={isRCDModalOpen} onOpenChange={setIsRCDModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Remplacement de Courte Durée</DialogTitle>
+            <DialogDescription>
+              Veuillez remplir les informations du remplacement
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="classe" className="text-right">Classe</Label>
+              <Input 
+                id="classe" 
+                value={rcdForm.className} 
+                onChange={(e) => setRCDForm({...rcdForm, className: e.target.value})}
+                className="col-span-3" 
+                placeholder="ex: 5e4" 
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Enseignant(e) remplacé(e)</Label>
+              <div className="col-span-3 flex gap-2">
+                <Select 
+                  value={rcdForm.replacedTeacherPrefix} 
+                  onValueChange={(value) => setRCDForm({...rcdForm, replacedTeacherPrefix: value})}
+                >
+                  <SelectTrigger className="w-[80px]">
+                    <SelectValue placeholder="Préfixe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="M.">M.</SelectItem>
+                    <SelectItem value="Mme">Mme</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Input 
+                  placeholder="NOM" 
+                  value={rcdForm.replacedTeacherLastName}
+                  onChange={(e) => setRCDForm({...rcdForm, replacedTeacherLastName: e.target.value.toUpperCase()})}
+                  className="uppercase"
+                />
+                
+                <Input 
+                  placeholder="Prénom" 
+                  value={rcdForm.replacedTeacherFirstName}
+                  onChange={(e) => setRCDForm({...rcdForm, replacedTeacherFirstName: e.target.value})}
+                />
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRCDModalOpen(false)}>Fermer</Button>
+            <Button onClick={handleRCDSubmit}>Soumettre</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Modale pour Devoirs Faits */}
+      <Dialog open={isDevoirsFaitsModalOpen} onOpenChange={setIsDevoirsFaitsModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Devoirs Faits</DialogTitle>
+            <DialogDescription>
+              Veuillez remplir les informations de la séance de Devoirs Faits
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="niveau" className="text-right">Niveau</Label>
+              <Select 
+                value={devoirsFaitsForm.gradeLevel}
+                onValueChange={(value) => setDevoirsFaitsForm({...devoirsFaitsForm, gradeLevel: value})}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Sélectionner un niveau" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="6e">6ème</SelectItem>
+                  <SelectItem value="5e">5ème</SelectItem>
+                  <SelectItem value="4e">4ème</SelectItem>
+                  <SelectItem value="3e">3ème</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nbEleves" className="text-right">Nombre d'élèves</Label>
+              <Input 
+                id="nbEleves" 
+                type="number" 
+                min="1"
+                value={devoirsFaitsForm.studentCount}
+                onChange={(e) => setDevoirsFaitsForm({...devoirsFaitsForm, studentCount: parseInt(e.target.value) || 1})}
+                className="col-span-3" 
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 gap-4">
+              <Label className="text-right mt-2">Liste des élèves</Label>
+              <div className="col-span-3 space-y-2">
+                {devoirsFaitsForm.studentsList.map((student, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input 
+                      value={student}
+                      onChange={(e) => updateStudent(index, e.target.value)}
+                      placeholder="NOM Prénom CLASSE" 
+                      className="flex-1"
+                    />
+                    <Button 
+                      variant="destructive" 
+                      size="icon"
+                      onClick={() => removeStudent(index)}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </Button>
+                  </div>
+                ))}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={addStudent}
+                  className="w-full"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  Ajouter un élève
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDevoirsFaitsModalOpen(false)}>Fermer</Button>
+            <Button onClick={handleDevoirsFaitsSubmit}>Soumettre</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Modale pour Autre */}
+      <Dialog open={isAutreModalOpen} onOpenChange={setIsAutreModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Autre activité</DialogTitle>
+            <DialogDescription>
+              Veuillez décrire l'activité réalisée
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="description" className="text-right">Description</Label>
+              <Textarea 
+                id="description" 
+                value={autreForm.description}
+                onChange={(e) => setAutreForm({...autreForm, description: e.target.value})}
+                className="col-span-3" 
+                placeholder="Description de l'activité"
+                rows={4}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAutreModalOpen(false)}>Fermer</Button>
+            <Button onClick={handleAutreSubmit}>Soumettre</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    
+      {/* Navigation principale */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <Tabs 
+          defaultValue={activeTab} 
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
+          <TabsList className="flex justify-between w-full">
+            <TabsTrigger value="dashboard" className="flex-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+              Tableau de bord
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="flex-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              Déclarer des heures
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 8v4l3 3"></path>
+                <circle cx="12" cy="12" r="10"></circle>
+              </svg>
+              Historique
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="dashboard">
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Suivi des heures du pacte</h3>
+                {hasPacte ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Total: {completedHours.rcd + completedHours.devoirsFaits + completedHours.autres} / {totalHours.total} heures</span>
+                      <span className="text-sm font-medium">{Math.round(((completedHours.rcd + completedHours.devoirsFaits + completedHours.autres) / totalHours.total) * 100)}%</span>
+                    </div>
+                    <Progress value={((completedHours.rcd + completedHours.devoirsFaits + completedHours.autres) / totalHours.total) * 100} className="h-2" />
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                      <Card className="bg-purple-50">
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-medium">RCD</h4>
+                            <Badge variant="outline" className="bg-purple-100">{completedHours.rcd} / {totalHours.rcd} h</Badge>
+                          </div>
+                          <Progress value={(completedHours.rcd / totalHours.rcd) * 100} className="h-2 mt-2" />
+                        </CardContent>
+                      </Card>
+                      
+                      <Card className="bg-blue-50">
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-medium">Devoirs Faits</h4>
+                            <Badge variant="outline" className="bg-blue-100">{completedHours.devoirsFaits} / {totalHours.devoirsFaits} h</Badge>
+                          </div>
+                          <Progress value={(completedHours.devoirsFaits / totalHours.devoirsFaits) * 100} className="h-2 mt-2" />
+                        </CardContent>
+                      </Card>
+                      
+                      <Card className="bg-amber-50">
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-medium">Autres</h4>
+                            <Badge variant="outline" className="bg-amber-100">{completedHours.autres} h</Badge>
+                          </div>
+                          <Progress value={100} className="h-2 mt-2" />
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                ) : (
+                  <Alert>
+                    <AlertTitle>Pacte enseignant non configuré</AlertTitle>
+                    <AlertDescription>
+                      Vous n'avez pas encore configuré vos heures du pacte enseignant.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Séances récentes</h3>
+                {sessions.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Statut</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sessions.slice(0, 5).map((session) => (
+                          <TableRow key={session.id}>
+                            <TableCell>{session.date}</TableCell>
+                            <TableCell>{session.type}</TableCell>
+                            <TableCell>
+                              <Badge className={
+                                session.status === 'VALIDATED' ? 'bg-green-100 text-green-800' :
+                                session.status === 'PENDING_REVIEW' ? 'bg-amber-100 text-amber-800' :
+                                session.status === 'PENDING_VALIDATION' ? 'bg-blue-100 text-blue-800' :
+                                session.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                session.status === 'PAID' ? 'bg-purple-100 text-purple-800' : ''
+                              }>
+                                {session.status === 'VALIDATED' ? 'Validée' :
+                                session.status === 'PENDING_REVIEW' ? 'En attente' :
+                                session.status === 'PENDING_VALIDATION' ? 'À valider' :
+                                session.status === 'REJECTED' ? 'Rejetée' :
+                                session.status === 'PAID' ? 'Payée' : session.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    Aucune séance récente
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="calendar">
+          
+          <TabsContent value="history">
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Historique des séances</h3>
+                
+                {sessions.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Créneau</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Détails</TableHead>
+                          <TableHead>Statut</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sessions.map((session) => (
+                          <TableRow key={session.id}>
+                            <TableCell>{session.date}</TableCell>
+                            <TableCell>{session.timeSlot}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={
+                                session.type === 'RCD' ? 'bg-purple-100 text-purple-800' :
+                                session.type === 'DEVOIRS_FAITS' ? 'bg-blue-100 text-blue-800' :
+                                'bg-amber-100 text-amber-800'
+                              }>
+                                {session.type === 'RCD' ? 'RCD' :
+                                  session.type === 'DEVOIRS_FAITS' ? 'Devoirs Faits' : 'Autre'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {session.type === 'RCD' && session.className && (
+                                <span>Classe {session.className}</span>
+                              )}
+                              {session.type === 'DEVOIRS_FAITS' && session.gradeLevel && (
+                                <span>Niveau {session.gradeLevel} - {session.studentCount} élèves</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={
+                                session.status === 'VALIDATED' ? 'bg-green-100 text-green-800' :
+                                session.status === 'PENDING_REVIEW' ? 'bg-amber-100 text-amber-800' :
+                                session.status === 'PENDING_VALIDATION' ? 'bg-blue-100 text-blue-800' :
+                                session.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                session.status === 'PAID' ? 'bg-purple-100 text-purple-800' : ''
+                              }>
+                                {session.status === 'VALIDATED' ? 'Validée' :
+                                session.status === 'PENDING_REVIEW' ? 'En attente' :
+                                session.status === 'PENDING_VALIDATION' ? 'À valider' :
+                                session.status === 'REJECTED' ? 'Rejetée' :
+                                session.status === 'PAID' ? 'Payée' : session.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="1" />
+                                  <circle cx="19" cy="12" r="1" />
+                                  <circle cx="5" cy="12" r="1" />
+                                </svg>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    Aucune séance enregistrée
+                  </div>
+                )}
+                
+                <div className="mt-6 flex justify-end space-x-4">
+                  <Button variant="outline" onClick={() => alert("Fonctionnalité de signature électronique à implémenter")}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
+                    </svg>
+                    Signer les séances
+                  </Button>
+                  <Button variant="outline" onClick={() => alert("Fonctionnalité d'export PDF à implémenter")}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    Exporter en PDF
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}

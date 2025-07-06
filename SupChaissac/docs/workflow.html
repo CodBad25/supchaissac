@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow de l'Application - Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #1a1a1a;
+        }
+        h1 {
+            border-bottom: 2px solid #eaeaea;
+            padding-bottom: 10px;
+        }
+        h2 {
+            margin-top: 30px;
+            border-bottom: 1px solid #eaeaea;
+            padding-bottom: 5px;
+        }
+        ul, ol {
+            padding-left: 25px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        code {
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 250px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-right: 1px solid #eaeaea;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .content {
+            flex: 1;
+            padding: 20px;
+        }
+        .nav-link {
+            display: block;
+            padding: 8px 0;
+            color: #495057;
+            text-decoration: none;
+            border-bottom: 1px solid #eaeaea;
+        }
+        .nav-link:hover {
+            color: #3498db;
+        }
+        .nav-section {
+            margin-top: 15px;
+            font-weight: 500;
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        .highlight {
+            background-color: #fffde7;
+            padding: 15px;
+            border-left: 4px solid #ffd600;
+            margin: 20px 0;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eaeaea;
+            font-size: 0.9em;
+            color: #7f8c8d;
+            text-align: center;
+        }
+        .role-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 500;
+            margin-right: 5px;
+        }
+        .teacher {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+        .secretary {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .principal {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+        .admin {
+            background-color: #f3e5f5;
+            color: #7b1fa2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h3>Documentation</h3>
+            <a href="#architecture" class="nav-link">1. Architecture Générale</a>
+            <a href="#data-model" class="nav-link">2. Modèle de Données</a>
+            <a href="#validation-flow" class="nav-link">3. Flux de Validation</a>
+            <a href="#interfaces" class="nav-link">4. Interfaces Par Rôle</a>
+            <a href="#special-features" class="nav-link">5. Particularités</a>
+            <a href="#roles" class="nav-link">6. Rôles et Permissions</a>
+            <a href="#session-lifecycle" class="nav-link">7. Cycle de Vie des Sessions</a>
+            <a href="#demo-mode" class="nav-link">8. Mode Démo</a>
+            
+            <div class="nav-section">Liens rapides</div>
+            <a href="#teacher-interface" class="nav-link">Interface Enseignant</a>
+            <a href="#secretary-interface" class="nav-link">Interface Secrétariat</a>
+            <a href="#principal-interface" class="nav-link">Interface Direction</a>
+            <a href="#admin-interface" class="nav-link">Interface Admin</a>
+        </div>
+        
+        <div class="content">
+            <h1>Workflow de l'Application de Gestion des Heures d'Enseignement</h1>
+            
+            <div class="highlight">
+                Cette documentation présente l'analyse complète du workflow de l'application, détaillant son architecture, 
+                ses fonctionnalités et ses processus métier pour chaque type d'utilisateur.
+            </div>
+            
+            <section id="architecture" class="section">
+                <h2>1. Architecture Générale</h2>
+                <p>L'application est une application web full-stack construite avec les technologies suivantes:</p>
+                <ul>
+                    <li><strong>Frontend</strong>: React, Tailwind CSS, Shadcn/UI</li>
+                    <li><strong>Backend</strong>: Express.js (Node.js)</li>
+                    <li><strong>Base de données</strong>: PostgreSQL (via Drizzle ORM)</li>
+                    <li><strong>Authentification</strong>: Basée sur les sessions</li>
+                </ul>
+            </section>
+            
+            <section id="data-model" class="section">
+                <h2>2. Modèle de Données</h2>
+                
+                <h3>Utilisateurs (Users)</h3>
+                <ul>
+                    <li>Rôles distincts: <code>TEACHER</code>, <code>SECRETARY</code>, <code>PRINCIPAL</code>, <code>ADMIN</code></li>
+                    <li>Chaque utilisateur possède un nom, un identifiant unique, un mot de passe, des initiales</li>
+                    <li>Les enseignants peuvent stocker leur signature électronique</li>
+                    <li>Distinction entre enseignants "en pacte" et autres enseignants</li>
+                </ul>
+                
+                <h3>Sessions</h3>
+                <ul>
+                    <li>Types: <code>RCD</code> (Remplacement Courte Durée), <code>DEVOIRS_FAITS</code>, <code>HSE</code>, <code>AUTRE</code></li>
+                    <li>Créneaux horaires: M1, M2, M3, M4 (matin), S1, S2, S3, S4 (après-midi)</li>
+                    <li>Statuts: <code>PENDING_REVIEW</code>, <code>PENDING_VALIDATION</code>, <code>VALIDATED</code>, <code>REJECTED</code>, <code>PAID</code></li>
+                    <li>Métadonnées: date, classe, nombre d'élèves, enseignant remplacé, etc.</li>
+                </ul>
+                
+                <h3>Configuration des Enseignants (TeacherSetup)</h3>
+                <ul>
+                    <li>Indique si l'enseignant est "en pacte" ou non</li>
+                    <li>Paramètres spécifiques liés au suivi des heures</li>
+                </ul>
+                
+                <h3>Paramètres Système (SystemSettings)</h3>
+                <ul>
+                    <li>Paramètres globaux configurable par les administrateurs</li>
+                </ul>
+            </section>
+            
+            <section id="validation-flow" class="section">
+                <h2>3. Flux de Validation des Sessions</h2>
+                
+                <ol>
+                    <li>
+                        <strong>Création</strong> (Enseignant):
+                        <ul>
+                            <li>L'enseignant crée une session (remplacement, devoirs faits, autre)</li>
+                            <li>La session prend le statut <code>PENDING_REVIEW</code></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Vérification</strong> (Secrétariat):
+                        <ul>
+                            <li>Le secrétariat examine la session</li>
+                            <li>Peut la faire passer à <code>PENDING_VALIDATION</code> pour approbation finale</li>
+                            <li>Peut la rejeter directement (<code>REJECTED</code>)</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Validation</strong> (Direction):
+                        <ul>
+                            <li>Le principal/directeur examine les sessions marquées <code>PENDING_VALIDATION</code></li>
+                            <li>Peut les valider (<code>VALIDATED</code>) ou les rejeter (<code>REJECTED</code>)</li>
+                            <li>Peut ajouter des commentaires/feedback lors de la validation</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Paiement</strong> (Secrétariat):
+                        <ul>
+                            <li>Les sessions validées peuvent être marquées comme payées (<code>PAID</code>)</li>
+                            <li>Étape finale du cycle de vie d'une session</li>
+                        </ul>
+                    </li>
+                </ol>
+            </section>
+            
+            <section id="interfaces" class="section">
+                <h2>4. Interfaces Par Rôle</h2>
+                
+                <h3 id="teacher-interface">Interface Enseignant</h3>
+                <ul>
+                    <li><strong>Dashboard</strong>: Vue résumée des sessions, statut des heures</li>
+                    <li><strong>Déclaration</strong>: Formulaire pour déclarer de nouvelles sessions</li>
+                    <li><strong>Calendrier</strong>: Visualisation des sessions par date</li>
+                    <li>Distinction entre enseignants "en pacte" et autres en termes d'affichage</li>
+                </ul>
+                
+                <h3 id="secretary-interface">Interface Secrétariat</h3>
+                <ul>
+                    <li>Vue des sessions en attente de vérification</li>
+                    <li>Possibilité de filtrer par enseignant, date, statut</li>
+                    <li>Formulaires de vérification des informations</li>
+                    <li>Gestion du statut "payé" des sessions validées</li>
+                </ul>
+                
+                <h3 id="principal-interface">Interface Direction (Principal)</h3>
+                <ul>
+                    <li>Vue d'ensemble des sessions à valider</li>
+                    <li>Statistiques de validation</li>
+                    <li>Historique des actions récentes</li>
+                    <li>Suivi des contrats des enseignants</li>
+                </ul>
+                
+                <h3 id="admin-interface">Interface Administrateur</h3>
+                <ul>
+                    <li>Gestion des utilisateurs (création, modification)</li>
+                    <li>Import CSV depuis PRONOTE</li>
+                    <li>Configuration des paramètres système</li>
+                    <li>Pas d'accès à la validation des sessions (séparation des responsabilités)</li>
+                </ul>
+            </section>
+            
+            <section id="special-features" class="section">
+                <h2>5. Particularités Importantes</h2>
+                
+                <h3>Système de Couleurs</h3>
+                <ul>
+                    <li>Niveaux de classe: 6ème (vert), 5ème (bleu), 4ème (violet), 3ème (rouge)</li>
+                    <li>Statuts: Validé (vert), En attente (ambre), Rejeté (rouge), Payé (violet)</li>
+                </ul>
+                
+                <h3>Sécurité</h3>
+                <ul>
+                    <li>Les enseignants ne peuvent modifier que leurs propres sessions</li>
+                    <li>Restriction temporelle pour les modifications (configurable)</li>
+                    <li>Séparation stricte des responsabilités entre administrateur et principal</li>
+                </ul>
+                
+                <h3>Accessibilité</h3>
+                <ul>
+                    <li>Interface responsive (mobile-first)</li>
+                    <li>Version française uniquement</li>
+                    <li>Optimisation pour différents appareils</li>
+                </ul>
+                
+                <h3>Workflow Opérationnel</h3>
+                <ol>
+                    <li>Les enseignants créent des sessions</li>
+                    <li>Le secrétariat vérifie les informations</li>
+                    <li>La direction valide ou rejette</li>
+                    <li>Le secrétariat gère les paiements</li>
+                    <li>Les administrateurs gèrent les utilisateurs et la configuration</li>
+                </ol>
+                
+                <h3>Types de Sessions pour les Enseignants</h3>
+                <ul>
+                    <li><strong>RCD</strong>: Remplacement de Courte Durée</li>
+                    <li><strong>Devoirs Faits</strong>: Accompagnement pour les devoirs</li>
+                    <li><strong>Autre</strong>: Activités spécifiques</li>
+                </ul>
+                <p><em>Note: Les sessions HSE existent dans la base de données mais ne sont pas exposées directement aux enseignants dans l'interface utilisateur.</em></p>
+            </section>
+            
+            <section id="roles" class="section">
+                <h2>6. Rôles et Permissions</h2>
+                
+                <h3><span class="role-tag teacher">TEACHER</span> Enseignant</h3>
+                <ul>
+                    <li><strong>Permissions</strong>: Créer, consulter, modifier et supprimer ses propres sessions (dans la limite de temps configurée)</li>
+                    <li><strong>Restrictions</strong>: Ne peut pas voir les sessions des autres enseignants, ne peut pas créer de sessions HSE directement</li>
+                </ul>
+                
+                <h3><span class="role-tag secretary">SECRETARY</span> Secrétariat</h3>
+                <ul>
+                    <li><strong>Permissions</strong>: Consulter toutes les sessions, vérifier celles en attente, marquer comme payées</li>
+                    <li><strong>Restrictions</strong>: Ne peut pas valider définitivement une session (privilège du Principal)</li>
+                </ul>
+                
+                <h3><span class="role-tag principal">PRINCIPAL</span> Direction</h3>
+                <ul>
+                    <li><strong>Permissions</strong>: Consulter toutes les sessions, valider ou rejeter les sessions en attente, consulter les statistiques</li>
+                    <li><strong>Restrictions</strong>: N'a pas accès à la gestion des utilisateurs (réservé à l'Admin)</li>
+                </ul>
+                
+                <h3><span class="role-tag admin">ADMIN</span> Administrateur</h3>
+                <ul>
+                    <li><strong>Permissions</strong>: Gérer les utilisateurs, importer des données, configurer les paramètres système</li>
+                    <li><strong>Restrictions</strong>: Ne peut pas valider de sessions (séparation des responsabilités)</li>
+                </ul>
+            </section>
+            
+            <section id="session-lifecycle" class="section">
+                <h2>7. Cycle de Vie des Sessions</h2>
+                
+                <h3>Types de Sessions</h3>
+                <ul>
+                    <li><strong>RCD</strong>: Remplacement d'un enseignant absent (date, créneau, classe, enseignant remplacé)</li>
+                    <li><strong>Devoirs Faits</strong>: Accompagnement des élèves pour les devoirs (date, créneau, niveau, nombre d'élèves)</li>
+                    <li><strong>Autre</strong>: Activités spécifiques hors RCD et Devoirs Faits (date, créneau, description)</li>
+                    <li><strong>HSE</strong>: Présent dans le système mais non exposé directement aux enseignants</li>
+                </ul>
+                
+                <h3>Statuts de Session</h3>
+                <ul>
+                    <li><code>PENDING_REVIEW</code>: Session créée par l'enseignant, en attente de vérification</li>
+                    <li><code>PENDING_VALIDATION</code>: Vérifiée par le secrétariat, en attente de validation finale</li>
+                    <li><code>VALIDATED</code>: Approuvée par le principal</li>
+                    <li><code>REJECTED</code>: Refusée (par le secrétariat ou le principal)</li>
+                    <li><code>PAID</code>: Session validée qui a été payée</li>
+                </ul>
+                
+                <pre>
+CRÉATION → PENDING_REVIEW → PENDING_VALIDATION → VALIDATED → PAID
+                ↓                    ↓
+              REJECTED           REJECTED
+                </pre>
+            </section>
+            
+            <section id="demo-mode" class="section">
+                <h2>8. Mode Démo et Sélecteur de Rôle</h2>
+                
+                <p>Le mode démo permet de tester facilement toutes les interfaces utilisateur sans avoir à se déconnecter et se reconnecter avec différents comptes.</p>
+                
+                <h3>Fonctionnement</h3>
+                <ul>
+                    <li>Route dédiée <code>/role-select</code> pour choisir le rôle à simuler</li>
+                    <li>Le rôle sélectionné est stocké dans l'URL comme paramètre (ex: <code>/?role=principal</code>)</li>
+                    <li>Bouton persistant "Changer de rôle" affiché dans le coin supérieur droit</li>
+                </ul>
+                
+                <h3>Points importants</h3>
+                <ul>
+                    <li>Le mode démo change uniquement l'interface affichée mais ne modifie pas les permissions réelles</li>
+                    <li>Pour les opérations sensibles, des contrôles d'autorisation sont toujours effectués côté serveur</li>
+                    <li>C'est principalement un outil de visualisation et non un moyen de contourner les restrictions de sécurité</li>
+                </ul>
+            </section>
+            
+            <div class="footer">
+                Documentation générée le 15 avril 2025 - Système de gestion des heures d'enseignement
+            </div>
+        </div>
+    </div>
+</body>
+</html>

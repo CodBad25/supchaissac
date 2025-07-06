@@ -1,0 +1,57 @@
+
+{
+  "version": "1.4.0",
+  "date": "2025-03-21",
+  "time": "16:30",
+  "files": [
+    {
+      "path": "src/components/AddReplacement.jsx",
+      "backupPath": "src/components/backup/AddReplacement.stable.2025-03-21-16h30.jsx",
+      "lastModified": "2025-03-21T16:30:00",
+      "features": [
+        "multiple-slots",
+        "different-classes-per-slot",
+        "colored-class-badges",
+        "uppercase-names",
+        "improved-calendar"
+      ]
+    }
+  ],
+  "criticalFeatures": [
+    "multiple-slot-selection",
+    "per-slot-classes",
+    "colored-badges",
+    "layout-optimization",
+    "calendar-improvements"
+  ],
+  "colorSchemes": {
+    "classes": {
+      "6eme": "blue-600",
+      "5eme": "green-600",
+      "4eme": "yellow-600",
+      "3eme": "red-600"
+    },
+    "subjects": {
+      "sciences": "blue-600",
+      "languages": "green-600",
+      "humanities": "purple-600",
+      "arts": "orange-600"
+    }
+  },
+  "layoutSpecs": {
+    "header": {
+      "gender": "w-32",
+      "teacher": "flex-1",
+      "date": "w-64"
+    },
+    "slots": {
+      "height": "h-16",
+      "grid": "grid-cols-4",
+      "gap": "gap-2"
+    },
+    "subject-comment": {
+      "grid": "grid-cols-2",
+      "gap": "gap-4"
+    }
+  }
+}

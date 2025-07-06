@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: supchaissac-postgres
+    environment:
+      POSTGRES_DB: supchaissac
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C --auth-host=md5"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d supchaissac"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Optionnel: Interface d'administration de base de données
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: supchaissac-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@supchaissac.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    profiles:
+      - admin
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local

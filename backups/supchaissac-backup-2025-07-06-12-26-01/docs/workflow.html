@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow - Gestion des Heures Supplémentaires</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    h1, h2, h3, h4 {
+      margin-top: 1.5em;
+      margin-bottom: 0.5em;
+      color: #111;
+    }
+    h1 { font-size: 2.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+    h2 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+    h3 { font-size: 1.5em; }
+    p, ul, ol { margin: 1em 0; }
+    ul, ol { padding-left: 2em; }
+    li { margin: 0.5em 0; }
+    code {
+      background: #f5f5f5;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 1em;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    a { color: #0366d6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    hr { border: 0; border-top: 1px solid #eee; margin: 2em 0; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+    }
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+    th, td {
+      padding: 0.5em;
+      text-align: left;
+    }
+    th {
+      background-color: #f5f5f5;
+    }
+    .workflow-diagram {
+      width: 100%;
+      max-width: 800px;
+      margin: 2em auto;
+      display: block;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .status {
+      display: inline-block;
+      padding: 0.25em 0.5em;
+      border-radius: 0.25em;
+      font-size: 0.875em;
+      font-weight: 500;
+    }
+    .status-submitted { background-color: #e9ecef; color: #495057; }
+    .status-incomplete { background-color: #fff3cd; color: #856404; }
+    .status-reviewed { background-color: #cce5ff; color: #004085; }
+    .status-validated { background-color: #d4edda; color: #155724; }
+    .status-ready { background-color: #d1e7dd; color: #0f5132; }
+    .status-paid { background-color: #e0cffc; color: #5a23c8; }
+    .status-rejected { background-color: #f8d7da; color: #721c24; }
+    
+    .session-type {
+      display: inline-block;
+      padding: 0.25em 0.5em;
+      border-radius: 0.25em;
+      font-size: 0.875em;
+      font-weight: 500;
+    }
+    .type-rcd { background-color: #cfe2ff; color: #084298; }
+    .type-devoirs-faits { background-color: #fff3cd; color: #664d03; }
+    .type-hse { background-color: #d1e7dd; color: #0f5132; }
+    .type-autre { background-color: #e2e3e5; color: #41464b; }
+    
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem;
+      }
+      h1 { font-size: 2em; }
+      h2 { font-size: 1.5em; }
+      h3 { font-size: 1.25em; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Gestion des Heures Supplémentaires</h1>
+  <p>Cette application permet de gérer les heures supplémentaires des enseignants dans un établissement scolaire. Elle facilite le processus de déclaration, validation et mise en paiement des différents types d'heures supplémentaires.</p>
+
+  <h2>Types de séances</h2>
+  <p>L'application gère plusieurs types de séances :</p>
+  <ul>
+    <li><span class="session-type type-rcd">RCD</span> - Remplacement de Courte Durée : remplacement d'un enseignant absent pour une durée limitée.</li>
+    <li><span class="session-type type-devoirs-faits">Devoirs Faits</span> - Accompagnement des élèves pour l'aide aux devoirs.</li>
+    <li><span class="session-type type-hse">HSE</span> - Heures Supplémentaires Effectives : heures supplémentaires classiques.</li>
+    <li><span class="session-type type-autre">Autre</span> - Autres types d'activités (réunions, sorties pédagogiques, etc.).</li>
+  </ul>
+
+  <h2>Workflow de validation</h2>
+  <p>Le processus de validation des heures supplémentaires suit un workflow précis :</p>
+
+  <ol>
+    <li><span class="status status-submitted">Soumise</span> - L'enseignant crée et soumet une séance.</li>
+    <li><span class="status status-incomplete">Incomplète</span> - Le secrétariat ou la direction peut marquer une séance comme incomplète si des informations sont manquantes.</li>
+    <li><span class="status status-reviewed">Vérifiée</span> - Le secrétariat vérifie les informations et marque la séance comme vérifiée.</li>
+    <li><span class="status status-validated">Validée</span> - La direction valide la séance. À ce stade, le type de séance peut être modifié si nécessaire.</li>
+    <li><span class="status status-ready">Prête pour paiement</span> - La séance est prête à être saisie dans le système de paie.</li>
+    <li><span class="status status-paid">Payée</span> - La séance a été mise en paiement.</li>
+  </ol>
+  
+  <p>Une séance peut également être <span class="status status-rejected">Refusée</span> à n'importe quelle étape du processus.</p>
+
+  <h2>Rôles des utilisateurs</h2>
+  <p>L'application distingue plusieurs rôles d'utilisateurs :</p>
+  
+  <h3>Enseignant</h3>
+  <p>Les enseignants peuvent :</p>
+  <ul>
+    <li>Créer de nouvelles séances</li>
+    <li>Modifier ou supprimer leurs séances en statut "Soumise" ou "Incomplète"</li>
+    <li>Consulter l'historique de leurs séances</li>
+    <li>Indiquer leur participation au pacte</li>
+    <li>Gérer leur signature électronique</li>
+  </ul>
+
+  <h3>Secrétariat</h3>
+  <p>Le secrétariat peut :</p>
+  <ul>
+    <li>Consulter toutes les séances</li>
+    <li>Vérifier les séances soumises</li>
+    <li>Marquer les séances comme "Incomplètes" ou "Vérifiées"</li>
+    <li>Marquer les séances comme "Prêtes pour paiement" après validation par la direction</li>
+    <li>Marquer les séances comme "Payées" une fois saisies dans le système de paie</li>
+    <li>Générer des exports pour la saisie dans le système de paie</li>
+  </ul>
+
+  <h3>Direction</h3>
+  <p>La direction peut :</p>
+  <ul>
+    <li>Consulter toutes les séances</li>
+    <li>Valider ou refuser les séances</li>
+    <li>Modifier le type d'une séance lors de la validation</li>
+    <li>Consulter des statistiques et rapports</li>
+  </ul>
+
+  <h3>Administrateur</h3>
+  <p>L'administrateur peut :</p>
+  <ul>
+    <li>Gérer les comptes utilisateurs</li>
+    <li>Configurer les paramètres système</li>
+    <li>Consulter les journaux d'activité</li>
+  </ul>
+
+  <h2>Fonctionnalités principales</h2>
+  
+  <h3>Calendrier</h3>
+  <p>Le calendrier permet de visualiser les séances sur une semaine. Les enseignants peuvent cliquer sur un créneau pour créer une nouvelle séance.</p>
+  
+  <h3>Formulaires spécifiques</h3>
+  <p>Chaque type de séance a un formulaire spécifique avec les champs appropriés :</p>
+  <ul>
+    <li><strong>RCD</strong> : classe, enseignant remplacé</li>
+    <li><strong>Devoirs Faits</strong> : niveau, nombre d'élèves</li>
+    <li><strong>Autre</strong> : description de l'activité</li>
+  </ul>
+  
+  <h3>Signature électronique</h3>
+  <p>Les enseignants peuvent enregistrer leur signature électronique qui sera utilisée sur les documents officiels.</p>
+  
+  <h3>Exports</h3>
+  <p>L'application permet d'exporter les données sous différents formats :</p>
+  <ul>
+    <li>Export PDF pour les documents officiels</li>
+    <li>Export Excel pour le traitement des données</li>
+  </ul>
+
+  <h2>Pacte enseignant</h2>
+  <p>L'application prend en compte le statut "pacte" des enseignants. Les heures effectuées dans le cadre du pacte sont comptabilisées séparément.</p>
+
+  <hr>
+  
+  <p>Pour une documentation plus détaillée, vous pouvez <a href="/download-documentation">télécharger la documentation complète</a>.</p>
+</body>
+</html>
