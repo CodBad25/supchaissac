@@ -1,8 +1,29 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { registerRoutes } from "./routes.js";
+import { serveStatic } from "./static.js";
 
 const app = express();
+
+export function log(message: string, source = "express") {
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  console.log(`${formattedTime} [${source}] ${message}`);
+}
+
+// 🛡️ Headers de sécurité
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -36,7 +57,8 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
+// Initialisation pour Vercel et développement local
+async function initializeApp() {
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -50,20 +72,42 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  const isVercel = process.env.VERCEL === "1" || !!process.env.NOW_REGION;
+  const isDev = !isVercel && process.env.NODE_ENV !== "production";
+
+  if (isDev) {
+    // Dynamic import to avoid loading Vite in production
+    const { setupVite } = await import("./vite.js");
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-  }, () => {
-    log(`serving on port ${port}`);
-  });
-})();
+  return server;
+}
+
+// Pour Vercel, on exporte l'app directement
+export default app;
+
+// Pour le développement local
+if (process.env.NODE_ENV !== 'production') {
+  (async () => {
+    const server = await initializeApp();
+
+    // ALWAYS serve the app on port 5000
+    // this serves both the API and the client.
+    // It is the only port that is not firewalled.
+    const port = 5000;
+    server.listen({
+      port,
+      host: "0.0.0.0",
+    }, () => {
+      log(`serving on port ${port}`);
+    });
+  })();
+} else {
+  // En production (Vercel), on initialise juste les routes
+  initializeApp();
+}
+
+
