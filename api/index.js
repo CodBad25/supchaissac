@@ -1,72 +1,58 @@
-// Vercel serverless function wrapper
-import express from 'express';
-import cors from 'cors';
-import session from 'express-session';
-import passport from 'passport';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+// Vercel serverless function wrapper - Version ultra-simple
+import postgres from 'postgres';
 
-// Import routes and auth
-import { setupAuth } from '../dist/server/auth.js';
-import { createRoutes } from '../dist/server/routes.js';
+export default async function handler(req, res) {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Create Express app for Vercel
-const app = express();
-
-// CORS configuration
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
-}));
-
-// Basic middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Session configuration for Vercel
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'vercel-dev-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
   }
-}));
 
-// Initialize Passport
-app.use(passport.initialize());
-app.use(passport.session());
+  try {
+    // Health check avec test DB
+    if (req.url === '/api/health') {
+      let dbStatus = 'unknown';
 
-// Setup authentication
-setupAuth();
+      try {
+        if (process.env.DATABASE_URL) {
+          const sql = postgres(process.env.DATABASE_URL, { max: 1 });
+          await sql`SELECT 1`;
+          await sql.end();
+          dbStatus = 'connected';
+        }
+      } catch (dbError) {
+        dbStatus = 'error: ' + dbError.message;
+      }
 
-// Setup routes
-createRoutes(app);
+      res.status(200).json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'production',
+        auth_mode: process.env.AUTH_MODE || 'PRODUCTION',
+        database: dbStatus,
+        url: req.url
+      });
+      return;
+    }
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
+    // Pour les autres routes, retourner une erreur temporaire
+    res.status(503).json({
+      error: 'Service temporarily unavailable',
+      message: 'API routes are being configured',
+      url: req.url,
+      method: req.method
+    });
 
-// Error handling
-app.use((error, req, res, next) => {
-  console.error('Vercel API Error:', error);
-  res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
-  });
-});
-
-// Export for Vercel
-export default app;
+  } catch (error) {
+    console.error('Vercel handler error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+}
