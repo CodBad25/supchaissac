@@ -3,8 +3,8 @@ services:
     name: supchaissac
     env: node
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: npm install
+    startCommand: node server-render.js
     envVars:
       - key: NODE_ENV
         value: production

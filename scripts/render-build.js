@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 // Script de build optimisé pour Render
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 console.log('🚀 Build SupChaissac pour Render...');
 
@@ -19,9 +19,22 @@ try {
   // 3. Copier les fichiers nécessaires
   console.log('📁 Copie des fichiers...');
   
-  // Copier shared/
+  // Copier shared/ (compatible Windows/Linux)
   if (fs.existsSync('shared')) {
-    execSync('cp -r shared dist/', { stdio: 'inherit' });
+    const copyRecursive = (src, dest) => {
+      if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+      const entries = fs.readdirSync(src, { withFileTypes: true });
+      for (const entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+        if (entry.isDirectory()) {
+          copyRecursive(srcPath, destPath);
+        } else {
+          fs.copyFileSync(srcPath, destPath);
+        }
+      }
+    };
+    copyRecursive('shared', 'dist/shared');
   }
   
   // Créer package.json pour production
