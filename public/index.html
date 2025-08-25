@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SupChaissac API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .endpoint {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.ok { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 SupChaissac API</h1>
+        <p>API de gestion des heures supplémentaires pour l'établissement Chaissac.</p>
+        
+        <h2>📡 Endpoints Disponibles</h2>
+        
+        <div class="endpoint">
+            <h3>GET /api/health</h3>
+            <p>Vérification de l'état de l'API</p>
+            <button onclick="testEndpoint('/api/health')">Tester</button>
+            <div id="health-result"></div>
+        </div>
+        
+        <div class="endpoint">
+            <h3>GET /api/user</h3>
+            <p>Endpoint utilisateur (test)</p>
+            <button onclick="testEndpoint('/api/user')">Tester</button>
+            <div id="user-result"></div>
+        </div>
+        
+        <div class="endpoint">
+            <h3>POST /api/login</h3>
+            <p>Endpoint de connexion (test)</p>
+            <button onclick="testLogin()">Tester</button>
+            <div id="login-result"></div>
+        </div>
+        
+        <h2>📊 Statut</h2>
+        <div id="status">
+            <span class="status" id="api-status">Vérification...</span>
+        </div>
+    </div>
+
+    <script>
+        async function testEndpoint(url) {
+            const resultDiv = document.getElementById(url.replace('/api/', '') + '-result');
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="status error">Erreur: ${error.message}</span>`;
+            }
+        }
+        
+        async function testLogin() {
+            const resultDiv = document.getElementById('login-result');
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'test', password: 'test' })
+                });
+                const data = await response.json();
+                resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="status error">Erreur: ${error.message}</span>`;
+            }
+        }
+        
+        // Test automatique au chargement
+        window.onload = async function() {
+            try {
+                const response = await fetch('/api/health');
+                const statusElement = document.getElementById('api-status');
+                if (response.ok) {
+                    statusElement.textContent = 'API Opérationnelle';
+                    statusElement.className = 'status ok';
+                } else {
+                    statusElement.textContent = 'API Indisponible';
+                    statusElement.className = 'status error';
+                }
+            } catch (error) {
+                const statusElement = document.getElementById('api-status');
+                statusElement.textContent = 'Erreur de connexion';
+                statusElement.className = 'status error';
+            }
+        };
+    </script>
+</body>
+</html>
