@@ -1,0 +1,64 @@
+# Fichiers à ignorer lors du déploiement Vercel
+
+# Développement
+node_modules/
+.env.local
+.env.development
+*.log
+
+# Base de données locale
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Fichiers temporaires
+tmp/
+uploads/
+backups/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Scripts de développement
+scripts/
+*.bat
+*.sh
+
+# Configuration locale
+docker-compose*.yml
+tsconfig*.json
+vite.config.ts
+tailwind.config.ts
+postcss.config.js
+
+# Anciennes versions
+ANCIENNES-VERSIONS-*
+DEPLOIEMENT-*
+refonte_supchaissac/
+
+# Captures d'écran
+*.png
+*.jpg
+*.jpeg
+
+# Fichiers de test
+test-*
+exemple-*
+*.csv
+
+# Dossiers de build (sauf dist)
+client/dist/
+server/dist/
+
+# Fichiers TypeScript source (on garde seulement le JS compilé)
+server/*.ts
+!server/index.js
+shared/*.ts
+client/src/
+
+# Configuration spécifique
+render.yaml
+docker-compose.yml
