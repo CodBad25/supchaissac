@@ -14,6 +14,10 @@ export default defineConfig({
     },
   },
   root: './client', // Définir le répertoire racine comme client
+  build: {
+    outDir: '../dist/public',
+    emptyOutDir: true,
+  },
   server: {
     port: 5000, // Utiliser le port 5000
     proxy: {
