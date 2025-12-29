@@ -1,0 +1,150 @@
+import 'dotenv/config'
+import passport from 'passport'
+import { Strategy as LocalStrategy } from 'passport-local'
+import { Express } from 'express'
+import session from 'express-session'
+import bcrypt from 'bcrypt'
+import { db } from '../../src/lib/db'
+import { users } from '../../src/lib/schema'
+import { eq } from 'drizzle-orm'
+
+// Types pour TypeScript
+declare global {
+  namespace Express {
+    interface User {
+      id: number
+      username: string
+      name: string
+      role: 'TEACHER' | 'SECRETARY' | 'PRINCIPAL' | 'ADMIN'
+      initials: string | null
+      inPacte: boolean
+    }
+  }
+}
+
+// Configuration authentification
+export function setupAuth(app: Express) {
+  console.log('🔐 Configuration de l\'authentification...')
+
+  // Configuration des sessions
+  const sessionConfig: session.SessionOptions = {
+    secret: process.env.SESSION_SECRET || 'dev-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 24 * 60 * 60 * 1000, // 24 heures
+      secure: process.env.NODE_ENV === 'production', // HTTPS en production
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      httpOnly: true
+    }
+  }
+
+  app.use(session(sessionConfig))
+  app.use(passport.initialize())
+  app.use(passport.session())
+
+  // Stratégie locale Passport
+  passport.use(
+    new LocalStrategy(
+      {
+        usernameField: 'username',
+        passwordField: 'password'
+      },
+      async (username, password, done) => {
+        try {
+          console.log(`🔐 [AUTH] Tentative de connexion: ${username}`)
+
+          // Rechercher l'utilisateur
+          const userResult = await db
+            .select()
+            .from(users)
+            .where(eq(users.username, username))
+            .limit(1)
+
+          if (userResult.length === 0) {
+            console.log(`❌ [AUTH] Utilisateur non trouvé: ${username}`)
+            return done(null, false)
+          }
+
+          const user = userResult[0]
+          console.log(`👤 [AUTH] Utilisateur trouvé: ${user.name} (${user.role})`)
+
+          // Vérifier le mot de passe
+          const isPasswordValid = await bcrypt.compare(password, user.password)
+
+          if (isPasswordValid) {
+            console.log(`✅ [AUTH] Connexion réussie: ${user.name} (${user.role})`)
+            
+            // Retourner l'utilisateur sans le mot de passe
+            const safeUser = {
+              id: user.id,
+              username: user.username,
+              name: user.name,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              civilite: user.civilite,
+              subject: user.subject,
+              role: user.role,
+              initials: user.initials,
+              inPacte: user.inPacte
+            }
+
+            return done(null, safeUser)
+          } else {
+            console.log(`❌ [AUTH] Mot de passe incorrect: ${username}`)
+            return done(null, false)
+          }
+        } catch (error) {
+          console.error('❌ [AUTH] Erreur authentification:', error)
+          return done(error)
+        }
+      }
+    )
+  )
+
+  // Sérialisation utilisateur
+  passport.serializeUser((user, done) => {
+    console.log(`🔄 Sérialisation utilisateur: ${user.id} ${user.username}`)
+    done(null, user.id)
+  })
+
+  // Désérialisation utilisateur
+  passport.deserializeUser(async (id: number, done) => {
+    try {
+      console.log(`🔄 Désérialisation utilisateur ID: ${id}`)
+      
+      const userResult = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1)
+
+      if (userResult.length === 0) {
+        console.log(`❌ Utilisateur non trouvé pour ID: ${id}`)
+        return done(null, false)
+      }
+
+      const user = userResult[0]
+      const safeUser = {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        civilite: user.civilite,
+        subject: user.subject,
+        role: user.role,
+        initials: user.initials,
+        inPacte: user.inPacte
+      }
+
+      console.log(`✅ Utilisateur désérialisé: ${user.username}`)
+      done(null, safeUser)
+    } catch (error) {
+      console.error('❌ Erreur désérialisation:', error)
+      done(null, false)
+    }
+  })
+
+  console.log('✅ Authentification configurée')
+}
