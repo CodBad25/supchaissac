@@ -132,7 +132,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({ sessions, onCreateSession
     const blocked = isBlockedDate(currentDate);
 
     return (
-      <div className="h-full flex flex-col bg-gray-50 overflow-x-hidden w-full">
+      <div className="h-full flex flex-col bg-gray-50 overflow-x-hidden w-full" data-tour="calendar">
         {/* Header Navigation */}
         <div className="bg-white border-b sticky top-0 z-10">
           <div className="flex items-center justify-between px-3 py-2">

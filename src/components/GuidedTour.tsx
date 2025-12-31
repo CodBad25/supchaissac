@@ -25,6 +25,9 @@ interface TargetRect {
   height: number;
 }
 
+// Check if we're on mobile
+const isMobile = () => window.innerWidth < 768;
+
 export default function GuidedTour({ tourId, steps, onComplete }: GuidedTourProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
@@ -41,15 +44,19 @@ export default function GuidedTour({ tourId, steps, onComplete }: GuidedTourProp
     const element = document.querySelector(step.target);
     if (element) {
       const rect = element.getBoundingClientRect();
+      // Use viewport-relative coordinates (fixed positioning)
       setTargetRect({
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: rect.top,
+        left: rect.left,
         width: rect.width,
         height: rect.height,
       });
 
-      // Scroll element into view if needed
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Scroll element into view if needed (only if not fully visible)
+      const isFullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+      if (!isFullyVisible) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     } else {
       setTargetRect(null);
     }
@@ -119,18 +126,22 @@ export default function GuidedTour({ tourId, steps, onComplete }: GuidedTourProp
 
   // Calculate tooltip position with viewport boundary checking
   const getTooltipStyle = (): React.CSSProperties => {
+    const mobile = isMobile();
+    const padding = mobile ? 12 : 16;
+    const tooltipWidth = mobile ? Math.min(280, window.innerWidth - padding * 2) : 320;
+    const tooltipHeight = 200; // Approximate height
+
     if (!targetRect) {
       return {
         position: 'fixed',
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
+        width: tooltipWidth,
+        maxWidth: `calc(100vw - ${padding * 2}px)`,
       };
     }
 
-    const padding = 16;
-    const tooltipWidth = 320;
-    const tooltipHeight = 200; // Approximate height
     const position = step.position || 'bottom';
 
     // Calculate safe left position (always within viewport)
@@ -145,56 +156,88 @@ export default function GuidedTour({ tourId, steps, onComplete }: GuidedTourProp
       window.innerHeight - tooltipHeight - padding
     );
 
+    // On mobile, prefer bottom position and use fixed positioning
+    const baseStyle: React.CSSProperties = {
+      position: 'fixed',
+      width: tooltipWidth,
+      maxWidth: `calc(100vw - ${padding * 2}px)`,
+    };
+
+    // On mobile, always position below if there's space, otherwise above
+    if (mobile) {
+      const spaceBelow = window.innerHeight - (targetRect.top + targetRect.height);
+      const spaceAbove = targetRect.top;
+
+      if (spaceBelow >= tooltipHeight + padding) {
+        return {
+          ...baseStyle,
+          top: targetRect.top + targetRect.height + padding,
+          left: safeLeft,
+        };
+      } else if (spaceAbove >= tooltipHeight + padding) {
+        return {
+          ...baseStyle,
+          top: targetRect.top - tooltipHeight - padding,
+          left: safeLeft,
+        };
+      } else {
+        // Not enough space above or below, center in viewport
+        return {
+          ...baseStyle,
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+        };
+      }
+    }
+
+    // Desktop positioning
     switch (position) {
       case 'top':
         return {
-          position: 'absolute',
+          ...baseStyle,
           top: Math.max(padding, targetRect.top - padding - 8 - tooltipHeight),
           left: safeLeft,
         };
       case 'bottom':
         return {
-          position: 'absolute',
+          ...baseStyle,
           top: targetRect.top + targetRect.height + padding,
           left: safeLeft,
         };
       case 'left': {
-        // Check if there's enough space on the left
         const leftSpace = targetRect.left - padding;
         if (leftSpace >= tooltipWidth) {
           return {
-            position: 'absolute',
+            ...baseStyle,
             top: safeTop,
             left: targetRect.left - padding - tooltipWidth,
           };
         }
-        // Fall back to bottom if not enough space
         return {
-          position: 'absolute',
+          ...baseStyle,
           top: targetRect.top + targetRect.height + padding,
           left: safeLeft,
         };
       }
       case 'right': {
-        // Check if there's enough space on the right
         const rightSpace = window.innerWidth - (targetRect.left + targetRect.width) - padding;
         if (rightSpace >= tooltipWidth) {
           return {
-            position: 'absolute',
+            ...baseStyle,
             top: safeTop,
             left: targetRect.left + targetRect.width + padding,
           };
         }
-        // Fall back to bottom if not enough space
         return {
-          position: 'absolute',
+          ...baseStyle,
           top: targetRect.top + targetRect.height + padding,
           left: safeLeft,
         };
       }
       default:
         return {
-          position: 'absolute',
+          ...baseStyle,
           top: targetRect.top + targetRect.height + padding,
           left: safeLeft,
         };
@@ -277,7 +320,7 @@ export default function GuidedTour({ tourId, steps, onComplete }: GuidedTourProp
               ease: 'easeInOut',
             }
           }}
-          className="absolute pointer-events-none"
+          className="fixed pointer-events-none"
           style={{
             top: spotlightRect.top,
             left: spotlightRect.left,
@@ -298,7 +341,7 @@ export default function GuidedTour({ tourId, steps, onComplete }: GuidedTourProp
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
           style={getTooltipStyle()}
-          className="w-80 bg-white rounded-2xl shadow-2xl overflow-hidden z-10"
+          className="bg-white rounded-2xl shadow-2xl overflow-hidden z-10"
         >
           {/* Header */}
           <div className="bg-gradient-to-r from-yellow-400 to-amber-500 px-4 py-3 flex items-center justify-between">
