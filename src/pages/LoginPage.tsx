@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Shield, ArrowRight, Info, User, Lock, Plus } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import Onboarding, { shouldShowOnboarding } from '../components/Onboarding';
 
 interface TestAccount {
   id: string;
@@ -77,6 +78,7 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showTestAccounts, setShowTestAccounts] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(shouldShowOnboarding());
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,6 +127,11 @@ const LoginPage: React.FC = () => {
     setEmail(account.email);
     setPassword('password123');
   };
+
+  // Show onboarding on first visit
+  if (showOnboarding) {
+    return <Onboarding onComplete={() => setShowOnboarding(false)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-yellow-50 flex items-center justify-center p-4 relative overflow-hidden w-full max-w-full">

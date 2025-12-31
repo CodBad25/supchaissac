@@ -5,10 +5,61 @@ import {
   Download, CheckCircle, Eye, AlertCircle,
   Paperclip, Send, Clock3, Home, ClipboardCheck,
   CreditCard, History, X, CheckSquare, Square,
-  Users, UserCheck, UserX, Edit2, TrendingUp
+  Users, UserCheck, UserX, Edit2, TrendingUp, HelpCircle
 } from 'lucide-react';
 import { Switch } from '../components/ui/switch';
 import { API_BASE_URL } from '../config/api';
+import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
+import type { TourStep } from '../components/GuidedTour';
+
+// Steps du tour guidé pour le secrétariat
+const secretaryTourSteps: TourStep[] = [
+  {
+    target: '[data-tour="sessions-tab"]',
+    title: 'Onglet Sessions',
+    description: 'Accédez à toutes les sessions déclarées par les enseignants.',
+    position: 'bottom',
+    clickBefore: '[data-tour="sessions-tab"]',
+  },
+  {
+    target: '[data-tour="pending-filter"]',
+    title: 'Sessions à examiner',
+    description: 'Sessions en attente de vérification. Vérifiez les informations et pièces jointes avant de transmettre.',
+    position: 'bottom',
+  },
+  {
+    target: '[data-tour="to-pay-filter"]',
+    title: 'Mise en paiement',
+    description: 'Une fois validées par la direction, mettez les sessions en paiement ici.',
+    position: 'bottom',
+  },
+  {
+    target: '[data-tour="teachers-tab"]',
+    title: 'Onglet Enseignants',
+    description: 'Consultez la liste des enseignants et leur activité.',
+    position: 'bottom',
+    clickBefore: '[data-tour="teachers-tab"]',
+  },
+  {
+    target: '[data-tour="pacte-toggle"]',
+    title: 'Changer le statut PACTE',
+    description: 'Cliquez sur ce bouton pour basculer un enseignant en PACTE ou hors PACTE.',
+    position: 'right',
+  },
+  {
+    target: '[data-tour="contrats-tab"]',
+    title: 'Onglet Contrats PACTE',
+    description: 'Gérez les heures prévues au contrat de chaque enseignant.',
+    position: 'bottom',
+    clickBefore: '[data-tour="contrats-tab"]',
+  },
+  {
+    target: '[data-tour="edit-contrat"]',
+    title: 'Modifier un contrat',
+    description: 'Cliquez sur le crayon ✏️ pour configurer les heures DF et RCD.',
+    position: 'left',
+  },
+];
 
 // Types
 interface Session {
@@ -92,6 +143,9 @@ export default function SecretaryDashboard() {
   // Sessions state
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Tour guidé
+  const [showTour, setShowTour] = useState(shouldShowTour('secretary'));
 
   // UI state
   const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'teachers' | 'contrats'>('sessions');
@@ -688,8 +742,15 @@ export default function SecretaryDashboard() {
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-              <p className="text-xs text-gray-500">Secretaire</p>
+              <p className="text-xs text-gray-500">Secrétaire</p>
             </div>
+            <button
+              onClick={() => setShowTour(true)}
+              className="p-2 text-gray-400 hover:text-amber-500 transition-colors"
+              title="Aide / Tutoriel"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
             <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
               <LogOut className="w-5 h-5" />
             </button>
@@ -708,6 +769,7 @@ export default function SecretaryDashboard() {
           ].map(tab => (
             <button
               key={tab.id}
+              data-tour={tab.id === 'sessions' ? 'sessions-tab' : tab.id === 'teachers' ? 'teachers-tab' : tab.id === 'contrats' ? 'contrats-tab' : undefined}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.id
@@ -847,7 +909,7 @@ export default function SecretaryDashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredTeachers.map(teacher => {
+                {filteredTeachers.map((teacher, index) => {
                   const validationRate = teacher.stats.currentYearSessions > 0
                     ? (teacher.stats.validatedSessions / teacher.stats.currentYearSessions) * 100
                     : 0;
@@ -884,6 +946,7 @@ export default function SecretaryDashboard() {
 
                       {/* Bouton Toggle PACTE */}
                       <button
+                        data-tour={index === 0 ? 'pacte-toggle' : undefined}
                         onClick={() => updateTeacherPacte(teacher.id, !teacher.inPacte, teacher.inPacte ? 0 : 18)}
                         className={`w-full py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
                           teacher.inPacte
@@ -1045,7 +1108,7 @@ export default function SecretaryDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {filteredTeachers.map(teacher => {
+                      {filteredTeachers.map((teacher, idx) => {
                         const totalContrat = (teacher.pacteHoursDF || 0) + (teacher.pacteHoursRCD || 0);
                         // Heures réalisées = heures saisies manuellement + sessions de l'app
                         const manualCompleted = (teacher.pacteHoursCompletedDF || 0) + (teacher.pacteHoursCompletedRCD || 0);
@@ -1118,6 +1181,7 @@ export default function SecretaryDashboard() {
                             </td>
                             <td className="px-4 py-3 text-center">
                               <button
+                                data-tour={idx === 0 ? 'edit-contrat' : undefined}
                                 onClick={() => {
                                   setEditingContrat(teacher);
                                   setContratHoursDF(teacher.pacteHoursDF || 0);
@@ -1156,6 +1220,7 @@ export default function SecretaryDashboard() {
               ].map(filter => (
                 <button
                   key={filter.id}
+                  data-tour={filter.id === 'pending' ? 'pending-filter' : filter.id === 'to-pay' ? 'to-pay-filter' : undefined}
                   onClick={() => setSessionFilter(filter.id as typeof sessionFilter)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
                     sessionFilter === filter.id
@@ -1996,6 +2061,15 @@ export default function SecretaryDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tour guidé pour le secrétariat */}
+      {showTour && (
+        <GuidedTour
+          tourId="secretary"
+          steps={secretaryTourSteps}
+          onComplete={() => setShowTour(false)}
+        />
       )}
     </div>
   );

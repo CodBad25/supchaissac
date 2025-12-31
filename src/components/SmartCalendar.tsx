@@ -277,7 +277,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({ sessions, onCreateSession
   // ============================================================================
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100" data-tour="calendar">
         {/* Header */}
         <div className="p-4 flex justify-between items-center border-b">
           <div className="flex items-center gap-2">

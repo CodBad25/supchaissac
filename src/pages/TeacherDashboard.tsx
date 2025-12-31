@@ -11,12 +11,46 @@ import {
   FileText,
   LogOut,
   Hourglass,
-  ArrowRight
+  ArrowRight,
+  HelpCircle
 } from 'lucide-react';
 import SmartCalendar from '../components/SmartCalendar';
 import SessionModals from '../components/SessionModals';
+import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
+import type { TourStep } from '../components/GuidedTour';
 import { components, cn, getStatusClasses } from '../styles/theme';
 import { API_BASE_URL } from '../config/api';
+
+// Steps du tour guidé pour les enseignants
+const teacherTourSteps: TourStep[] = [
+  {
+    target: '[data-tour="dashboard-tab"]',
+    title: 'Onglet Dashboard',
+    description: 'Consultez vos statistiques et l\'historique de vos déclarations.',
+    position: 'bottom',
+    clickBefore: '[data-tour="dashboard-tab"]',
+  },
+  {
+    target: '[data-tour="stats"]',
+    title: 'Vos statistiques',
+    description: 'Récapitulatif de vos heures déclarées, validées et en attente de paiement.',
+    position: 'bottom',
+  },
+  {
+    target: '[data-tour="calendar-tab"]',
+    title: 'Onglet Déclarer',
+    description: 'Accédez au calendrier pour déclarer vos heures supplémentaires.',
+    position: 'bottom',
+    clickBefore: '[data-tour="calendar-tab"]',
+  },
+  {
+    target: '[data-tour="calendar"]',
+    title: 'Le calendrier',
+    description: 'Cliquez sur une case vide pour déclarer une heure. Les créneaux occupés apparaissent en couleur.',
+    position: 'top',
+    clickBefore: '[data-tour="calendar-tab"]',
+  },
+];
 
 interface Session {
   id: number;
@@ -60,6 +94,7 @@ const TeacherDashboard: React.FC = () => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
   const [editSession, setEditSession] = useState<Session | null>(null);
   const [duplicateData, setDuplicateData] = useState<any>(null);
+  const [showTour, setShowTour] = useState(shouldShowTour('teacher'));
 
   // Récupérer les vraies données utilisateur depuis l'API
   useEffect(() => {
@@ -479,6 +514,15 @@ const TeacherDashboard: React.FC = () => {
                 </span>
               </div>
 
+              {/* Help/Tutorial */}
+              <button
+                onClick={() => setShowTour(true)}
+                className="p-2 rounded-lg bg-yellow-100 hover:bg-yellow-200 transition-colors"
+                title="Aide / Tutoriel"
+              >
+                <HelpCircle className="w-4 h-4 text-yellow-600" />
+              </button>
+
               {/* Logout */}
               <button
                 onClick={handleLogout}
@@ -497,6 +541,7 @@ const TeacherDashboard: React.FC = () => {
         <div className="px-3 sm:px-6">
           <nav className="flex">
             <button
+              data-tour="dashboard-tab"
               onClick={() => setActiveTab('dashboard')}
               className={`flex-1 sm:flex-none py-2.5 sm:py-4 px-2 sm:px-4 border-b-2 font-medium transition-colors ${
                 activeTab === 'dashboard'
@@ -510,6 +555,7 @@ const TeacherDashboard: React.FC = () => {
               </div>
             </button>
             <button
+              data-tour="calendar-tab"
               onClick={() => setActiveTab('calendar')}
               className={`flex-1 sm:flex-none py-2.5 sm:py-4 px-2 sm:px-4 border-b-2 font-medium transition-colors ${
                 activeTab === 'calendar'
@@ -531,6 +577,7 @@ const TeacherDashboard: React.FC = () => {
         {activeTab === 'dashboard' && (
           <div className="space-y-3 sm:space-y-4">
             {/* Hero Stats - Deux cadres pour PACTE, un seul sinon */}
+            <div data-tour="stats">
             {user?.inPacte ? (
               <div className="grid grid-cols-5 gap-2 sm:gap-3">
                 {/* Sessions déclarées - 60% */}
@@ -635,6 +682,7 @@ const TeacherDashboard: React.FC = () => {
                 </div>
               </div>
             )}
+            </div>
 
             {/* Carte Contrat PACTE - Compact */}
             {user?.inPacte && (user?.pacteHoursDF || 0) + (user?.pacteHoursRCD || 0) > 0 && (
@@ -980,6 +1028,15 @@ const TeacherDashboard: React.FC = () => {
           editSession={editSession}
           duplicateData={duplicateData}
           user={user}
+        />
+      )}
+
+      {/* Tour guidé pour les enseignants */}
+      {showTour && (
+        <GuidedTour
+          tourId="teacher"
+          steps={teacherTourSteps}
+          onComplete={() => setShowTour(false)}
         />
       )}
     </div>

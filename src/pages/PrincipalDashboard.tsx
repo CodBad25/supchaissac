@@ -3,9 +3,36 @@ import { useNavigate } from 'react-router-dom';
 import {
   LogOut, Search, Calendar, Clock, User, FileText,
   Download, CheckCircle, Eye, AlertCircle, XCircle,
-  Paperclip, Home, ClipboardCheck, X, CheckSquare, Square
+  Paperclip, Home, ClipboardCheck, X, CheckSquare, Square, HelpCircle
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
+import type { TourStep } from '../components/GuidedTour';
+
+// Steps du tour guidé pour la direction
+const principalTourSteps: TourStep[] = [
+  {
+    target: '[data-tour="pending-tab"]',
+    title: 'Sessions à valider',
+    description: 'Sessions vérifiées par le secrétariat en attente de votre validation.',
+    position: 'bottom',
+    clickBefore: '[data-tour="pending-tab"]',
+  },
+  {
+    target: '[data-tour="validated-tab"]',
+    title: 'Sessions validées',
+    description: 'Historique des sessions que vous avez validées.',
+    position: 'bottom',
+    clickBefore: '[data-tour="validated-tab"]',
+  },
+  {
+    target: '[data-tour="rejected-tab"]',
+    title: 'Sessions rejetées',
+    description: 'Sessions rejetées avec leurs motifs.',
+    position: 'bottom',
+    clickBefore: '[data-tour="rejected-tab"]',
+  },
+];
 
 // Types
 interface Session {
@@ -61,6 +88,9 @@ export default function PrincipalDashboard() {
   // Sessions state
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Tour guidé
+  const [showTour, setShowTour] = useState(shouldShowTour('principal'));
 
   // UI state
   const [activeTab, setActiveTab] = useState<'dashboard' | 'pending' | 'validated' | 'rejected'>('pending');
@@ -570,6 +600,13 @@ export default function PrincipalDashboard() {
               <p className="text-sm font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
               <p className="text-xs text-gray-500">Principal</p>
             </div>
+            <button
+              onClick={() => setShowTour(true)}
+              className="p-2 text-gray-400 hover:text-purple-500 transition-colors"
+              title="Aide / Tutoriel"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
             <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
               <LogOut className="w-5 h-5" />
             </button>
@@ -588,6 +625,7 @@ export default function PrincipalDashboard() {
           ].map(tab => (
             <button
               key={tab.id}
+              data-tour={tab.id !== 'dashboard' ? `${tab.id}-tab` : undefined}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.id
@@ -1282,6 +1320,15 @@ export default function PrincipalDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tour guidé pour la direction */}
+      {showTour && (
+        <GuidedTour
+          tourId="principal"
+          steps={principalTourSteps}
+          onComplete={() => setShowTour(false)}
+        />
       )}
     </div>
   );
