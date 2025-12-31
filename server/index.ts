@@ -1,25 +1,41 @@
 import 'dotenv/config'
 import express from 'express'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { setupAuth } from './services/auth'
 import authRoutes from './routes/auth'
 import sessionsRoutes from './routes/sessions'
 import attachmentsRoutes from './routes/attachments'
+import pacteRoutes from './routes/pacte'
 import { testConnection } from '../src/lib/db'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const app = express()
 const PORT = process.env.PORT || 3001
+const isProduction = process.env.NODE_ENV === 'production'
 
-// Configuration CORS - Support localhost + réseau local
+// Trust proxy (nécessaire pour les cookies sécurisés derrière Scaleway/load balancer)
+if (isProduction) {
+  app.set('trust proxy', 1)
+  console.log('🔒 [SERVER] Trust proxy activé pour production')
+}
+
+// Configuration CORS - Support localhost, réseau local et production
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  // Accepte localhost et toutes les IPs du réseau local (192.168.x.x, 10.x.x.x, etc.)
+  // En production, pas besoin de CORS (même domaine)
+  // En dev, accepte localhost et réseau local
   const isAllowed = origin && (
     origin.startsWith('http://localhost:') ||
     origin.startsWith('http://127.0.0.1:') ||
     origin.startsWith('http://192.168.') ||
     origin.startsWith('http://10.') ||
-    origin.startsWith('http://172.')
+    origin.startsWith('http://172.') ||
+    origin.includes('supchaissac') ||
+    origin.includes('scw.cloud')
   );
 
   if (isAllowed) {
@@ -76,6 +92,7 @@ async function startServer() {
     app.use('/api/auth', authRoutes)
     app.use('/api/sessions', sessionsRoutes)
     app.use('/api/attachments', attachmentsRoutes)
+    app.use('/api/pacte', pacteRoutes)
     
     // Route de santé
     app.get('/api/health', (req, res) => {
@@ -87,36 +104,56 @@ async function startServer() {
       })
     })
 
-    // Route de base pour tester
-    app.get('/', (req, res) => {
-      res.json({
-        message: '🎓 SupChaissac v2.0 Backend',
-        status: 'operational',
-        endpoints: [
-          'GET /api/health',
-          'POST /api/auth/login',
-          'POST /api/auth/logout',
-          'GET /api/auth/me',
-          'POST /api/sessions',
-          'GET /api/sessions',
-          'POST /api/attachments/upload/:sessionId',
-          'DELETE /api/attachments/:id',
-          'GET /api/attachments/session/:sessionId'
-        ]
+    // En production: servir le frontend React
+    if (isProduction) {
+      const distPath = path.join(__dirname, '..', 'dist')
+
+      // Servir les fichiers statiques
+      app.use(express.static(distPath))
+
+      // SPA fallback: toutes les routes non-API renvoient index.html
+      app.get('*', (req, res) => {
+        if (!req.path.startsWith('/api')) {
+          res.sendFile(path.join(distPath, 'index.html'))
+        }
       })
-    })
-    
+
+      console.log(`📦 [SERVER] Mode production - Frontend servi depuis ${distPath}`)
+    } else {
+      // En dev: route de test
+      app.get('/', (req, res) => {
+        res.json({
+          message: '🎓 SupChaissac v2.0 Backend',
+          status: 'operational',
+          endpoints: [
+            'GET /api/health',
+            'POST /api/auth/login',
+            'POST /api/auth/logout',
+            'GET /api/auth/me',
+            'POST /api/sessions',
+            'GET /api/sessions',
+            'POST /api/attachments/upload/:sessionId',
+            'DELETE /api/attachments/:id',
+            'GET /api/attachments/session/:sessionId'
+          ]
+        })
+      })
+    }
+
     // Démarrage du serveur sur toutes les interfaces (0.0.0.0)
     app.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`🚀 [SERVER] SupChaissac v2.0 démarré sur le port ${PORT}`)
+      console.log(`🌐 [SERVER] Mode: ${isProduction ? 'PRODUCTION' : 'DEVELOPPEMENT'}`)
       console.log(`🌐 [SERVER] API disponible sur:`)
       console.log(`   - http://localhost:${PORT}/api`)
-      console.log(`   - http://192.168.1.6:${PORT}/api (réseau local)`)
-      console.log(`🔐 [SERVER] Comptes de test disponibles:`)
-      console.log(`   👨‍🏫 teacher1@example.com / password123`)
-      console.log(`   📝 secretary@example.com / password123`)
-      console.log(`   🏛️ principal@example.com / password123`)
-      console.log(`   ⚙️ admin@example.com / password123`)
+      if (!isProduction) {
+        console.log(`   - http://192.168.1.6:${PORT}/api (réseau local)`)
+        console.log(`🔐 [SERVER] Comptes de test disponibles:`)
+        console.log(`   👨‍🏫 teacher1@example.com / password123`)
+        console.log(`   📝 secretary@example.com / password123`)
+        console.log(`   🏛️ principal@example.com / password123`)
+        console.log(`   ⚙️ admin@example.com / password123`)
+      }
     })
     
   } catch (error) {

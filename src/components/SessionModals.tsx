@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, BookOpen, FileText, Sun, Moon, ChevronLeft, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { X, Users, BookOpen, FileText, Sun, Moon, ChevronLeft, Plus, Trash2, AlertTriangle, Copy } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useIsMobile } from '../hooks/useMediaQuery';
@@ -19,7 +19,7 @@ interface Student {
 
 interface EditSession {
   id: number;
-  type: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE';
+  type: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | 'HSE';
   date: string;
   timeSlot: string;
   className?: string;
@@ -38,10 +38,12 @@ interface SessionModalProps {
   onClose: () => void;
   date: string;
   timeSlot: string;
-  onSubmit: (sessionData: any) => void;
-  onUpdate?: (sessionId: number, sessionData: any) => void;
-  onDelete?: (sessionId: number) => void;
+  onSubmit: (sessionData: any) => Promise<void>;
+  onUpdate?: (sessionId: number, sessionData: any) => Promise<void>;
+  onDelete?: (sessionId: number) => Promise<void>;
+  onDuplicate?: (sessionData: any) => void;
   editSession?: EditSession | null;
+  duplicateData?: any;
   user: {
     civilite?: 'M.' | 'Mme';
     subject?: string;
@@ -50,14 +52,15 @@ interface SessionModalProps {
   };
 }
 
-const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, timeSlot, onSubmit, onUpdate, onDelete, editSession, user }) => {
+const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, timeSlot, onSubmit, onUpdate, onDelete, onDuplicate, editSession, duplicateData, user }) => {
   const isMobile = useIsMobile();
   const [step, setStep] = useState<'type' | 'form' | 'confirmation'>('type');
-  const [sessionType, setSessionType] = useState<'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | null>(null);
+  const [sessionType, setSessionType] = useState<'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | 'HSE' | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Form state
+  const [formDate, setFormDate] = useState(date);
   const [formTimeSlot, setFormTimeSlot] = useState(timeSlot);
   const [className, setClassName] = useState('');
   const [replacedPrefix, setReplacedPrefix] = useState<'M.' | 'Mme'>('M.');
@@ -68,8 +71,11 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
   const [comment, setComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const isEditMode = !!editSession;
+  const isDuplicateMode = !!duplicateData && !editSession;
 
   // Animation on open
   useEffect(() => {
@@ -80,6 +86,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
         // Mode edition: pre-remplir avec les donnees existantes
         setStep('form');
         setSessionType(editSession.type);
+        setFormDate(editSession.date);
         setFormTimeSlot(editSession.timeSlot);
         setClassName(editSession.className || '');
         setReplacedPrefix((editSession.replacedTeacherPrefix as 'M.' | 'Mme') || 'M.');
@@ -88,10 +95,25 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
         setStudentCount(editSession.studentCount || 1);
         setDescription(editSession.description || '');
         setComment(editSession.comment || '');
+      } else if (duplicateData) {
+        // Mode duplication: pre-remplir avec les donnees copiees
+        setStep('form');
+        setSessionType(duplicateData.type);
+        setFormDate(''); // L'utilisateur doit choisir la date
+        setFormTimeSlot(''); // L'utilisateur doit choisir le créneau
+        setClassName(duplicateData.className || '');
+        setReplacedPrefix((duplicateData.replacedTeacherPrefix as 'M.' | 'Mme') || 'M.');
+        setReplacedName(duplicateData.replacedTeacherLastName || '');
+        setReplacedFirstName(duplicateData.replacedTeacherFirstName || '');
+        setStudentCount(duplicateData.studentCount || 1);
+        setStudentsList(duplicateData.studentsList || []);
+        setDescription(duplicateData.description || '');
+        setComment(duplicateData.comment || '');
       } else {
         // Mode creation: reinitialiser (pas de creneau par defaut pour forcer le choix)
         setStep('type');
         setSessionType(null);
+        setFormDate(date);
         setFormTimeSlot('');
         setClassName('');
         setReplacedPrefix('M.');
@@ -104,12 +126,14 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
         setComment('');
       }
     }
-  }, [isOpen, timeSlot, editSession]);
+  }, [isOpen, timeSlot, editSession, duplicateData]);
 
   if (!isOpen) return null;
 
   const handleClose = () => {
     setIsAnimating(false);
+    setSubmitError(null);
+    setIsSubmitting(false);
     setTimeout(onClose, 200);
   };
 
@@ -126,10 +150,10 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
     setStep('form');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const data: any = {
       type: sessionType,
-      date: isEditMode ? editSession!.date : date,
+      date: formDate || date, // Utiliser formDate si défini, sinon date
       timeSlot: formTimeSlot,
     };
 
@@ -150,12 +174,22 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
 
     if (comment) data.comment = comment;
 
-    if (isEditMode && onUpdate && editSession) {
-      onUpdate(editSession.id, data);
-    } else {
-      onSubmit(data);
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      if (isEditMode && onUpdate && editSession) {
+        await onUpdate(editSession.id, data);
+      } else {
+        await onSubmit(data);
+      }
+      handleClose();
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde:', error);
+      setSubmitError(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde. Veuillez réessayer.');
+    } finally {
+      setIsSubmitting(false);
     }
-    handleClose();
   };
 
   const handleDelete = () => {
@@ -163,6 +197,39 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
       onDelete(editSession.id);
       handleClose();
     }
+  };
+
+  const handleDuplicate = () => {
+    if (!isEditMode || !onDuplicate || !editSession) return;
+
+    // Préparer les données pour la duplication
+    const duplicateDataToSend: any = {
+      type: sessionType,
+      // Ne pas copier la date et le créneau - l'utilisateur choisira
+    };
+
+    if (sessionType === 'RCD') {
+      duplicateDataToSend.className = className;
+      duplicateDataToSend.replacedTeacherPrefix = replacedPrefix;
+      duplicateDataToSend.replacedTeacherLastName = replacedName;
+      duplicateDataToSend.replacedTeacherFirstName = replacedFirstName;
+    } else if (sessionType === 'DEVOIRS_FAITS') {
+      duplicateDataToSend.studentCount = studentCount;
+      duplicateDataToSend.studentsList = studentsList;
+    } else if (sessionType === 'AUTRE') {
+      duplicateDataToSend.description = description;
+    }
+
+    if (comment) duplicateDataToSend.comment = comment;
+
+    // Fermer immédiatement (sans animation) puis rouvrir avec les données
+    setIsAnimating(false);
+    onClose(); // Ferme la modale immédiatement
+
+    // Petit délai pour laisser React mettre à jour le state avant de rouvrir
+    setTimeout(() => {
+      onDuplicate(duplicateDataToSend);
+    }, 50);
   };
 
   // Student list handlers
@@ -257,7 +324,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-gray-900">Nouvelle seance</h2>
               <p className="text-sm text-gray-500">
-                {format(new Date(date), 'EEEE d MMMM', { locale: fr })} - {timeSlot}
+                {date ? format(new Date(date), 'EEEE d MMMM', { locale: fr }) : 'Date a selectionner'} {timeSlot && `- ${timeSlot}`}
               </p>
             </div>
             {!isMobile && (
@@ -349,25 +416,45 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
             )}
           </div>
 
-          <div className={bodyClass + " space-y-5"}>
-            {/* Etape 1: Creneau horaire */}
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded-full bg-purple-500 text-white text-xs font-bold flex items-center justify-center">1</div>
-                <label className="text-sm font-medium text-gray-700">Creneau horaire</label>
+          <div className={bodyClass + " space-y-3"}>
+            {/* Mode duplication: Date + Creneau sur une ligne */}
+            {isDuplicateMode && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-2 flex items-center gap-2">
+                <Copy className="w-4 h-4 text-green-600" />
+                <span className="text-xs font-medium text-green-700">Duplication</span>
+                <input
+                  type="date"
+                  value={formDate}
+                  onChange={(e) => setFormDate(e.target.value)}
+                  className={`flex-1 px-2 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-1 ${
+                    !formDate ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+            )}
+
+            {/* Creneau horaire */}
+            <div className={`relative transition-all duration-300 ${
+              isDuplicateMode && !formDate ? 'opacity-40 pointer-events-none' : ''
+            }`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="w-5 h-5 rounded-full bg-purple-500 text-white text-xs font-bold flex items-center justify-center">
+                  {isDuplicateMode ? '2' : '1'}
+                </div>
+                <label className="text-sm font-medium text-gray-700">Creneau</label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <div className="flex items-center gap-1 mb-2 text-xs text-amber-600 font-medium">
-                    <Sun className="w-3.5 h-3.5 text-amber-500" /> Matin
+                  <div className="flex items-center gap-1 mb-1 text-xs text-amber-600 font-medium">
+                    <Sun className="w-3 h-3" /> Matin
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-4 gap-1">
                     {['M1', 'M2', 'M3', 'M4'].map(s => (
                       <button key={s} onClick={() => setFormTimeSlot(s)}
-                        className={`${touchBtn} text-sm rounded-lg border ${
+                        className={`min-h-[36px] text-xs font-medium rounded-lg border ${
                           formTimeSlot === s
                             ? 'bg-amber-500 border-amber-500 text-white'
-                            : 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                            : 'bg-amber-50 border-amber-200 text-amber-700'
                         }`}>
                         {s}
                       </button>
@@ -375,16 +462,16 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                   </div>
                 </div>
                 <div>
-                  <div className="flex items-center gap-1 mb-2 text-xs text-indigo-600 font-medium">
-                    <Moon className="w-3.5 h-3.5 text-indigo-500" /> Apres-midi
+                  <div className="flex items-center gap-1 mb-1 text-xs text-indigo-600 font-medium">
+                    <Moon className="w-3 h-3" /> PM
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-4 gap-1">
                     {['S1', 'S2', 'S3', 'S4'].map(s => (
                       <button key={s} onClick={() => setFormTimeSlot(s)}
-                        className={`${touchBtn} text-sm rounded-lg border ${
+                        className={`min-h-[36px] text-xs font-medium rounded-lg border ${
                           formTimeSlot === s
                             ? 'bg-indigo-500 border-indigo-500 text-white'
-                            : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                            : 'bg-indigo-50 border-indigo-200 text-indigo-700'
                         }`}>
                         {s}
                       </button>
@@ -395,38 +482,34 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
             </div>
 
             {/* Etape 2: Classe */}
-            <div className={`relative transition-all duration-500 ${
-              formTimeSlot
-                ? 'opacity-100 translate-y-0'
-                : 'opacity-40 translate-y-2 pointer-events-none'
+            <div className={`relative transition-all duration-300 ${
+              formTimeSlot ? '' : 'opacity-40 pointer-events-none'
             }`}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors duration-300 ${
+              <div className="flex items-center gap-2 mb-1">
+                <div className={`w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center ${
                   formTimeSlot ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-400'
-                }`}>2</div>
+                }`}>{isDuplicateMode ? '3' : '2'}</div>
                 <label className="text-sm font-medium text-gray-700">Classe</label>
-                {!formTimeSlot && <span className="text-xs text-gray-400 ml-auto">Selectionnez un creneau</span>}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {[
                   { level: '6e', classes: ['6A', '6B', '6C'], color: '#3b82f6' },
                   { level: '5e', classes: ['5A', '5B', '5C', '5D'], color: '#22c55e' },
                   { level: '4e', classes: ['4A', '4B', '4C', '4D'], color: '#f97316' },
                   { level: '3e', classes: ['3A', '3B', '3C', '3D'], color: '#ef4444' },
                 ].map(({ level, classes, color }) => (
-                  <div key={level} className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-gray-400 w-6">{level}</span>
-                    <div className="flex gap-1.5 flex-1">
+                  <div key={level} className="flex items-center gap-1">
+                    <span className="text-xs text-gray-400 w-5">{level}</span>
+                    <div className="flex gap-1 flex-1">
                       {classes.map(cls => (
                         <button
                           key={cls}
                           onClick={() => setClassName(cls)}
-                          className={`flex-1 ${touchBtn} text-sm text-white rounded-lg transition-all duration-200`}
+                          className="flex-1 min-h-[32px] text-xs text-white rounded-md"
                           style={{
                             backgroundColor: color,
-                            opacity: className === cls ? 1 : 0.7,
-                            boxShadow: className === cls ? `0 0 0 3px white, 0 0 0 5px ${color}` : 'none',
-                            transform: className === cls ? 'scale(1.05)' : 'scale(1)',
+                            opacity: className === cls ? 1 : 0.6,
+                            boxShadow: className === cls ? `0 0 0 2px ${color}` : 'none',
                           }}
                         >
                           {cls}
@@ -438,83 +521,91 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             </div>
 
-            {/* Etape 3: Enseignant remplace */}
-            <div className={`relative transition-all duration-500 ${
-              className
-                ? 'opacity-100 translate-y-0'
-                : 'opacity-40 translate-y-2 pointer-events-none'
+            {/* Etape 3: Enseignant remplacé */}
+            <div className={`relative transition-all duration-300 ${
+              className ? '' : 'opacity-40 pointer-events-none'
             }`}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors duration-300 ${
+              <div className="flex items-center gap-2 mb-1">
+                <div className={`w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center ${
                   className ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-400'
-                }`}>3</div>
+                }`}>{isDuplicateMode ? '4' : '3'}</div>
                 <label className="text-sm font-medium text-gray-700">
-                  Enseignant{replacedPrefix === 'Mme' ? 'e' : ''} remplace{replacedPrefix === 'Mme' ? 'e' : ''}
+                  {replacedPrefix === 'Mme' ? 'Enseignante' : 'Enseignant'}
                 </label>
-                {!className && <span className="text-xs text-gray-400 ml-auto">Selectionnez une classe</span>}
               </div>
-              <div className="flex gap-2 mb-3">
+              <div className="flex gap-1 mb-2">
                 <button onClick={() => setReplacedPrefix('M.')}
-                  className={`${touchBtn} px-5 text-sm rounded-lg transition-all ${
+                  className={`min-h-[32px] px-3 text-xs rounded-lg ${
                     replacedPrefix === 'M.'
                       ? 'bg-blue-500 text-white'
-                      : 'bg-white text-blue-600 border-2 border-blue-200'
+                      : 'bg-blue-50 text-blue-600 border border-blue-200'
                   }`}>
                   M.
                 </button>
                 <button onClick={() => setReplacedPrefix('Mme')}
-                  className={`${touchBtn} px-5 text-sm rounded-lg transition-all ${
+                  className={`min-h-[32px] px-3 text-xs rounded-lg ${
                     replacedPrefix === 'Mme'
                       ? 'bg-pink-500 text-white'
-                      : 'bg-white text-pink-600 border-2 border-pink-200'
+                      : 'bg-pink-50 text-pink-600 border border-pink-200'
                   }`}>
                   Mme
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-1">
                 <input
                   type="text"
                   value={replacedName}
                   onChange={e => setReplacedName(e.target.value.toUpperCase())}
                   placeholder="NOM"
-                  className="w-full min-h-[44px] px-3 border border-gray-300 rounded-xl text-sm uppercase focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full min-h-[36px] px-2 border border-gray-300 rounded-lg text-sm uppercase focus:outline-none focus:ring-1 focus:ring-purple-500"
                 />
                 <input
                   type="text"
                   value={replacedFirstName}
                   onChange={e => setReplacedFirstName(formatFirstName(e.target.value))}
                   placeholder="Prenom"
-                  className="w-full min-h-[44px] px-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full min-h-[36px] px-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                 />
               </div>
             </div>
 
-            {/* Etape 4: Commentaire */}
-            <div className={`relative transition-all duration-500 ${
-              replacedName
-                ? 'opacity-100 translate-y-0'
-                : 'opacity-40 translate-y-2 pointer-events-none'
+            {/* Commentaire (inline) */}
+            <div className={`relative transition-all duration-300 ${
+              replacedName ? '' : 'opacity-40 pointer-events-none'
             }`}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors duration-300 ${
-                  replacedName ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-400'
-                }`}>4</div>
-                <label className="text-sm font-medium text-gray-700">
-                  Commentaire <span className="font-normal text-gray-400">(optionnel)</span>
-                </label>
-                {!replacedName && <span className="text-xs text-gray-400 ml-auto">Renseignez l'enseignant</span>}
-              </div>
-              <textarea
+              <input
+                type="text"
                 value={comment}
                 onChange={e => setComment(e.target.value)}
-                placeholder="Informations complementaires..."
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Commentaire (optionnel)"
+                className="w-full min-h-[36px] px-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
             </div>
           </div>
 
           <div className={footerClass}>
+            {isEditMode && onDelete && (
+              <button
+                onClick={() => {
+                  if (confirm('Supprimer cette session ?')) {
+                    onDelete(editSession!.id);
+                    handleClose();
+                  }
+                }}
+                className={`${touchBtn} px-4 bg-red-100 text-red-600 hover:bg-red-200`}
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
+            {isEditMode && onDuplicate && (
+              <button
+                onClick={handleDuplicate}
+                className={`${touchBtn} px-4 bg-green-100 text-green-600 hover:bg-green-200`}
+                title="Dupliquer cette session"
+              >
+                <Copy className="w-5 h-5" />
+              </button>
+            )}
             <button onClick={() => setStep('type')}
               className={`${touchBtn} flex-1 px-4 bg-gray-100 text-gray-700 hover:bg-gray-200`}>
               Retour
@@ -560,11 +651,49 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
           </div>
 
           <div className={bodyClass + " space-y-5"}>
+            {/* Mode duplication: afficher le titre */}
+            {isDuplicateMode && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
+                <Copy className="w-5 h-5 text-green-600" />
+                <span className="text-sm font-medium text-green-700">Duplication de session</span>
+              </div>
+            )}
+
+            {/* Etape 0 (duplication): Date */}
+            {isDuplicateMode && (
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-full bg-green-500 text-white text-xs font-bold flex items-center justify-center">1</div>
+                  <label className="text-sm font-medium text-gray-700">Date <span className="text-red-500">*</span></label>
+                </div>
+                <input
+                  type="date"
+                  value={formDate}
+                  onChange={(e) => setFormDate(e.target.value)}
+                  className={`w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 ${
+                    !formDate
+                      ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
+                />
+                {!formDate && (
+                  <p className="text-xs text-red-500 mt-1">Selectionnez une date</p>
+                )}
+              </div>
+            )}
+
             {/* Etape 1: Creneau horaire */}
-            <div className="relative">
+            <div className={`relative transition-all duration-500 ${
+              isDuplicateMode && !formDate
+                ? 'opacity-40 translate-y-2 pointer-events-none'
+                : ''
+            }`}>
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center">1</div>
+                <div className={`w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center`}>
+                  {isDuplicateMode ? '2' : '1'}
+                </div>
                 <label className="text-sm font-medium text-gray-700">Creneau horaire</label>
+                {isDuplicateMode && !formDate && <span className="text-xs text-gray-400 ml-auto">Selectionnez une date</span>}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -704,6 +833,28 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
           </div>
 
           <div className={footerClass}>
+            {isEditMode && onDelete && (
+              <button
+                onClick={() => {
+                  if (confirm('Supprimer cette session ?')) {
+                    onDelete(editSession!.id);
+                    handleClose();
+                  }
+                }}
+                className={`${touchBtn} px-4 bg-red-100 text-red-600 hover:bg-red-200`}
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
+            {isEditMode && onDuplicate && (
+              <button
+                onClick={handleDuplicate}
+                className={`${touchBtn} px-4 bg-green-100 text-green-600 hover:bg-green-200`}
+                title="Dupliquer cette session"
+              >
+                <Copy className="w-5 h-5" />
+              </button>
+            )}
             <button onClick={() => setStep('type')}
               className={`${touchBtn} flex-1 px-4 bg-gray-100 text-gray-700 hover:bg-gray-200`}>
               Retour
@@ -749,11 +900,49 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
           </div>
 
           <div className={bodyClass + " space-y-5"}>
+            {/* Mode duplication: afficher le titre */}
+            {isDuplicateMode && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
+                <Copy className="w-5 h-5 text-green-600" />
+                <span className="text-sm font-medium text-green-700">Duplication de session</span>
+              </div>
+            )}
+
+            {/* Etape 0 (duplication): Date */}
+            {isDuplicateMode && (
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-full bg-green-500 text-white text-xs font-bold flex items-center justify-center">1</div>
+                  <label className="text-sm font-medium text-gray-700">Date <span className="text-red-500">*</span></label>
+                </div>
+                <input
+                  type="date"
+                  value={formDate}
+                  onChange={(e) => setFormDate(e.target.value)}
+                  className={`w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 ${
+                    !formDate
+                      ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                      : 'border-gray-300 focus:ring-yellow-500'
+                  }`}
+                />
+                {!formDate && (
+                  <p className="text-xs text-red-500 mt-1">Selectionnez une date</p>
+                )}
+              </div>
+            )}
+
             {/* Etape 1: Creneau horaire */}
-            <div className="relative">
+            <div className={`relative transition-all duration-500 ${
+              isDuplicateMode && !formDate
+                ? 'opacity-40 translate-y-2 pointer-events-none'
+                : ''
+            }`}>
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center">1</div>
+                <div className={`w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center`}>
+                  {isDuplicateMode ? '2' : '1'}
+                </div>
                 <label className="text-sm font-medium text-gray-700">Creneau horaire</label>
+                {isDuplicateMode && !formDate && <span className="text-xs text-gray-400 ml-auto">Selectionnez une date</span>}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -828,6 +1017,28 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
           </div>
 
           <div className={footerClass}>
+            {isEditMode && onDelete && (
+              <button
+                onClick={() => {
+                  if (confirm('Supprimer cette session ?')) {
+                    onDelete(editSession!.id);
+                    handleClose();
+                  }
+                }}
+                className={`${touchBtn} px-4 bg-red-100 text-red-600 hover:bg-red-200`}
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
+            {isEditMode && onDuplicate && (
+              <button
+                onClick={handleDuplicate}
+                className={`${touchBtn} px-4 bg-green-100 text-green-600 hover:bg-green-200`}
+                title="Dupliquer cette session"
+              >
+                <Copy className="w-5 h-5" />
+              </button>
+            )}
             <button onClick={() => setStep('type')}
               className={`${touchBtn} flex-1 px-4 bg-gray-100 text-gray-700 hover:bg-gray-200`}>
               Retour
@@ -870,7 +1081,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
       }
     };
 
-    const sessionDate = isEditMode ? editSession!.date : date;
+    const sessionDate = isEditMode ? editSession!.date : (formDate || date);
 
     return (
       <div className={overlayClass} onClick={handleClose}>
@@ -924,7 +1135,9 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                     <div className="font-semibold text-gray-900">{className}</div>
                   </div>
                   <div className="bg-white rounded-xl p-4 border border-gray-100">
-                    <div className="text-xs text-gray-500 mb-1">Enseignant remplacé</div>
+                    <div className="text-xs text-gray-500 mb-1">
+                      {replacedPrefix === 'Mme' ? 'Enseignante remplacée' : 'Enseignant remplacé'}
+                    </div>
                     <div className="font-semibold text-gray-900">
                       {replacedPrefix} {replacedName} {replacedFirstName}
                     </div>
@@ -1008,23 +1221,33 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
             )}
           </div>
 
+          {/* Message d'erreur */}
+          {submitError && (
+            <div className="mx-4 mb-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600 font-medium">{submitError}</p>
+            </div>
+          )}
+
           {/* Footer */}
           <div className={footerClass}>
             {isEditMode && onDelete && !showDeleteConfirm && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className={`${touchBtn} px-4 bg-red-100 text-red-600 hover:bg-red-200`}
+                disabled={isSubmitting}
+                className={`${touchBtn} px-4 bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50`}
               >
                 <Trash2 className="w-5 h-5" />
               </button>
             )}
             <button onClick={handleBackToForm}
-              className={`${touchBtn} flex-1 px-4 bg-gray-100 text-gray-700 hover:bg-gray-200`}>
+              disabled={isSubmitting}
+              className={`${touchBtn} flex-1 px-4 bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50`}>
               Modifier
             </button>
             <button onClick={handleSubmit}
-              className={`${touchBtn} flex-1 px-4 ${getTypeColor()} text-white hover:opacity-90`}>
-              {isEditMode ? 'Confirmer' : 'Valider'}
+              disabled={isSubmitting}
+              className={`${touchBtn} flex-1 px-4 ${getTypeColor()} text-white hover:opacity-90 disabled:opacity-50`}>
+              {isSubmitting ? 'Enregistrement...' : (isEditMode ? 'Confirmer' : 'Valider')}
             </button>
           </div>
         </div>

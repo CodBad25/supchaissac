@@ -1,0 +1,33 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+
+# Archives
+_a_supprimer.zip
+_a_supprimer
+
+# Documentation
+*.md
+!README.md
+
+# Tests
+*.test.ts
+*.spec.ts

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import Toast, { ToastProps } from './Toast';
+import Toast from './Toast';
+import type { ToastProps } from './Toast';
 
 interface ToastContextType {
   showToast: (toast: Omit<ToastProps, 'id' | 'onClose'>) => void;

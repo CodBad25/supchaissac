@@ -44,7 +44,11 @@ router.post('/login', (req, res, next) => {
         role: user.role,
         inPacte: user.inPacte || false,
         pacteHoursTarget: user.pacteHoursTarget || 0,
-        pacteHoursCompleted: user.pacteHoursCompleted || 0
+        pacteHoursCompleted: user.pacteHoursCompleted || 0,
+        pacteHoursDF: user.pacteHoursDF || 0,
+        pacteHoursRCD: user.pacteHoursRCD || 0,
+        pacteHoursCompletedDF: user.pacteHoursCompletedDF || 0,
+        pacteHoursCompletedRCD: user.pacteHoursCompletedRCD || 0
       })
     })
   })(req, res, next)
@@ -95,7 +99,11 @@ router.get('/me', async (req, res) => {
         role: user.role,
         inPacte: user.inPacte || false,
         pacteHoursTarget: user.pacteHoursTarget || 0,
-        pacteHoursCompleted: user.pacteHoursCompleted || 0
+        pacteHoursCompleted: user.pacteHoursCompleted || 0,
+        pacteHoursDF: user.pacteHoursDF || 0,
+        pacteHoursRCD: user.pacteHoursRCD || 0,
+        pacteHoursCompletedDF: user.pacteHoursCompletedDF || 0,
+        pacteHoursCompletedRCD: user.pacteHoursCompletedRCD || 0
       })
     } catch (error) {
       console.error('❌ [API] Erreur récupération utilisateur:', error)

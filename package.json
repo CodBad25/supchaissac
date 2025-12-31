@@ -19,6 +19,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
     "@aws-sdk/s3-request-presigner": "^3.958.0",
+    "@radix-ui/react-switch": "^1.2.6",
     "@supabase/supabase-js": "^2.89.0",
     "@types/bcrypt": "^5.0.2",
     "@types/express": "^5.0.0",
@@ -27,7 +28,9 @@
     "@types/passport": "^1.0.17",
     "@types/passport-local": "^1.0.38",
     "bcrypt": "^5.1.1",
+    "clsx": "^2.1.1",
     "concurrently": "^9.1.2",
+    "connect-pg-simple": "^10.0.0",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.38.3",
@@ -43,6 +46,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.1.0",
+    "tailwind-merge": "^3.4.0",
     "tsx": "^4.19.2",
     "xlsx": "^0.18.5",
     "zod": "^4.1.8"

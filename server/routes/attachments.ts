@@ -105,6 +105,51 @@ router.post('/upload/:sessionId', upload.single('file'), async (req: Request, re
 });
 
 /**
+ * PATCH /api/attachments/:id/verify
+ * Marque une piece jointe comme verifiee
+ */
+router.patch('/:id/verify', async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'ID invalide' });
+    }
+
+    // Verifier que l'attachment existe
+    const [existing] = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Fichier non trouve' });
+    }
+
+    // Mettre a jour isVerified
+    const [updated] = await db
+      .update(attachments)
+      .set({ isVerified: true })
+      .where(eq(attachments.id, id))
+      .returning();
+
+    console.log(`[VERIFY] Fichier verifie: ${updated.originalName}`);
+
+    res.json({
+      success: true,
+      attachment: updated
+    });
+
+  } catch (error) {
+    console.error('[VERIFY] Erreur:', error);
+    res.status(500).json({
+      error: 'Erreur lors de la verification',
+      message: error instanceof Error ? error.message : 'Erreur inconnue'
+    });
+  }
+});
+
+/**
  * DELETE /api/attachments/:id
  * Supprime un fichier
  */

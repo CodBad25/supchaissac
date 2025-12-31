@@ -1,69 +1,115 @@
-# React + TypeScript + Vite
+# SupChaissac v2.0
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Application de gestion des heures supplémentaires pour le collège Gaston Chaissac.
 
-Currently, two official plugins are available:
+## Stack technique
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Frontend** : React + TypeScript + Vite + Tailwind CSS
+- **Backend** : Express.js + Passport.js (authentification)
+- **Base de données** : PostgreSQL (Neon)
+- **Stockage fichiers** : Scaleway Object Storage (S3)
+- **Déploiement** : Scaleway Serverless Containers
 
-## Expanding the ESLint configuration
+## Fonctionnalités
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Rôles utilisateurs
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| Rôle | Permissions |
+|------|-------------|
+| **TEACHER** | Déclarer ses sessions, voir son dashboard |
+| **SECRETARY** | Vérifier les sessions, marquer en paiement |
+| **PRINCIPAL** | Valider/rejeter les sessions, convertir en HSE |
+| **ADMIN** | Toutes les permissions |
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+### Types de sessions
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- **RCD** : Remplacement Courte Durée (violet)
+- **DEVOIRS_FAITS** : Aide aux devoirs (bleu)
+- **HSE** : Heures Supplémentaires Effectives (rose) - conversion par le Principal
+- **AUTRE** : Autre type de session (ambre)
+
+### Statuts des sessions
+
+```
+PENDING_REVIEW → PENDING_VALIDATION → VALIDATED → PAID
+                                   ↘ REJECTED
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Changelog
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### 31/12/2024 - Optimisation mobile et traçabilité HSE
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+#### Nouvelles fonctionnalités
+
+1. **Traçabilité des conversions HSE**
+   - Ajout du champ `originalType` en base de données
+   - Quand le Principal convertit une session (ex: RCD → HSE), le type original est sauvegardé
+   - Affichage "RCD → HSE" dans les sessions récentes pour les sessions converties
+
+2. **Nouveau layout dashboard enseignant PACTE**
+   - Deux cadres noirs en haut (ratio 60/40) :
+     - Gauche : Nombre de sessions déclarées + stats (validées, en attente, en paiement)
+     - Droite : Cercle doré avec pourcentage de progression PACTE
+   - Carte "Mon contrat PACTE" simplifiée avec barre de progression et boutons DF/RCD/HSE
+
+3. **Header amélioré**
+   - Nom et prénom de l'enseignant affichés à côté du logo
+   - Badge PACTE visible sur toutes les tailles d'écran
+
+#### Optimisations mobile
+
+- Réduction des paddings et tailles de texte sur mobile
+- Grille 3 colonnes pour DF/RCD/HSE même sur mobile
+- Sessions récentes plus compactes
+- Section "Mes semaines" optimisée
+
+#### Corrections
+
+- Suppression de la section "Suivi PACTE" redondante (13h/33h qui était incohérent)
+- Le pourcentage PACTE est maintenant calculé correctement : `(heures antérieures + sessions app) / total contrat`
+
+### Fichiers modifiés
+
+| Fichier | Modifications |
+|---------|---------------|
+| `src/lib/schema.ts` | Ajout champ `originalType` pour tracer les conversions |
+| `server/routes/sessions.ts` | Sauvegarde du type original lors des conversions |
+| `src/pages/TeacherDashboard.tsx` | Nouveau layout, optimisation mobile, affichage conversions |
+
+## Installation
+
+```bash
+# Installer les dépendances
+npm install
+
+# Configurer les variables d'environnement
+cp .env.example .env
+# Éditer .env avec vos credentials
+
+# Pousser le schéma vers la base de données
+npx drizzle-kit push
+
+# Lancer en développement
+npm run dev
 ```
+
+## Variables d'environnement
+
+```env
+DATABASE_URL=postgresql://...
+SESSION_SECRET=...
+S3_ENDPOINT=https://s3.fr-par.scw.cloud
+S3_REGION=fr-par
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+S3_BUCKET_NAME=supchaissac
+```
+
+## Comptes de test
+
+| Email | Mot de passe | Rôle |
+|-------|--------------|------|
+| teacher1@example.com | password123 | TEACHER |
+| secretary@example.com | password123 | SECRETARY |
+| principal@example.com | password123 | PRINCIPAL |
+| admin@example.com | password123 | ADMIN |

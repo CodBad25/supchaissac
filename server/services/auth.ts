@@ -3,10 +3,14 @@ import passport from 'passport'
 import { Strategy as LocalStrategy } from 'passport-local'
 import { Express } from 'express'
 import session from 'express-session'
+import connectPgSimple from 'connect-pg-simple'
 import bcrypt from 'bcrypt'
 import { db } from '../../src/lib/db'
 import { users } from '../../src/lib/schema'
 import { eq } from 'drizzle-orm'
+
+// Session store PostgreSQL
+const PgSession = connectPgSimple(session)
 
 // Types pour TypeScript
 declare global {
@@ -26,18 +30,31 @@ declare global {
 export function setupAuth(app: Express) {
   console.log('🔐 Configuration de l\'authentification...')
 
-  // Configuration des sessions
+  // Configuration des sessions avec PostgreSQL store
+  const isProduction = process.env.NODE_ENV === 'production'
+
   const sessionConfig: session.SessionOptions = {
+    store: new PgSession({
+      conString: process.env.DATABASE_URL,
+      tableName: 'user_sessions', // Nom de la table des sessions
+      createTableIfMissing: true, // Crée automatiquement la table
+    }),
+    name: 'supchaissac.sid', // Nom explicite du cookie
     secret: process.env.SESSION_SECRET || 'dev-secret-key',
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 24 * 60 * 60 * 1000, // 24 heures
-      secure: process.env.NODE_ENV === 'production', // HTTPS en production
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      httpOnly: true
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+      secure: isProduction, // HTTPS en production
+      sameSite: 'lax', // 'lax' est plus compatible que 'strict'
+      httpOnly: true,
+      path: '/'
     }
   }
+
+  console.log(`🍪 [AUTH] Cookie config: secure=${isProduction}, sameSite=lax`)
+
+  console.log('📦 [AUTH] Session store: PostgreSQL (persistant)')
 
   app.use(session(sessionConfig))
   app.use(passport.initialize())

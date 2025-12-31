@@ -61,13 +61,12 @@ export async function uploadFile(
   const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
   const path = `sessions/${sessionId}/${timestamp}_${sanitizedFilename}`;
 
-  // Upload vers S3
+  // Upload vers S3 (bucket public, pas besoin d'ACL)
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: path,
     Body: buffer,
     ContentType: mimeType,
-    ACL: 'public-read', // Fichiers accessibles publiquement
   });
 
   await s3Client.send(command);

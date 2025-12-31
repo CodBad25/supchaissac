@@ -97,7 +97,7 @@ CRÉATION → PENDING_REVIEW → PENDING_VALIDATION → VALIDATED → PAID
 - ✅ Première validation (PENDING_REVIEW → PENDING_VALIDATION)
 - ✅ Gestion PACTE enseignants (modification)
 - ✅ Vue toutes sessions
-- ✅ Marquer comme payé (PAID)
+- ✅ Mettre en paiement (PAID)
 - ❌ Pas de validation finale
 
 #### **🏛️ PRINCIPAL :**

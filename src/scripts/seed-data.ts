@@ -98,53 +98,70 @@ export const TEST_USERS = [
   }
 ]
 
-// Données de test - Sessions
+// Données de test - Sessions (Décembre 2025)
 export const TEST_SESSIONS = [
-  {
-    date: "2025-09-15",
-    timeSlot: "M2" as const,
-    type: "RCD" as const,
-    teacherId: 1,
-    teacherName: "Sophie MARTIN",
-    className: "6A",
-    replacedTeacherPrefix: "M.",
-    replacedTeacherLastName: "DUPONT",
-    replacedTeacherFirstName: "Jean",
-    subject: "Mathématiques",
-    status: "PENDING_REVIEW" as const
-  },
-  {
-    date: "2025-09-16", 
-    timeSlot: "S3" as const,
-    type: "DEVOIRS_FAITS" as const,
-    teacherId: 1,
-    teacherName: "Sophie MARTIN",
-    gradeLevel: "6e",
-    studentCount: 14,
-    status: "PENDING_VALIDATION" as const
-  },
-  {
-    date: "2025-09-17",
-    timeSlot: "S2" as const, 
-    type: "AUTRE" as const,
-    teacherId: 2,
-    teacherName: "Marie PETIT",
-    description: "Réunion conseil de classe",
-    status: "VALIDATED" as const
-  },
-  {
-    date: "2025-09-18",
-    timeSlot: "M3" as const,
-    type: "RCD" as const, 
-    teacherId: 3,
-    teacherName: "Jean DUBOIS",
-    className: "4B",
-    replacedTeacherPrefix: "Mme",
-    replacedTeacherLastName: "ROBERT",
-    replacedTeacherFirstName: "Julie",
-    subject: "Français",
-    status: "VALIDATED" as const
-  }
+  // ========== TEACHER 1 - Sophie MARTIN (Sans PACTE) - 12 sessions ==========
+  // Semaine du 2 décembre
+  { date: "2025-12-02", timeSlot: "M2" as const, type: "RCD" as const, teacherId: 1, teacherName: "Sophie MARTIN", className: "6A", replacedTeacherPrefix: "M.", replacedTeacherLastName: "DUPONT", replacedTeacherFirstName: "Jean", subject: "Mathématiques", status: "VALIDATED" as const },
+  { date: "2025-12-03", timeSlot: "S1" as const, type: "DEVOIRS_FAITS" as const, teacherId: 1, teacherName: "Sophie MARTIN", gradeLevel: "6e", studentCount: 12, status: "VALIDATED" as const },
+  { date: "2025-12-04", timeSlot: "M3" as const, type: "RCD" as const, teacherId: 1, teacherName: "Sophie MARTIN", className: "5B", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "LEROY", replacedTeacherFirstName: "Claire", subject: "Mathématiques", status: "VALIDATED" as const },
+  // Semaine du 9 décembre
+  { date: "2025-12-09", timeSlot: "S2" as const, type: "DEVOIRS_FAITS" as const, teacherId: 1, teacherName: "Sophie MARTIN", gradeLevel: "5e", studentCount: 15, status: "VALIDATED" as const },
+  { date: "2025-12-10", timeSlot: "M1" as const, type: "RCD" as const, teacherId: 1, teacherName: "Sophie MARTIN", className: "4C", replacedTeacherPrefix: "M.", replacedTeacherLastName: "BERNARD", replacedTeacherFirstName: "Marc", subject: "Mathématiques", status: "VALIDATED" as const },
+  { date: "2025-12-11", timeSlot: "S3" as const, type: "AUTRE" as const, teacherId: 1, teacherName: "Sophie MARTIN", description: "Accompagnement élèves en difficulté", status: "VALIDATED" as const },
+  { date: "2025-12-12", timeSlot: "M2" as const, type: "DEVOIRS_FAITS" as const, teacherId: 1, teacherName: "Sophie MARTIN", gradeLevel: "6e", studentCount: 10, status: "VALIDATED" as const },
+  // Semaine du 16 décembre
+  { date: "2025-12-16", timeSlot: "S1" as const, type: "RCD" as const, teacherId: 1, teacherName: "Sophie MARTIN", className: "3A", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "MOREAU", replacedTeacherFirstName: "Anne", subject: "Mathématiques", status: "PENDING_VALIDATION" as const },
+  { date: "2025-12-17", timeSlot: "M3" as const, type: "DEVOIRS_FAITS" as const, teacherId: 1, teacherName: "Sophie MARTIN", gradeLevel: "4e", studentCount: 8, status: "PENDING_VALIDATION" as const },
+  { date: "2025-12-18", timeSlot: "S2" as const, type: "RCD" as const, teacherId: 1, teacherName: "Sophie MARTIN", className: "6B", replacedTeacherPrefix: "M.", replacedTeacherLastName: "PETIT", replacedTeacherFirstName: "Luc", subject: "Mathématiques", status: "PENDING_REVIEW" as const },
+  { date: "2025-12-19", timeSlot: "M1" as const, type: "AUTRE" as const, teacherId: 1, teacherName: "Sophie MARTIN", description: "Formation numérique", status: "PENDING_REVIEW" as const },
+  { date: "2025-12-20", timeSlot: "S1" as const, type: "DEVOIRS_FAITS" as const, teacherId: 1, teacherName: "Sophie MARTIN", gradeLevel: "3e", studentCount: 6, status: "PENDING_REVIEW" as const },
+
+  // ========== TEACHER 2 - Marie PETIT (Avec PACTE - 20h objectif) - 15 sessions ==========
+  // Semaine du 2 décembre
+  { date: "2025-12-02", timeSlot: "S1" as const, type: "DEVOIRS_FAITS" as const, teacherId: 2, teacherName: "Marie PETIT", gradeLevel: "6e", studentCount: 14, status: "VALIDATED" as const },
+  { date: "2025-12-02", timeSlot: "S3" as const, type: "DEVOIRS_FAITS" as const, teacherId: 2, teacherName: "Marie PETIT", gradeLevel: "5e", studentCount: 12, status: "VALIDATED" as const },
+  { date: "2025-12-03", timeSlot: "M2" as const, type: "RCD" as const, teacherId: 2, teacherName: "Marie PETIT", className: "5A", replacedTeacherPrefix: "M.", replacedTeacherLastName: "GARCIA", replacedTeacherFirstName: "Philippe", subject: "Français", status: "VALIDATED" as const },
+  { date: "2025-12-04", timeSlot: "S2" as const, type: "AUTRE" as const, teacherId: 2, teacherName: "Marie PETIT", description: "Atelier lecture 6e", status: "VALIDATED" as const },
+  { date: "2025-12-05", timeSlot: "M1" as const, type: "DEVOIRS_FAITS" as const, teacherId: 2, teacherName: "Marie PETIT", gradeLevel: "4e", studentCount: 11, status: "VALIDATED" as const },
+  // Semaine du 9 décembre
+  { date: "2025-12-09", timeSlot: "S1" as const, type: "RCD" as const, teacherId: 2, teacherName: "Marie PETIT", className: "4A", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "DURAND", replacedTeacherFirstName: "Sophie", subject: "Français", status: "VALIDATED" as const },
+  { date: "2025-12-10", timeSlot: "M3" as const, type: "DEVOIRS_FAITS" as const, teacherId: 2, teacherName: "Marie PETIT", gradeLevel: "3e", studentCount: 9, status: "VALIDATED" as const },
+  { date: "2025-12-10", timeSlot: "S2" as const, type: "DEVOIRS_FAITS" as const, teacherId: 2, teacherName: "Marie PETIT", gradeLevel: "6e", studentCount: 13, status: "VALIDATED" as const },
+  { date: "2025-12-11", timeSlot: "M1" as const, type: "AUTRE" as const, teacherId: 2, teacherName: "Marie PETIT", description: "Club théâtre", status: "VALIDATED" as const },
+  { date: "2025-12-12", timeSlot: "S3" as const, type: "RCD" as const, teacherId: 2, teacherName: "Marie PETIT", className: "3B", replacedTeacherPrefix: "M.", replacedTeacherLastName: "MARTIN", replacedTeacherFirstName: "Pierre", subject: "Français", status: "VALIDATED" as const },
+  // Semaine du 16 décembre
+  { date: "2025-12-16", timeSlot: "M2" as const, type: "DEVOIRS_FAITS" as const, teacherId: 2, teacherName: "Marie PETIT", gradeLevel: "5e", studentCount: 10, status: "PENDING_VALIDATION" as const },
+  { date: "2025-12-17", timeSlot: "S1" as const, type: "RCD" as const, teacherId: 2, teacherName: "Marie PETIT", className: "6C", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "BLANC", replacedTeacherFirstName: "Marie", subject: "Français", status: "PENDING_VALIDATION" as const },
+  { date: "2025-12-18", timeSlot: "M3" as const, type: "DEVOIRS_FAITS" as const, teacherId: 2, teacherName: "Marie PETIT", gradeLevel: "4e", studentCount: 7, status: "PENDING_REVIEW" as const },
+  { date: "2025-12-19", timeSlot: "S2" as const, type: "AUTRE" as const, teacherId: 2, teacherName: "Marie PETIT", description: "Accompagnement orientation 3e", status: "PENDING_REVIEW" as const },
+  { date: "2025-12-20", timeSlot: "M1" as const, type: "DEVOIRS_FAITS" as const, teacherId: 2, teacherName: "Marie PETIT", gradeLevel: "6e", studentCount: 15, status: "PENDING_REVIEW" as const },
+
+  // ========== TEACHER 3 - Martin DUBOIS (Sans PACTE) - 8 sessions ==========
+  { date: "2025-12-03", timeSlot: "M1" as const, type: "RCD" as const, teacherId: 3, teacherName: "Martin DUBOIS", className: "4B", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "ROBERT", replacedTeacherFirstName: "Julie", subject: "Histoire-Géo", status: "VALIDATED" as const },
+  { date: "2025-12-05", timeSlot: "S2" as const, type: "AUTRE" as const, teacherId: 3, teacherName: "Martin DUBOIS", description: "Sortie pédagogique musée", status: "VALIDATED" as const },
+  { date: "2025-12-09", timeSlot: "M2" as const, type: "RCD" as const, teacherId: 3, teacherName: "Martin DUBOIS", className: "5C", replacedTeacherPrefix: "M.", replacedTeacherLastName: "THOMAS", replacedTeacherFirstName: "Eric", subject: "Histoire-Géo", status: "VALIDATED" as const },
+  { date: "2025-12-11", timeSlot: "S1" as const, type: "RCD" as const, teacherId: 3, teacherName: "Martin DUBOIS", className: "3C", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "NICOLAS", replacedTeacherFirstName: "Isabelle", subject: "Histoire-Géo", status: "VALIDATED" as const },
+  { date: "2025-12-16", timeSlot: "M3" as const, type: "AUTRE" as const, teacherId: 3, teacherName: "Martin DUBOIS", description: "Préparation voyage scolaire", status: "PENDING_VALIDATION" as const },
+  { date: "2025-12-17", timeSlot: "S3" as const, type: "RCD" as const, teacherId: 3, teacherName: "Martin DUBOIS", className: "6A", replacedTeacherPrefix: "M.", replacedTeacherLastName: "LAMBERT", replacedTeacherFirstName: "François", subject: "Histoire-Géo", status: "PENDING_REVIEW" as const },
+  { date: "2025-12-19", timeSlot: "M1" as const, type: "RCD" as const, teacherId: 3, teacherName: "Martin DUBOIS", className: "4D", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "GIRARD", replacedTeacherFirstName: "Nathalie", subject: "Histoire-Géo", status: "PENDING_REVIEW" as const },
+  { date: "2025-12-20", timeSlot: "S2" as const, type: "AUTRE" as const, teacherId: 3, teacherName: "Martin DUBOIS", description: "Réunion conseil de classe", status: "PENDING_REVIEW" as const },
+
+  // ========== TEACHER 4 - Philippe GARCIA (Avec PACTE - 18h objectif) - 14 sessions ==========
+  { date: "2025-12-02", timeSlot: "M1" as const, type: "DEVOIRS_FAITS" as const, teacherId: 4, teacherName: "Philippe GARCIA", gradeLevel: "5e", studentCount: 11, status: "VALIDATED" as const },
+  { date: "2025-12-03", timeSlot: "S2" as const, type: "RCD" as const, teacherId: 4, teacherName: "Philippe GARCIA", className: "3A", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "ROUX", replacedTeacherFirstName: "Catherine", subject: "SVT", status: "VALIDATED" as const },
+  { date: "2025-12-04", timeSlot: "M2" as const, type: "DEVOIRS_FAITS" as const, teacherId: 4, teacherName: "Philippe GARCIA", gradeLevel: "6e", studentCount: 13, status: "VALIDATED" as const },
+  { date: "2025-12-05", timeSlot: "S1" as const, type: "AUTRE" as const, teacherId: 4, teacherName: "Philippe GARCIA", description: "Club nature", status: "VALIDATED" as const },
+  { date: "2025-12-09", timeSlot: "M3" as const, type: "RCD" as const, teacherId: 4, teacherName: "Philippe GARCIA", className: "5D", replacedTeacherPrefix: "M.", replacedTeacherLastName: "DAVID", replacedTeacherFirstName: "Michel", subject: "SVT", status: "VALIDATED" as const },
+  { date: "2025-12-10", timeSlot: "S3" as const, type: "DEVOIRS_FAITS" as const, teacherId: 4, teacherName: "Philippe GARCIA", gradeLevel: "4e", studentCount: 9, status: "VALIDATED" as const },
+  { date: "2025-12-11", timeSlot: "M1" as const, type: "DEVOIRS_FAITS" as const, teacherId: 4, teacherName: "Philippe GARCIA", gradeLevel: "3e", studentCount: 8, status: "VALIDATED" as const },
+  { date: "2025-12-12", timeSlot: "S2" as const, type: "RCD" as const, teacherId: 4, teacherName: "Philippe GARCIA", className: "6B", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "SIMON", replacedTeacherFirstName: "Laurence", subject: "SVT", status: "VALIDATED" as const },
+  { date: "2025-12-12", timeSlot: "S4" as const, type: "AUTRE" as const, teacherId: 4, teacherName: "Philippe GARCIA", description: "Préparation TP labo", status: "VALIDATED" as const },
+  { date: "2025-12-16", timeSlot: "M2" as const, type: "DEVOIRS_FAITS" as const, teacherId: 4, teacherName: "Philippe GARCIA", gradeLevel: "5e", studentCount: 12, status: "PENDING_VALIDATION" as const },
+  { date: "2025-12-17", timeSlot: "S1" as const, type: "RCD" as const, teacherId: 4, teacherName: "Philippe GARCIA", className: "4A", replacedTeacherPrefix: "M.", replacedTeacherLastName: "MOREL", replacedTeacherFirstName: "Yves", subject: "SVT", status: "PENDING_VALIDATION" as const },
+  { date: "2025-12-18", timeSlot: "M3" as const, type: "DEVOIRS_FAITS" as const, teacherId: 4, teacherName: "Philippe GARCIA", gradeLevel: "6e", studentCount: 14, status: "PENDING_REVIEW" as const },
+  { date: "2025-12-19", timeSlot: "S3" as const, type: "AUTRE" as const, teacherId: 4, teacherName: "Philippe GARCIA", description: "Sortie forêt", status: "PENDING_REVIEW" as const },
+  { date: "2025-12-20", timeSlot: "M1" as const, type: "RCD" as const, teacherId: 4, teacherName: "Philippe GARCIA", className: "3D", replacedTeacherPrefix: "Mme", replacedTeacherLastName: "FOURNIER", replacedTeacherFirstName: "Christine", subject: "SVT", status: "PENDING_REVIEW" as const }
 ]
 
 // Paramètres système

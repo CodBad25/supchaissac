@@ -95,6 +95,13 @@ export const colors = {
       full: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       icon: 'text-yellow-600',
     },
+    HSE: {
+      bg: 'bg-rose-100',
+      text: 'text-rose-800',
+      border: 'border-rose-200',
+      full: 'bg-rose-100 text-rose-800 border-rose-200',
+      icon: 'text-rose-600',
+    },
   },
 
   // Couleurs par statut
@@ -129,7 +136,7 @@ export const colors = {
       border: 'border-emerald-200',
       full: 'bg-emerald-100 text-emerald-800 border-emerald-200',
       icon: 'text-emerald-600',
-      label: 'Payée',
+      label: 'Mis en paiement',
     },
     REJECTED: {
       bg: 'bg-red-100',

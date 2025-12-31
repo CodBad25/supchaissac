@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import TeacherDashboard from './pages/TeacherDashboard';
+import SecretaryDashboard from './pages/SecretaryDashboard';
+import PrincipalDashboard from './pages/PrincipalDashboard';
 import StyleguidePage from './pages/StyleguidePage';
 
 function App() {
@@ -12,6 +14,8 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<TeacherDashboard />} />
+          <Route path="/secretary" element={<SecretaryDashboard />} />
+          <Route path="/principal" element={<PrincipalDashboard />} />
           <Route path="/styleguide" element={<StyleguidePage />} />
         </Routes>
       </div>

@@ -22,8 +22,12 @@ export const users = pgTable("users", {
   initials: text("initials"),
   signature: text("signature"),
   inPacte: boolean("in_pacte").default(false), // Géré par secrétaire/admin uniquement
-  pacteHoursTarget: integer("pacte_hours_target").default(0), // Objectif annuel PACTE
-  pacteHoursCompleted: integer("pacte_hours_completed").default(0), // Heures PACTE réalisées
+  pacteHoursTarget: integer("pacte_hours_target").default(0), // Objectif annuel PACTE total
+  pacteHoursCompleted: integer("pacte_hours_completed").default(0), // Heures PACTE réalisées total
+  pacteHoursDF: integer("pacte_hours_df").default(0), // Heures Devoirs Faits prévues au contrat
+  pacteHoursRCD: integer("pacte_hours_rcd").default(0), // Heures RCD prévues au contrat
+  pacteHoursCompletedDF: integer("pacte_hours_completed_df").default(0), // Heures DF déjà réalisées (saisie manuelle)
+  pacteHoursCompletedRCD: integer("pacte_hours_completed_rcd").default(0), // Heures RCD déjà réalisées (saisie manuelle)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at"),
 });
@@ -35,7 +39,7 @@ export const timeSlotEnum = pgEnum('time_slot', [
 ]);
 
 // Session types enum
-export const sessionTypeEnum = pgEnum('session_type', ['RCD', 'DEVOIRS_FAITS', 'AUTRE']);
+export const sessionTypeEnum = pgEnum('session_type', ['RCD', 'DEVOIRS_FAITS', 'AUTRE', 'HSE']);
 
 // Session status enum
 export const sessionStatusEnum = pgEnum('session_status', [
@@ -43,7 +47,7 @@ export const sessionStatusEnum = pgEnum('session_status', [
   'PENDING_VALIDATION',  // Vérifiée par secrétaire, à valider par principal
   'VALIDATED',           // Validée par principal
   'REJECTED',            // Refusée (avec motif)
-  'PAID'                 // Payée (marquée par secrétaire)
+  'PAID'                 // Mise en paiement (marquée par secrétaire)
 ]);
 
 // Sessions model - SCHÉMA UNIFIÉ
@@ -78,6 +82,9 @@ export const sessions = pgTable("sessions", {
   reviewComments: text("review_comments"), // Commentaires secrétaire
   validationComments: text("validation_comments"), // Commentaires principal
   rejectionReason: text("rejection_reason"), // Motif de rejet
+
+  // Traçabilité des conversions
+  originalType: sessionTypeEnum("original_type"), // Type original avant conversion (null si pas de conversion)
 });
 
 // System settings model
@@ -144,6 +151,7 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({
   reviewComments: true,
   validationComments: true,
   rejectionReason: true,
+  originalType: true,
 });
 
 export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({

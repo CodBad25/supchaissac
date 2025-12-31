@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { db } from '../../src/lib/db';
 import { sessions, insertSessionSchema } from '../../src/lib/schema';
-import { requireAuth } from '../middleware/auth';
-import { eq, and, desc } from 'drizzle-orm';
+import { requireAuth, requireSecretary, requirePrincipal } from '../middleware/auth';
+import { eq, and, desc, or, inArray } from 'drizzle-orm';
 import { isBlockedDate } from '../services/holidays';
 
 const router = Router();
@@ -89,6 +89,48 @@ router.get('/', requireAuth, async (req, res) => {
     });
   }
 });
+
+// ============================================================================
+// ROUTES ADMIN - DOIVENT ÊTRE AVANT /:id
+// ============================================================================
+
+// Récupérer toutes les sessions (secrétaire/principal/admin)
+router.get('/admin/all', requireSecretary, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const { status, type } = req.query;
+    const userRole = req.user.role;
+
+    console.log(`📋 [API] Récupération sessions admin par ${req.user.name} (${userRole})`);
+
+    // Construire la requête selon les filtres
+    let query = db.select().from(sessions);
+
+    // Filtrer par statut si spécifié
+    if (status && typeof status === 'string') {
+      const statuses = status.split(',') as any[];
+      query = query.where(inArray(sessions.status, statuses)) as any;
+    }
+
+    // Trier par date de création (plus récent en premier)
+    const allSessions = await query.orderBy(desc(sessions.createdAt));
+
+    console.log(`✅ [API] ${allSessions.length} session(s) trouvée(s)`);
+
+    res.json(allSessions);
+
+  } catch (error) {
+    console.error('❌ [API] Erreur récupération sessions admin:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ============================================================================
+// ROUTES AVEC PARAMÈTRES
+// ============================================================================
 
 // Récupérer une session spécifique
 router.get('/:id', requireAuth, async (req, res) => {
@@ -268,6 +310,248 @@ router.delete('/:id', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('❌ [API] Erreur suppression session:', error);
     res.status(500).json({ error: 'Erreur serveur lors de la suppression' });
+  }
+});
+
+// ============================================================================
+// ROUTES SECRÉTAIRE / PRINCIPAL - Validation des sessions
+// ============================================================================
+
+// Secrétaire OU Principal : Vérifier une session (PENDING_REVIEW → PENDING_VALIDATION)
+router.put('/:id/review', requireSecretary, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const sessionId = parseInt(req.params.id);
+    const { reviewComments } = req.body;
+
+    if (isNaN(sessionId)) {
+      return res.status(400).json({ error: 'ID de session invalide' });
+    }
+
+    // Récupérer la session
+    const [session] = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, sessionId));
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session non trouvée' });
+    }
+
+    // Vérifier le statut
+    if (session.status !== 'PENDING_REVIEW') {
+      return res.status(400).json({
+        error: 'Cette session ne peut pas être vérifiée',
+        details: `Statut actuel: ${session.status}. Seules les sessions en attente de révision peuvent être vérifiées.`
+      });
+    }
+
+    // Mettre à jour le statut
+    const [updatedSession] = await db
+      .update(sessions)
+      .set({
+        status: 'PENDING_VALIDATION',
+        reviewComments: reviewComments || null,
+        updatedAt: new Date(),
+        updatedBy: req.user.name,
+      })
+      .where(eq(sessions.id, sessionId))
+      .returning();
+
+    console.log(`✅ [API] Session ${sessionId} vérifiée par ${req.user.name} → PENDING_VALIDATION`);
+
+    res.json(updatedSession);
+
+  } catch (error) {
+    console.error('❌ [API] Erreur vérification session:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Principal : Valider ou rejeter une session
+router.put('/:id/validate', requirePrincipal, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const sessionId = parseInt(req.params.id);
+    const { action, validationComments, rejectionReason, conversionType, convertToHSE } = req.body;
+
+    if (isNaN(sessionId)) {
+      return res.status(400).json({ error: 'ID de session invalide' });
+    }
+
+    if (!action || !['validate', 'reject', 'cancel', 'unpay'].includes(action)) {
+      return res.status(400).json({ error: 'Action invalide (validate, reject, cancel ou unpay)' });
+    }
+
+    // Récupérer la session
+    const [session] = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, sessionId));
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session non trouvée' });
+    }
+
+    // Vérifier le statut selon l'action
+    if (action === 'cancel') {
+      // Annuler : seulement pour VALIDATED ou REJECTED
+      if (!['VALIDATED', 'REJECTED'].includes(session.status)) {
+        return res.status(400).json({
+          error: 'Cette session ne peut pas être annulée',
+          details: `Statut actuel: ${session.status}. Seules les sessions validées ou rejetées peuvent être annulées.`
+        });
+      }
+    } else if (action === 'unpay') {
+      // Retirer de la mise en paiement : seulement pour PAID
+      if (session.status !== 'PAID') {
+        return res.status(400).json({
+          error: 'Cette session ne peut pas être retirée de la mise en paiement',
+          details: `Statut actuel: ${session.status}. Seules les sessions en paiement peuvent être retirées.`
+        });
+      }
+    } else {
+      // Valider/Rejeter : pour PENDING_VALIDATION ou PENDING_REVIEW (le Principal peut court-circuiter)
+      if (!['PENDING_VALIDATION', 'PENDING_REVIEW'].includes(session.status)) {
+        return res.status(400).json({
+          error: 'Cette session ne peut pas être validée/rejetée',
+          details: `Statut actuel: ${session.status}. Seules les sessions en attente peuvent être traitées.`
+        });
+      }
+    }
+
+    // Déterminer le nouveau statut et les champs à mettre à jour
+    let newStatus: string;
+    let updateData: Record<string, unknown>;
+
+    if (action === 'validate') {
+      newStatus = 'VALIDATED';
+      updateData = {
+        status: newStatus,
+        validationComments: validationComments || null,
+        rejectionReason: null,
+        updatedAt: new Date(),
+        updatedBy: req.user.name,
+      };
+
+      // Conversion de type si demandée
+      if (convertToHSE) {
+        // Conversion RCD ou DEVOIRS_FAITS en HSE
+        updateData.originalType = session.type; // Sauvegarder le type original
+        updateData.type = 'HSE';
+        console.log(`📌 [API] Session ${sessionId} convertie de ${session.type} vers HSE`);
+      } else if (conversionType && conversionType !== session.type) {
+        // Conversion AUTRE vers RCD/DF/HSE (ou autre conversion)
+        updateData.originalType = session.type; // Sauvegarder le type original
+        updateData.type = conversionType;
+        console.log(`📌 [API] Session ${sessionId} convertie de ${session.type} vers ${conversionType}`);
+      }
+    } else if (action === 'reject') {
+      newStatus = 'REJECTED';
+      updateData = {
+        status: newStatus,
+        validationComments: null,
+        rejectionReason: rejectionReason || null, // Motif optionnel
+        updatedAt: new Date(),
+        updatedBy: req.user.name,
+      };
+    } else if (action === 'unpay') {
+      // Retirer de la mise en paiement -> retour a VALIDATED
+      newStatus = 'VALIDATED';
+      updateData = {
+        status: newStatus,
+        updatedAt: new Date(),
+        updatedBy: req.user.name,
+      };
+    } else {
+      // cancel -> retour a PENDING_VALIDATION
+      newStatus = 'PENDING_VALIDATION';
+      updateData = {
+        status: newStatus,
+        validationComments: null,
+        rejectionReason: null,
+        updatedAt: new Date(),
+        updatedBy: req.user.name,
+      };
+    }
+
+    const [updatedSession] = await db
+      .update(sessions)
+      .set(updateData)
+      .where(eq(sessions.id, sessionId))
+      .returning();
+
+    const actionLabels: Record<string, string> = {
+      validate: 'validée',
+      reject: 'rejetée',
+      cancel: 'annulée',
+      unpay: 'retirée de la mise en paiement'
+    };
+    console.log(`✅ [API] Session ${sessionId} ${actionLabels[action]} par ${req.user.name}`);
+
+    res.json(updatedSession);
+
+  } catch (error) {
+    console.error('❌ [API] Erreur validation session:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Secrétaire : Mettre une session en paiement
+router.put('/:id/mark-paid', requireSecretary, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const sessionId = parseInt(req.params.id);
+
+    if (isNaN(sessionId)) {
+      return res.status(400).json({ error: 'ID de session invalide' });
+    }
+
+    // Récupérer la session
+    const [session] = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, sessionId));
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session non trouvée' });
+    }
+
+    // Vérifier le statut
+    if (session.status !== 'VALIDATED') {
+      return res.status(400).json({
+        error: 'Cette session ne peut pas être mise en paiement',
+        details: `Statut actuel: ${session.status}. Seules les sessions validées peuvent être mises en paiement.`
+      });
+    }
+
+    // Mettre à jour le statut
+    const [updatedSession] = await db
+      .update(sessions)
+      .set({
+        status: 'PAID',
+        updatedAt: new Date(),
+        updatedBy: req.user.name,
+      })
+      .where(eq(sessions.id, sessionId))
+      .returning();
+
+    console.log(`✅ [API] Session ${sessionId} mise en paiement par ${req.user.name}`);
+
+    res.json(updatedSession);
+
+  } catch (error) {
+    console.error('❌ [API] Erreur mise en paiement:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 

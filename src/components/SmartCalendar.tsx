@@ -7,7 +7,7 @@ import { isBlockedDate } from '../lib/holidays';
 
 interface Session {
   id: number;
-  type: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE';
+  type: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | 'HSE';
   status: string;
   date: string;
   timeSlot: string;
@@ -593,6 +593,7 @@ const SessionBlock: React.FC<SessionBlockProps> = ({ session, onClick }) => {
     RCD: 'bg-purple-500',
     DEVOIRS_FAITS: 'bg-blue-500',
     AUTRE: 'bg-amber-500',
+    HSE: 'bg-rose-500',
   };
 
   const isEditable = session.status === 'PENDING_REVIEW';
@@ -813,7 +814,7 @@ const SessionsSummary: React.FC<SessionsSummaryProps> = ({ sessions, onEditSessi
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'VALIDATED': return 'Validée';
-      case 'PAID': return 'Payée';
+      case 'PAID': return 'Mis en paiement';
       case 'REJECTED': return 'Refusée';
       default: return 'En attente';
     }
@@ -832,7 +833,18 @@ const SessionsSummary: React.FC<SessionsSummaryProps> = ({ sessions, onEditSessi
     switch (type) {
       case 'RCD': return 'bg-purple-100 text-purple-700';
       case 'DEVOIRS_FAITS': return 'bg-blue-100 text-blue-700';
+      case 'HSE': return 'bg-rose-100 text-rose-700';
       default: return 'bg-amber-100 text-amber-700';
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'RCD': return 'RCD';
+      case 'DEVOIRS_FAITS': return 'DF';
+      case 'HSE': return 'HSE';
+      case 'AUTRE': return 'Autre';
+      default: return type;
     }
   };
 
@@ -871,8 +883,7 @@ const SessionsSummary: React.FC<SessionsSummaryProps> = ({ sessions, onEditSessi
                   {/* Editable indicator */}
                   <div className="flex flex-col items-center gap-1">
                     <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${getTypeColor(session.type)}`}>
-                      {session.type === 'RCD' ? 'RCD' :
-                       session.type === 'DEVOIRS_FAITS' ? 'DF' : 'Autre'}
+                      {getTypeLabel(session.type)}
                     </span>
                     {isEditable ? (
                       <Pencil className="w-3 h-3 text-gray-400" />
@@ -884,6 +895,7 @@ const SessionsSummary: React.FC<SessionsSummaryProps> = ({ sessions, onEditSessi
                     <div className="font-medium text-sm text-gray-900">
                       {session.type === 'RCD' ? `Classe ${session.className}` :
                        session.type === 'DEVOIRS_FAITS' ? `${session.studentCount} élève${(session.studentCount || 0) > 1 ? 's' : ''}` :
+                       session.type === 'HSE' ? 'Heure Supplémentaire Effective' :
                        session.description?.substring(0, 30) || 'Autre activité'}
                     </div>
                     <div className="text-xs text-gray-500">

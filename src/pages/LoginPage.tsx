@@ -81,7 +81,7 @@ const LoginPage: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
@@ -93,8 +93,23 @@ const LoginPage: React.FC = () => {
       });
 
       if (response.ok) {
-        // Redirection vers le dashboard avec React Router
-        navigate('/dashboard');
+        const userData = await response.json();
+        // Redirection selon le role
+        switch (userData.role) {
+          case 'SECRETARY':
+            navigate('/secretary');
+            break;
+          case 'PRINCIPAL':
+            navigate('/principal');
+            break;
+          case 'ADMIN':
+            navigate('/secretary'); // Admin voit le dashboard secretaire par defaut
+            break;
+          case 'TEACHER':
+          default:
+            navigate('/dashboard');
+            break;
+        }
       } else {
         alert('Erreur de connexion');
       }
