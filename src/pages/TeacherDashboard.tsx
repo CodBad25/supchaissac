@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PieChart,
@@ -95,6 +95,7 @@ const TeacherDashboard: React.FC = () => {
   const [editSession, setEditSession] = useState<Session | null>(null);
   const [duplicateData, setDuplicateData] = useState<any>(null);
   const [showTour, setShowTour] = useState(shouldShowTour('teacher'));
+  const [timelineView, setTimelineView] = useState<'semaines' | 'mois'>('semaines');
 
   // Récupérer les vraies données utilisateur depuis l'API
   useEffect(() => {
@@ -185,30 +186,102 @@ const TeacherDashboard: React.FC = () => {
     ? Math.min(100, Math.round(((user.pacteHoursCompleted || 0) / user.pacteHoursTarget) * 100))
     : 0;
 
-  // Calculer les stats par semaine (4 dernières semaines)
+  // Calculer les stats par semaine (52 dernières semaines)
+  const timelineRef = useRef<HTMLDivElement>(null);
+
   const getWeeklyStats = () => {
-    const weeks: { label: string; count: number; startDate: Date }[] = [];
+    const weeks: { label: string; count: number; startDate: Date; rcd: number; df: number; hse: number; autre: number }[] = [];
     const today = new Date();
 
-    for (let i = 3; i >= 0; i--) {
+    for (let i = 51; i >= 0; i--) {
       const weekStart = new Date(today);
       weekStart.setDate(today.getDate() - today.getDay() + 1 - (i * 7)); // Lundi de la semaine
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6);
 
-      const count = sessions.filter(s => {
+      const weekSessions = sessions.filter(s => {
         const sessionDate = new Date(s.date);
         return sessionDate >= weekStart && sessionDate <= weekEnd;
-      }).length;
+      });
 
       const label = `${weekStart.getDate()}/${weekStart.getMonth() + 1}`;
-      weeks.push({ label, count, startDate: weekStart });
+      weeks.push({
+        label,
+        count: weekSessions.length,
+        startDate: weekStart,
+        rcd: weekSessions.filter(s => s.type === 'RCD').length,
+        df: weekSessions.filter(s => s.type === 'DEVOIRS_FAITS').length,
+        hse: weekSessions.filter(s => s.type === 'HSE').length,
+        autre: weekSessions.filter(s => s.type === 'AUTRE').length,
+      });
     }
     return weeks;
   };
 
   const weeklyStats = getWeeklyStats();
   const maxWeeklyCount = Math.max(...weeklyStats.map(w => w.count), 1);
+
+  // Calculer les stats par mois (année scolaire: Sep → Juil)
+  const getMonthlyStats = () => {
+    const months: { label: string; count: number; month: number; year: number; rcd: number; df: number; hse: number; autre: number }[] = [];
+    const today = new Date();
+    const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+    // Déterminer l'année scolaire en cours (Sep-Juil)
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    // Si on est entre Jan-Juil, l'année scolaire a commencé l'année précédente
+    // Si on est entre Sep-Déc, l'année scolaire a commencé cette année
+    const schoolYearStart = currentMonth >= 8 ? currentYear : currentYear - 1;
+
+    // Mois de l'année scolaire: Sep(8), Oct(9), Nov(10), Déc(11), Jan(0), Fév(1), Mar(2), Avr(3), Mai(4), Juin(5), Juil(6)
+    const schoolMonths = [
+      { month: 8, year: schoolYearStart },      // Sep
+      { month: 9, year: schoolYearStart },      // Oct
+      { month: 10, year: schoolYearStart },     // Nov
+      { month: 11, year: schoolYearStart },     // Déc
+      { month: 0, year: schoolYearStart + 1 },  // Jan
+      { month: 1, year: schoolYearStart + 1 },  // Fév
+      { month: 2, year: schoolYearStart + 1 },  // Mar
+      { month: 3, year: schoolYearStart + 1 },  // Avr
+      { month: 4, year: schoolYearStart + 1 },  // Mai
+      { month: 5, year: schoolYearStart + 1 },  // Juin
+      { month: 6, year: schoolYearStart + 1 },  // Juil
+    ];
+
+    for (const { month, year } of schoolMonths) {
+      const monthSessions = sessions.filter(s => {
+        const sessionDate = new Date(s.date);
+        return sessionDate.getMonth() === month && sessionDate.getFullYear() === year;
+      });
+
+      months.push({
+        label: monthNames[month],
+        count: monthSessions.length,
+        month,
+        year,
+        rcd: monthSessions.filter(s => s.type === 'RCD').length,
+        df: monthSessions.filter(s => s.type === 'DEVOIRS_FAITS').length,
+        hse: monthSessions.filter(s => s.type === 'HSE').length,
+        autre: monthSessions.filter(s => s.type === 'AUTRE').length,
+      });
+    }
+    return months;
+  };
+
+  const monthlyStats = getMonthlyStats();
+  const maxMonthlyCount = Math.max(...monthlyStats.map(m => m.count), 1);
+
+  // Scroll timeline to the right (most recent) on mount
+  useEffect(() => {
+    if (timelineRef.current) {
+      setTimeout(() => {
+        if (timelineRef.current) {
+          timelineRef.current.scrollLeft = timelineRef.current.scrollWidth;
+        }
+      }, 100);
+    }
+  }, [sessions, timelineView]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -837,103 +910,111 @@ const TeacherDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* Activité par semaine - Barres horizontales */}
-              <div className="rounded-2xl bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 p-3 sm:p-5 shadow-lg">
-                <h3 className="text-xs sm:text-sm font-semibold text-white mb-2 sm:mb-4">Mes semaines</h3>
-                <div className="space-y-2 sm:space-y-3">
-                  {weeklyStats.map((week, idx) => {
-                    const weekStart = week.startDate;
-                    const weekEnd = new Date(weekStart);
-                    weekEnd.setDate(weekStart.getDate() + 6);
-
-                    const weekSessions = sessions.filter(s => {
-                      const d = new Date(s.date);
-                      return d >= weekStart && d <= weekEnd;
-                    });
-                    const rcd = weekSessions.filter(s => s.type === 'RCD').length;
-                    const df = weekSessions.filter(s => s.type === 'DEVOIRS_FAITS').length;
-                    const hse = weekSessions.filter(s => s.type === 'HSE').length;
-                    const autre = weekSessions.filter(s => s.type === 'AUTRE').length;
-                    const total = rcd + df + hse + autre;
-
-                    const today = new Date();
-                    const isCurrentWeek = today >= weekStart && today <= weekEnd;
-
-                    return (
-                      <div key={idx} className="flex items-center gap-2 sm:gap-3">
-                        <div className="w-14 sm:w-16 flex-shrink-0">
-                          <span className={`text-[10px] sm:text-xs font-medium ${isCurrentWeek ? 'text-amber-400' : 'text-slate-400'}`}>
-                            {weekStart.getDate()}-{weekEnd.getDate()}/{weekStart.getMonth() + 1}
-                          </span>
-                        </div>
-                        <div className="flex-1 h-5 sm:h-6 bg-slate-900/40 rounded-lg overflow-hidden flex">
-                          {total > 0 ? (
-                            <>
-                              {rcd > 0 && (
-                                <div
-                                  className="h-full bg-purple-500 flex items-center justify-center"
-                                  style={{ width: `${(rcd / total) * 100}%` }}
-                                >
-                                  {rcd > 0 && <span className="text-[10px] text-white font-bold">{rcd}</span>}
-                                </div>
-                              )}
-                              {df > 0 && (
-                                <div
-                                  className="h-full bg-blue-500 flex items-center justify-center"
-                                  style={{ width: `${(df / total) * 100}%` }}
-                                >
-                                  {df > 0 && <span className="text-[10px] text-white font-bold">{df}</span>}
-                                </div>
-                              )}
-                              {hse > 0 && (
-                                <div
-                                  className="h-full bg-rose-500 flex items-center justify-center"
-                                  style={{ width: `${(hse / total) * 100}%` }}
-                                >
-                                  {hse > 0 && <span className="text-[10px] text-white font-bold">{hse}</span>}
-                                </div>
-                              )}
-                              {autre > 0 && (
-                                <div
-                                  className="h-full bg-amber-500 flex items-center justify-center"
-                                  style={{ width: `${(autre / total) * 100}%` }}
-                                >
-                                  {autre > 0 && <span className="text-[10px] text-white font-bold">{autre}</span>}
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <span className="text-[10px] text-slate-500">—</span>
-                            </div>
-                          )}
-                        </div>
-                        <span className="w-5 sm:w-6 text-right text-[10px] sm:text-xs font-bold text-white">{total}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Légende */}
-                <div className="flex items-center justify-center gap-3 sm:gap-4 mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-slate-500/30 flex-wrap">
-                  <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-purple-500" />
-                    <span className="text-[10px] sm:text-xs text-slate-300">RCD</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-blue-500" />
-                    <span className="text-[10px] sm:text-xs text-slate-300">DF</span>
-                  </div>
-                  {stats.hseHours > 0 && (
-                    <div className="flex items-center gap-1">
-                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-rose-500" />
-                      <span className="text-[10px] sm:text-xs text-slate-300">HSE</span>
+              {/* Activité - Timeline scrollable (Semaines / Mois) */}
+              <div className="rounded-2xl bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 p-3 shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex bg-slate-900/50 rounded-lg p-0.5">
+                      <button
+                        onClick={() => setTimelineView('semaines')}
+                        className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                          timelineView === 'semaines'
+                            ? 'bg-white text-slate-800 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Semaines
+                      </button>
+                      <button
+                        onClick={() => setTimelineView('mois')}
+                        className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                          timelineView === 'mois'
+                            ? 'bg-white text-slate-800 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Mois
+                      </button>
                     </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-amber-500" />
-                    <span className="text-[10px] sm:text-xs text-slate-300">Autre</span>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    {timelineView === 'semaines' && <span className="text-slate-500 text-[10px] hidden sm:inline">← Scroll</span>}
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div><span className="text-slate-400 text-[10px]">RCD</span></div>
+                      <div className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div><span className="text-slate-400 text-[10px]">DF</span></div>
+                      <div className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-rose-400"></div><span className="text-slate-400 text-[10px]">HSE</span></div>
+                      <div className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div><span className="text-slate-400 text-[10px]">Autre</span></div>
+                    </div>
                   </div>
                 </div>
+
+                {/* Vue Semaines */}
+                {timelineView === 'semaines' && (
+                  <div
+                    ref={timelineRef}
+                    className="overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+                    style={{ scrollBehavior: 'smooth' }}
+                  >
+                    <div className="flex gap-1" style={{ minWidth: `${weeklyStats.length * 36}px` }}>
+                      {weeklyStats.map((week, idx) => {
+                        const today = new Date();
+                        const weekEnd = new Date(week.startDate);
+                        weekEnd.setDate(week.startDate.getDate() + 6);
+                        const isCurrentWeek = today >= week.startDate && today <= weekEnd;
+
+                        return (
+                          <div key={idx} className="flex flex-col items-center gap-0.5 group" style={{ width: '32px' }}>
+                            <div className="w-full flex flex-col items-center justify-end h-16 relative">
+                              {week.count > 0 && (
+                                <span className="absolute -top-4 text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                  {week.count}h
+                                </span>
+                              )}
+                              <div className="w-full flex flex-col justify-end rounded-t overflow-hidden" style={{ height: `${Math.max((week.count / maxWeeklyCount) * 100, 4)}%` }}>
+                                {week.autre > 0 && <div className="w-full bg-amber-500" style={{ height: `${(week.autre / week.count) * 100}%`, minHeight: '2px' }} />}
+                                {week.hse > 0 && <div className="w-full bg-rose-500" style={{ height: `${(week.hse / week.count) * 100}%`, minHeight: '2px' }} />}
+                                {week.df > 0 && <div className="w-full bg-blue-500" style={{ height: `${(week.df / week.count) * 100}%`, minHeight: '2px' }} />}
+                                {week.rcd > 0 && <div className="w-full bg-purple-500" style={{ height: `${(week.rcd / week.count) * 100}%`, minHeight: '2px' }} />}
+                                {week.count === 0 && <div className="w-full bg-slate-700 h-1 rounded-t" />}
+                              </div>
+                            </div>
+                            <span className={`text-[8px] transition-colors ${isCurrentWeek ? 'text-amber-400 font-medium' : 'text-slate-500 group-hover:text-slate-300'}`}>{week.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Vue Mois */}
+                {timelineView === 'mois' && (
+                  <div className="flex gap-2 justify-center">
+                    {monthlyStats.map((month, idx) => {
+                      const today = new Date();
+                      const isCurrentMonth = month.month === today.getMonth() && month.year === today.getFullYear();
+
+                      return (
+                        <div key={idx} className="flex flex-col items-center gap-0.5 group flex-1 max-w-[50px]">
+                          <div className="w-full flex flex-col items-center justify-end h-16 relative">
+                            {month.count > 0 && (
+                              <span className="absolute -top-4 text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                {month.count}h
+                              </span>
+                            )}
+                            <div className="w-full flex flex-col justify-end rounded-t overflow-hidden" style={{ height: `${Math.max((month.count / maxMonthlyCount) * 100, 4)}%` }}>
+                              {month.autre > 0 && <div className="w-full bg-amber-500" style={{ height: `${(month.autre / month.count) * 100}%`, minHeight: '2px' }} />}
+                              {month.hse > 0 && <div className="w-full bg-rose-500" style={{ height: `${(month.hse / month.count) * 100}%`, minHeight: '2px' }} />}
+                              {month.df > 0 && <div className="w-full bg-blue-500" style={{ height: `${(month.df / month.count) * 100}%`, minHeight: '2px' }} />}
+                              {month.rcd > 0 && <div className="w-full bg-purple-500" style={{ height: `${(month.rcd / month.count) * 100}%`, minHeight: '2px' }} />}
+                              {month.count === 0 && <div className="w-full bg-slate-700 h-1 rounded-t" />}
+                            </div>
+                          </div>
+                          <span className={`text-[8px] transition-colors ${isCurrentMonth ? 'text-amber-400 font-medium' : 'text-slate-500 group-hover:text-slate-300'}`}>{month.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../../src/lib/db';
-import { sessions, insertSessionSchema } from '../../src/lib/schema';
+import { sessions, insertSessionSchema, users } from '../../src/lib/schema';
 import { requireAuth, requireSecretary, requirePrincipal } from '../middleware/auth';
 import { eq, and, desc, or, inArray } from 'drizzle-orm';
 import { isBlockedDate } from '../services/holidays';
@@ -106,8 +106,36 @@ router.get('/admin/all', requireSecretary, async (req, res) => {
 
     console.log(`📋 [API] Récupération sessions admin par ${req.user.name} (${userRole})`);
 
-    // Construire la requête selon les filtres
-    let query = db.select().from(sessions);
+    // Requête avec jointure pour récupérer la matière de l'enseignant
+    let query = db
+      .select({
+        id: sessions.id,
+        date: sessions.date,
+        timeSlot: sessions.timeSlot,
+        type: sessions.type,
+        teacherId: sessions.teacherId,
+        teacherName: sessions.teacherName,
+        teacherSubject: users.subject,
+        status: sessions.status,
+        createdAt: sessions.createdAt,
+        updatedAt: sessions.updatedAt,
+        updatedBy: sessions.updatedBy,
+        className: sessions.className,
+        replacedTeacherPrefix: sessions.replacedTeacherPrefix,
+        replacedTeacherLastName: sessions.replacedTeacherLastName,
+        replacedTeacherFirstName: sessions.replacedTeacherFirstName,
+        subject: sessions.subject,
+        gradeLevel: sessions.gradeLevel,
+        studentCount: sessions.studentCount,
+        description: sessions.description,
+        comment: sessions.comment,
+        reviewComments: sessions.reviewComments,
+        validationComments: sessions.validationComments,
+        rejectionReason: sessions.rejectionReason,
+        originalType: sessions.originalType,
+      })
+      .from(sessions)
+      .leftJoin(users, eq(sessions.teacherId, users.id));
 
     // Filtrer par statut si spécifié
     if (status && typeof status === 'string') {

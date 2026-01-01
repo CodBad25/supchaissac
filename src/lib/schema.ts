@@ -111,6 +111,17 @@ export const attachments = pgTable("attachments", {
   isVerified: boolean("is_verified").default(false),
 });
 
+// Hour quotas model - Budgets annuels de l'établissement
+export const hourQuotas = pgTable("hour_quotas", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(), // 'HSE' | 'DEVOIRS_FAITS' | 'RCD'
+  budgetHours: integer("budget_hours").notNull().default(0),
+  schoolYear: text("school_year").notNull(), // Format: "2024-2025"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at"),
+  updatedBy: text("updated_by"),
+});
+
 // Types TypeScript
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -120,6 +131,8 @@ export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = typeof systemSettings.$inferInsert;
 export type Attachment = typeof attachments.$inferSelect;
 export type InsertAttachment = typeof attachments.$inferInsert;
+export type HourQuota = typeof hourQuotas.$inferSelect;
+export type InsertHourQuota = typeof hourQuotas.$inferInsert;
 
 // Schémas de validation Zod
 export const insertUserSchema = createInsertSchema(users).omit({

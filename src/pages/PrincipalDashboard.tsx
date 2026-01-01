@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LogOut, Search, Calendar, Clock, User, FileText,
   Download, CheckCircle, Eye, AlertCircle, XCircle,
-  Paperclip, Home, ClipboardCheck, X, CheckSquare, Square, HelpCircle
+  Paperclip, Home, ClipboardCheck, X, CheckSquare, Square, HelpCircle,
+  Users, TrendingUp, Pencil
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
@@ -52,6 +53,7 @@ interface Session {
   replacedTeacherLastName?: string;
   teacherId: number;
   teacherName?: string;
+  teacherSubject?: string; // Matière de l'enseignant
   comment?: string;
   reviewComments?: string;
   validationComments?: string;
@@ -77,6 +79,43 @@ interface UserInfo {
   role: string;
 }
 
+interface Quota {
+  type: 'HSE' | 'DEVOIRS_FAITS' | 'RCD';
+  budgetHours: number;
+  consumedHours: number;
+  schoolYear: string;
+  id: number | null;
+}
+
+interface Teacher {
+  id: number;
+  name: string;
+  username: string;
+  initials: string;
+  inPacte: boolean;
+  pacteHoursTarget: number;
+  pacteHoursCompleted: number;
+  pacteHoursDF: number;
+  pacteHoursRCD: number;
+  pacteHoursCompletedDF: number;
+  pacteHoursCompletedRCD: number;
+  stats: {
+    totalSessions: number;
+    currentYearSessions: number;
+    rcdSessions: number;
+    devoirsFaitsSessions: number;
+    hseSessions: number;
+    validatedSessions: number;
+  };
+}
+
+interface PacteStats {
+  totalTeachers: number;
+  teachersWithPacte: number;
+  teachersWithoutPacte: number;
+  pactePercentage: number;
+}
+
 type ActionState = null | 'VALIDATE_COMMENT_PROMPT' | 'REJECT_COMMENT_PROMPT' | 'VALIDATE' | 'REJECT';
 
 export default function PrincipalDashboard() {
@@ -93,9 +132,27 @@ export default function PrincipalDashboard() {
   const [showTour, setShowTour] = useState(shouldShowTour('principal'));
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'pending' | 'validated' | 'rejected'>('pending');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'teachers' | 'stats'>('dashboard');
+  const [sessionFilter, setSessionFilter] = useState<'all' | 'pending' | 'validated' | 'rejected'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState<'week' | 'month' | 'trimester' | 'year'>('month');
+  const [analysisView, setAnalysisView] = useState<'matiere' | 'creneaux' | 'jours'>('matiere');
+  const [timelineView, setTimelineView] = useState<'semaines' | 'mois'>('semaines');
+  const timelineRef = useRef<HTMLDivElement>(null);
+
+  // Quotas state
+  const [quotas, setQuotas] = useState<Quota[]>([]);
+  const [quotasLoading, setQuotasLoading] = useState(false);
+  const [editingQuotas, setEditingQuotas] = useState(false);
+  const [tempQuotas, setTempQuotas] = useState<{[key: string]: number}>({});
+
+  // Teachers & PACTE state
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [pacteStats, setPacteStats] = useState<PacteStats | null>(null);
+  const [teachersLoading, setTeachersLoading] = useState(false);
+  const [teacherSearchTerm, setTeacherSearchTerm] = useState('');
+  const [pacteFilter, setPacteFilter] = useState<'all' | 'pacte' | 'non-pacte'>('all');
 
   // Modal states
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -122,7 +179,33 @@ export default function PrincipalDashboard() {
   // Vider la selection quand les filtres changent
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [typeFilter, searchTerm, activeTab]);
+  }, [typeFilter, searchTerm, activeTab, sessionFilter]);
+
+  // Load quotas when dashboard tab is active
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      fetchQuotas();
+    }
+  }, [activeTab]);
+
+  // Scroll timeline to the right (most recent) when stats tab is shown
+  useEffect(() => {
+    if (activeTab === 'stats' && timelineRef.current) {
+      setTimeout(() => {
+        if (timelineRef.current) {
+          timelineRef.current.scrollLeft = timelineRef.current.scrollWidth;
+        }
+      }, 100);
+    }
+  }, [activeTab]);
+
+  // Load teachers and PACTE stats when teachers tab is active
+  useEffect(() => {
+    if (activeTab === 'teachers') {
+      fetchTeachers();
+      fetchPacteStats();
+    }
+  }, [activeTab]);
 
   // Gestion touche Entree pour valider les modales
   useEffect(() => {
@@ -377,6 +460,68 @@ export default function PrincipalDashboard() {
     navigate('/login');
   };
 
+  // Fetch quotas
+  const fetchQuotas = async () => {
+    setQuotasLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/quotas`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setQuotas(data);
+      }
+    } catch (error) {
+      console.error('Error loading quotas:', error);
+    } finally {
+      setQuotasLoading(false);
+    }
+  };
+
+  const saveQuotas = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/quotas`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          quotas: Object.entries(tempQuotas).map(([type, budgetHours]) => ({ type, budgetHours })),
+        }),
+      });
+      if (response.ok) {
+        setEditingQuotas(false);
+        fetchQuotas();
+      }
+    } catch (error) {
+      console.error('Error saving quotas:', error);
+    }
+  };
+
+  const fetchTeachers = async () => {
+    setTeachersLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/pacte/teachers`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setTeachers(data);
+      }
+    } catch (error) {
+      console.error('Error loading teachers:', error);
+    } finally {
+      setTeachersLoading(false);
+    }
+  };
+
+  const fetchPacteStats = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/pacte/statistics`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setPacteStats(data);
+      }
+    } catch (error) {
+      console.error('Error loading PACTE stats:', error);
+    }
+  };
+
   // === OPERATIONS EN LOT ===
 
   // Toggle selection d'une session
@@ -468,15 +613,34 @@ export default function PrincipalDashboard() {
     }
   };
 
+  // Filter teachers
+  const filteredTeachers = useMemo(() => {
+    let filtered = teachers;
+    if (teacherSearchTerm) {
+      const search = teacherSearchTerm.toLowerCase();
+      filtered = filtered.filter(t =>
+        t.name.toLowerCase().includes(search) ||
+        t.username.toLowerCase().includes(search)
+      );
+    }
+    if (pacteFilter === 'pacte') {
+      filtered = filtered.filter(t => t.inPacte);
+    } else if (pacteFilter === 'non-pacte') {
+      filtered = filtered.filter(t => !t.inPacte);
+    }
+    return filtered;
+  }, [teachers, teacherSearchTerm, pacteFilter]);
+
   // Filter sessions
   const filteredSessions = useMemo(() => {
     let filtered = sessions;
 
-    if (activeTab === 'pending') {
+    // Filter by session status
+    if (sessionFilter === 'pending') {
       filtered = filtered.filter(s => s.status === 'PENDING_VALIDATION' || s.status === 'PENDING_REVIEW');
-    } else if (activeTab === 'validated') {
+    } else if (sessionFilter === 'validated') {
       filtered = filtered.filter(s => s.status === 'VALIDATED' || s.status === 'PAID');
-    } else if (activeTab === 'rejected') {
+    } else if (sessionFilter === 'rejected') {
       filtered = filtered.filter(s => s.status === 'REJECTED');
     }
 
@@ -494,7 +658,7 @@ export default function PrincipalDashboard() {
     }
 
     return filtered;
-  }, [sessions, activeTab, searchTerm, typeFilter]);
+  }, [sessions, sessionFilter, searchTerm, typeFilter]);
 
   // Sessions selectionnables pour operations en lot (exclure AUTRE car necessite conversion)
   const selectableSessions = useMemo(() => {
@@ -569,6 +733,34 @@ export default function PrincipalDashboard() {
     return null;
   };
 
+  // Sessions filtrées par période pour les stats
+  const periodFilteredSessions = useMemo(() => {
+    const today = new Date();
+    let startDate: Date;
+
+    switch (timeFilter) {
+      case 'week':
+        startDate = new Date(today);
+        startDate.setDate(today.getDate() - 7);
+        break;
+      case 'month':
+        startDate = new Date(today);
+        startDate.setMonth(today.getMonth() - 1);
+        break;
+      case 'trimester':
+        startDate = new Date(today);
+        startDate.setMonth(today.getMonth() - 3);
+        break;
+      case 'year':
+      default:
+        startDate = new Date(today);
+        startDate.setFullYear(today.getFullYear() - 1);
+        break;
+    }
+
+    return sessions.filter(s => new Date(s.date) >= startDate);
+  }, [sessions, timeFilter]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -614,14 +806,14 @@ export default function PrincipalDashboard() {
         </div>
       </header>
 
-      {/* Navigation tabs */}
+      {/* Navigation tabs - 4 onglets principaux */}
       <nav className="bg-white border-b border-gray-200 px-4">
-        <div className="max-w-7xl mx-auto flex gap-1 overflow-x-auto">
+        <div className="max-w-7xl mx-auto flex gap-1">
           {[
             { id: 'dashboard', label: 'Tableau de bord', icon: Home, count: null },
-            { id: 'pending', label: 'A valider', icon: ClipboardCheck, count: stats.pending },
-            { id: 'validated', label: 'Validees', icon: CheckCircle, count: stats.validated },
-            { id: 'rejected', label: 'Rejetees', icon: XCircle, count: stats.rejected },
+            { id: 'sessions', label: 'Sessions', icon: ClipboardCheck, count: stats.pending },
+            { id: 'teachers', label: 'Enseignants', icon: Users, count: null },
+            { id: 'stats', label: 'Statistiques', icon: TrendingUp, count: null },
           ].map(tab => (
             <button
               key={tab.id}
@@ -646,37 +838,813 @@ export default function PrincipalDashboard() {
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === 'dashboard' ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-6 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-amber-100 text-sm">A valider</p>
-                  <p className="text-4xl font-bold">{stats.pending}</p>
-                </div>
-                <ClipboardCheck className="w-12 h-12 text-amber-200" />
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100 text-sm">Validees</p>
-                  <p className="text-4xl font-bold">{stats.validated}</p>
-                </div>
-                <CheckCircle className="w-12 h-12 text-green-200" />
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-red-400 to-red-500 rounded-2xl p-6 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-red-100 text-sm">Rejetees</p>
-                  <p className="text-4xl font-bold">{stats.rejected}</p>
-                </div>
-                <XCircle className="w-12 h-12 text-red-200" />
-              </div>
-            </div>
-          </div>
-        ) : (
           <>
+            {/* Cartes cliquables */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <button
+                onClick={() => { setActiveTab('sessions'); setSessionFilter('pending'); }}
+                className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-amber-100 text-sm">A valider</p>
+                    <p className="text-4xl font-bold">{stats.pending}</p>
+                  </div>
+                  <ClipboardCheck className="w-12 h-12 text-amber-200" />
+                </div>
+              </button>
+              <button
+                onClick={() => { setActiveTab('sessions'); setSessionFilter('validated'); }}
+                className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm">Validees</p>
+                    <p className="text-4xl font-bold">{stats.validated}</p>
+                  </div>
+                  <CheckCircle className="w-12 h-12 text-green-200" />
+                </div>
+              </button>
+              <button
+                onClick={() => { setActiveTab('sessions'); setSessionFilter('rejected'); }}
+                className="bg-gradient-to-br from-red-400 to-red-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-red-100 text-sm">Rejetees</p>
+                    <p className="text-4xl font-bold">{stats.rejected}</p>
+                  </div>
+                  <XCircle className="w-12 h-12 text-red-200" />
+                </div>
+              </button>
+            </div>
+
+            {/* Budgets annuels de l'etablissement */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 mt-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900">Budgets annuels de l'établissement</h3>
+                <button
+                  onClick={() => {
+                    if (editingQuotas) {
+                      saveQuotas();
+                    } else {
+                      setTempQuotas({
+                        HSE: quotas.find(q => q.type === 'HSE')?.budgetHours || 0,
+                        DEVOIRS_FAITS: quotas.find(q => q.type === 'DEVOIRS_FAITS')?.budgetHours || 0,
+                        RCD: quotas.find(q => q.type === 'RCD')?.budgetHours || 0,
+                      });
+                      setEditingQuotas(true);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    editingQuotas
+                      ? 'bg-green-500 text-white hover:bg-green-600'
+                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  }`}
+                >
+                  {editingQuotas ? 'Enregistrer' : 'Modifier les quotas'}
+                </button>
+              </div>
+
+              {editingQuotas && (
+                <button
+                  onClick={() => setEditingQuotas(false)}
+                  className="mb-4 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  ← Annuler les modifications
+                </button>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* HSE Quota */}
+                {(() => {
+                  const quota = quotas.find(q => q.type === 'HSE');
+                  const consumed = quota?.consumedHours || 0;
+                  const budget = editingQuotas ? (tempQuotas.HSE || 0) : (quota?.budgetHours || 0);
+                  const percentage = budget > 0 ? Math.min(100, (consumed / budget) * 100) : 0;
+                  return (
+                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-medium text-rose-700">Heures Supp. Effectives</span>
+                        <span className="text-xs text-gray-500">HSE</span>
+                      </div>
+                      {editingQuotas ? (
+                        <div className="flex items-center gap-2 mb-3">
+                          <input
+                            type="number"
+                            min="0"
+                            value={tempQuotas.HSE || 0}
+                            onChange={(e) => setTempQuotas(prev => ({...prev, HSE: Number(e.target.value)}))}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold"
+                          />
+                          <span className="text-gray-500">h</span>
+                        </div>
+                      ) : (
+                        <div className="text-3xl font-bold text-gray-900 mb-3">
+                          {consumed}h <span className="text-lg font-normal text-gray-400">/ {budget}h</span>
+                        </div>
+                      )}
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div className="bg-rose-500 h-3 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
+                      </div>
+                      <div className="text-right mt-1">
+                        <span className="text-sm font-medium text-rose-700">{percentage.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* DEVOIRS_FAITS Quota */}
+                {(() => {
+                  const quota = quotas.find(q => q.type === 'DEVOIRS_FAITS');
+                  const consumed = quota?.consumedHours || 0;
+                  const budget = editingQuotas ? (tempQuotas.DEVOIRS_FAITS || 0) : (quota?.budgetHours || 0);
+                  const percentage = budget > 0 ? Math.min(100, (consumed / budget) * 100) : 0;
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-medium text-blue-700">Devoirs Faits</span>
+                        <span className="text-xs text-gray-500">DF</span>
+                      </div>
+                      {editingQuotas ? (
+                        <div className="flex items-center gap-2 mb-3">
+                          <input
+                            type="number"
+                            min="0"
+                            value={tempQuotas.DEVOIRS_FAITS || 0}
+                            onChange={(e) => setTempQuotas(prev => ({...prev, DEVOIRS_FAITS: Number(e.target.value)}))}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold"
+                          />
+                          <span className="text-gray-500">h</span>
+                        </div>
+                      ) : (
+                        <div className="text-3xl font-bold text-gray-900 mb-3">
+                          {consumed}h <span className="text-lg font-normal text-gray-400">/ {budget}h</span>
+                        </div>
+                      )}
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div className="bg-blue-500 h-3 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
+                      </div>
+                      <div className="text-right mt-1">
+                        <span className="text-sm font-medium text-blue-700">{percentage.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* RCD Quota */}
+                {(() => {
+                  const quota = quotas.find(q => q.type === 'RCD');
+                  const consumed = quota?.consumedHours || 0;
+                  const budget = editingQuotas ? (tempQuotas.RCD || 0) : (quota?.budgetHours || 0);
+                  const percentage = budget > 0 ? Math.min(100, (consumed / budget) * 100) : 0;
+                  return (
+                    <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-medium text-purple-700">Remplacements</span>
+                        <span className="text-xs text-gray-500">RCD</span>
+                      </div>
+                      {editingQuotas ? (
+                        <div className="flex items-center gap-2 mb-3">
+                          <input
+                            type="number"
+                            min="0"
+                            value={tempQuotas.RCD || 0}
+                            onChange={(e) => setTempQuotas(prev => ({...prev, RCD: Number(e.target.value)}))}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold"
+                          />
+                          <span className="text-gray-500">h</span>
+                        </div>
+                      ) : (
+                        <div className="text-3xl font-bold text-gray-900 mb-3">
+                          {consumed}h <span className="text-lg font-normal text-gray-400">/ {budget}h</span>
+                        </div>
+                      )}
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div className="bg-purple-500 h-3 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
+                      </div>
+                      <div className="text-right mt-1">
+                        <span className="text-sm font-medium text-purple-700">{percentage.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </>
+        ) : activeTab === 'teachers' ? (
+          <div className="space-y-6">
+            {/* Stats PACTE */}
+            {pacteStats && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="text-sm text-gray-500 mb-1">Total enseignants</div>
+                  <div className="text-2xl font-bold text-gray-900">{pacteStats.totalTeachers}</div>
+                </div>
+                <div className="bg-green-50 rounded-xl border border-green-200 p-4">
+                  <div className="text-sm text-green-600 mb-1">Avec PACTE</div>
+                  <div className="text-2xl font-bold text-green-700">{pacteStats.teachersWithPacte}</div>
+                </div>
+                <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                  <div className="text-sm text-gray-500 mb-1">Sans PACTE</div>
+                  <div className="text-2xl font-bold text-gray-700">{pacteStats.teachersWithoutPacte}</div>
+                </div>
+                <div className="bg-purple-50 rounded-xl border border-purple-200 p-4">
+                  <div className="text-sm text-purple-600 mb-1">Taux PACTE</div>
+                  <div className="text-2xl font-bold text-purple-700">{pacteStats.pactePercentage}%</div>
+                </div>
+              </div>
+            )}
+
+            {/* Recherche et filtres */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un enseignant..."
+                  value={teacherSearchTerm}
+                  onChange={(e) => setTeacherSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPacteFilter('all')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    pacteFilter === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Tous
+                </button>
+                <button
+                  onClick={() => setPacteFilter('pacte')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    pacteFilter === 'pacte' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  PACTE
+                </button>
+                <button
+                  onClick={() => setPacteFilter('non-pacte')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    pacteFilter === 'non-pacte' ? 'bg-gray-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Sans PACTE
+                </button>
+              </div>
+            </div>
+
+            {/* Grille des enseignants */}
+            {teachersLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredTeachers.map((teacher) => (
+                  <div
+                    key={teacher.id}
+                    className={`rounded-xl border p-4 transition-all ${
+                      teacher.inPacte
+                        ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200'
+                        : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200'
+                    }`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
+                        teacher.inPacte ? 'bg-green-500' : 'bg-gray-400'
+                      }`}>
+                        {teacher.initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 truncate">{teacher.name}</div>
+                        <div className="text-xs text-gray-500 truncate">{teacher.subject || 'Non renseigné'}</div>
+                      </div>
+                    </div>
+
+                    {/* PACTE Status */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                        teacher.inPacte ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {teacher.inPacte ? 'PACTE' : 'Hors PACTE'}
+                      </span>
+                    </div>
+
+                    {/* Progress bar for PACTE */}
+                    {teacher.inPacte && teacher.pacteHoursTarget > 0 && (
+                      <div className="mb-3">
+                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                          <span>Progression PACTE</span>
+                          <span>{teacher.pacteHoursCompleted}/{teacher.pacteHoursTarget}h</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-green-500 h-2 rounded-full transition-all"
+                            style={{ width: `${Math.min(100, (teacher.pacteHoursCompleted / teacher.pacteHoursTarget) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-purple-100 rounded-lg p-2">
+                        <div className="text-lg font-bold text-purple-700">{teacher.stats.rcdSessions}</div>
+                        <div className="text-[10px] text-purple-600">RCD</div>
+                      </div>
+                      <div className="bg-blue-100 rounded-lg p-2">
+                        <div className="text-lg font-bold text-blue-700">{teacher.stats.devoirsFaitsSessions}</div>
+                        <div className="text-[10px] text-blue-600">DF</div>
+                      </div>
+                      <div className="bg-rose-100 rounded-lg p-2">
+                        <div className="text-lg font-bold text-rose-700">{teacher.stats.hseSessions}</div>
+                        <div className="text-[10px] text-rose-600">HSE</div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500">
+                      <span>{teacher.stats.currentYearSessions} sessions</span>
+                      <span className="text-green-600">{teacher.stats.validatedSessions} validées</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!teachersLoading && filteredTeachers.length === 0 && (
+              <div className="text-center py-12">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">Aucun enseignant trouvé</p>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'stats' ? (
+          <div className="space-y-3">
+            {(() => {
+              const validatedSessions = periodFilteredSessions.filter(s => s.status === 'VALIDATED' || s.status === 'PAID');
+              const hseCount = validatedSessions.filter(s => s.type === 'HSE').length;
+              const dfCount = validatedSessions.filter(s => s.type === 'DEVOIRS_FAITS').length;
+              const rcdCount = validatedSessions.filter(s => s.type === 'RCD').length;
+              const teacherCount = new Set(validatedSessions.map(s => s.teacherId)).size;
+
+              // Stats par matière
+              const subjectStats = validatedSessions.reduce((acc, s) => {
+                const subject = s.teacherSubject || 'Non renseigné';
+                if (!acc[subject]) acc[subject] = { total: 0, hse: 0, df: 0, rcd: 0 };
+                acc[subject].total++;
+                if (s.type === 'HSE') acc[subject].hse++;
+                else if (s.type === 'DEVOIRS_FAITS') acc[subject].df++;
+                else if (s.type === 'RCD') acc[subject].rcd++;
+                return acc;
+              }, {} as Record<string, { total: number; hse: number; df: number; rcd: number }>);
+              const sortedSubjects = Object.entries(subjectStats)
+                .map(([subject, data]) => ({ subject, ...data }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, 6);
+
+              // Stats par créneaux horaires avec breakdown par type
+              const slotStats = validatedSessions.reduce((acc, s) => {
+                const slot = s.timeSlot || 'Inconnu';
+                if (!acc[slot]) acc[slot] = { total: 0, rcd: 0, df: 0, hse: 0 };
+                acc[slot].total++;
+                if (s.type === 'RCD') acc[slot].rcd++;
+                else if (s.type === 'DEVOIRS_FAITS') acc[slot].df++;
+                else if (s.type === 'HSE') acc[slot].hse++;
+                return acc;
+              }, {} as Record<string, { total: number; rcd: number; df: number; hse: number }>);
+              const slotLabels: Record<string, string> = {
+                'M1': '8h-9h', 'M2': '9h-10h', 'M3': '10h-11h', 'M4': '11h-12h',
+                'S1': '13h-14h', 'S2': '14h-15h', 'S3': '15h-16h', 'S4': '16h-17h'
+              };
+              const sortedSlots = Object.entries(slotStats)
+                .map(([slot, data]) => ({ slot, label: slotLabels[slot] || slot, ...data }))
+                .sort((a, b) => {
+                  const order = ['M1', 'M2', 'M3', 'M4', 'S1', 'S2', 'S3', 'S4'];
+                  return order.indexOf(a.slot) - order.indexOf(b.slot);
+                });
+              const maxSlotCount = Math.max(...sortedSlots.map(s => s.total), 1);
+
+              // Stats par jour avec breakdown par type
+              const dayStats = validatedSessions.reduce((acc, s) => {
+                const day = new Date(s.date).getDay();
+                if (!acc[day]) acc[day] = { total: 0, rcd: 0, df: 0, hse: 0 };
+                acc[day].total++;
+                if (s.type === 'RCD') acc[day].rcd++;
+                else if (s.type === 'DEVOIRS_FAITS') acc[day].df++;
+                else if (s.type === 'HSE') acc[day].hse++;
+                return acc;
+              }, {} as Record<number, { total: number; rcd: number; df: number; hse: number }>);
+              const dayLabels = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+              const sortedDays = [1, 2, 3, 4, 5].map(day => ({
+                day,
+                label: dayLabels[day],
+                total: dayStats[day]?.total || 0,
+                rcd: dayStats[day]?.rcd || 0,
+                df: dayStats[day]?.df || 0,
+                hse: dayStats[day]?.hse || 0,
+              }));
+              const maxDayCount = Math.max(...sortedDays.map(d => d.total), 1);
+
+              // Stats par enseignant
+              const teacherStatsData = validatedSessions.reduce((acc, s) => {
+                if (!acc[s.teacherId]) {
+                  acc[s.teacherId] = { name: s.teacherName || 'Inconnu', subject: s.teacherSubject || '', hours: 0 };
+                }
+                acc[s.teacherId].hours++;
+                return acc;
+              }, {} as Record<number, { name: string; subject: string; hours: number }>);
+              const sortedTeachers = Object.entries(teacherStatsData)
+                .map(([id, data]) => ({ id: Number(id), ...data }))
+                .sort((a, b) => b.hours - a.hours)
+                .slice(0, 5);
+
+              // Stats évolution - 52 semaines (1 an)
+              const weeks: { label: string; count: number; rcd: number; df: number; hse: number }[] = [];
+              const today = new Date();
+              for (let i = 51; i >= 0; i--) {
+                const weekStart = new Date(today);
+                weekStart.setDate(today.getDate() - today.getDay() + 1 - (i * 7));
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                const weekSessions = sessions.filter(s => {
+                  const d = new Date(s.date);
+                  return d >= weekStart && d <= weekEnd && (s.status === 'VALIDATED' || s.status === 'PAID');
+                });
+                weeks.push({
+                  label: `${weekStart.getDate()}/${weekStart.getMonth() + 1}`,
+                  count: weekSessions.length,
+                  rcd: weekSessions.filter(s => s.type === 'RCD').length,
+                  df: weekSessions.filter(s => s.type === 'DEVOIRS_FAITS').length,
+                  hse: weekSessions.filter(s => s.type === 'HSE').length,
+                });
+              }
+              const maxWeekCount = Math.max(...weeks.map(w => w.count), 1);
+
+              // Stats évolution - année scolaire (Sep → Juil)
+              const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+              const months: { label: string; count: number; rcd: number; df: number; hse: number; month: number; year: number }[] = [];
+
+              // Déterminer l'année scolaire en cours
+              const currentMonth = today.getMonth();
+              const currentYear = today.getFullYear();
+              const schoolYearStart = currentMonth >= 8 ? currentYear : currentYear - 1;
+
+              // Mois de l'année scolaire: Sep → Juil
+              const schoolMonths = [
+                { month: 8, year: schoolYearStart },      // Sep
+                { month: 9, year: schoolYearStart },      // Oct
+                { month: 10, year: schoolYearStart },     // Nov
+                { month: 11, year: schoolYearStart },     // Déc
+                { month: 0, year: schoolYearStart + 1 },  // Jan
+                { month: 1, year: schoolYearStart + 1 },  // Fév
+                { month: 2, year: schoolYearStart + 1 },  // Mar
+                { month: 3, year: schoolYearStart + 1 },  // Avr
+                { month: 4, year: schoolYearStart + 1 },  // Mai
+                { month: 5, year: schoolYearStart + 1 },  // Juin
+                { month: 6, year: schoolYearStart + 1 },  // Juil
+              ];
+
+              for (const { month, year } of schoolMonths) {
+                const monthSessions = sessions.filter(s => {
+                  const d = new Date(s.date);
+                  return d.getMonth() === month && d.getFullYear() === year && (s.status === 'VALIDATED' || s.status === 'PAID');
+                });
+                months.push({
+                  label: monthNames[month],
+                  count: monthSessions.length,
+                  rcd: monthSessions.filter(s => s.type === 'RCD').length,
+                  df: monthSessions.filter(s => s.type === 'DEVOIRS_FAITS').length,
+                  hse: monthSessions.filter(s => s.type === 'HSE').length,
+                  month,
+                  year,
+                });
+              }
+              const maxMonthCount = Math.max(...months.map(m => m.count), 1);
+
+              return (
+                <>
+                  {/* HEADER avec période */}
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-gray-900">Statistiques</h2>
+                    <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
+                      {[
+                        { id: 'week', label: '7 jours' },
+                        { id: 'month', label: '30 jours' },
+                        { id: 'trimester', label: '3 mois' },
+                        { id: 'year', label: '1 an' },
+                      ].map(period => (
+                        <button
+                          key={period.id}
+                          onClick={() => setTimeFilter(period.id as typeof timeFilter)}
+                          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                            timeFilter === period.id
+                              ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                          }`}
+                        >
+                          {period.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* HERO - Chiffre principal */}
+                  <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 p-4 shadow-lg">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+                    <div className="absolute bottom-0 left-0 w-16 h-16 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+                    <div className="relative flex items-center justify-between">
+                      <div>
+                        <p className="text-white/80 text-xs font-medium">Heures validées</p>
+                        <p className="text-4xl font-black text-white">{validatedSessions.length}h</p>
+                        <p className="text-white/70 text-xs">{teacherCount} enseignant{teacherCount > 1 ? 's' : ''} • {timeFilter === 'week' ? '7j' : timeFilter === 'month' ? '30j' : timeFilter === 'trimester' ? '3 mois' : '1 an'}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="bg-purple-500 rounded-lg p-2.5 text-center min-w-[60px] shadow-md">
+                          <p className="text-xl font-bold text-white">{rcdCount}</p>
+                          <p className="text-purple-100 text-[10px]">RCD</p>
+                        </div>
+                        <div className="bg-blue-500 rounded-lg p-2.5 text-center min-w-[60px] shadow-md">
+                          <p className="text-xl font-bold text-white">{dfCount}</p>
+                          <p className="text-blue-100 text-[10px]">Dev. Faits</p>
+                        </div>
+                        <div className="bg-rose-500 rounded-lg p-2.5 text-center min-w-[60px] shadow-md">
+                          <p className="text-xl font-bold text-white">{hseCount}</p>
+                          <p className="text-rose-100 text-[10px]">HSE</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* GRID 2 colonnes */}
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+                    {/* ANALYSE avec onglets */}
+                    <div className="lg:col-span-3 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900 text-sm">Analyse</h3>
+                        <div className="flex bg-gray-100 rounded-lg p-0.5">
+                          {[
+                            { id: 'matiere', label: 'Matière' },
+                            { id: 'creneaux', label: 'Créneaux' },
+                            { id: 'jours', label: 'Jours' },
+                          ].map(view => (
+                            <button
+                              key={view.id}
+                              onClick={() => setAnalysisView(view.id as typeof analysisView)}
+                              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                analysisView === view.id
+                                  ? 'bg-white text-gray-900 shadow-sm'
+                                  : 'text-gray-500 hover:text-gray-700'
+                              }`}
+                            >
+                              {view.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="p-3">
+                        {/* Vue MATIÈRE */}
+                        {analysisView === 'matiere' && (
+                          sortedSubjects.length === 0 ? (
+                            <p className="text-gray-400 text-center py-6">Aucune donnée pour cette période</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {sortedSubjects.map((item, idx) => (
+                                <div key={idx}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-gray-400 text-sm w-5">{idx + 1}.</span>
+                                      <span className="font-medium text-gray-900 text-sm">{item.subject}</span>
+                                    </div>
+                                    <span className="font-bold text-gray-900 text-sm">{item.total}h</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 ml-7">
+                                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden flex">
+                                      {item.rcd > 0 && <div className="h-full bg-purple-500" style={{ width: `${(item.rcd / item.total) * 100}%` }} />}
+                                      {item.df > 0 && <div className="h-full bg-blue-500" style={{ width: `${(item.df / item.total) * 100}%` }} />}
+                                      {item.hse > 0 && <div className="h-full bg-rose-500" style={{ width: `${(item.hse / item.total) * 100}%` }} />}
+                                    </div>
+                                    <div className="flex gap-2 text-[10px] text-gray-500">
+                                      {item.rcd > 0 && <span>{item.rcd} RCD</span>}
+                                      {item.df > 0 && <span>{item.df} DF</span>}
+                                      {item.hse > 0 && <span>{item.hse} HSE</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        )}
+                        {/* Vue CRÉNEAUX */}
+                        {analysisView === 'creneaux' && (
+                          sortedSlots.length === 0 ? (
+                            <p className="text-gray-400 text-center py-6">Aucune donnée pour cette période</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {sortedSlots.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-3">
+                                  <span className="text-gray-600 text-sm font-medium w-16">{item.slot}</span>
+                                  <span className="text-gray-400 text-xs w-16">{item.label}</span>
+                                  <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden flex">
+                                    {item.rcd > 0 && <div className="h-full bg-purple-500" style={{ width: `${(item.rcd / maxSlotCount) * 100}%` }} />}
+                                    {item.df > 0 && <div className="h-full bg-blue-500" style={{ width: `${(item.df / maxSlotCount) * 100}%` }} />}
+                                    {item.hse > 0 && <div className="h-full bg-rose-500" style={{ width: `${(item.hse / maxSlotCount) * 100}%` }} />}
+                                  </div>
+                                  <span className="font-bold text-gray-900 text-sm w-10 text-right">{item.total}h</span>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        )}
+                        {/* Vue JOURS */}
+                        {analysisView === 'jours' && (
+                          <div className="space-y-2">
+                            {sortedDays.map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-3">
+                                <span className="text-gray-600 text-sm font-medium w-12">{item.label}</span>
+                                <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden flex">
+                                  {item.rcd > 0 && <div className="h-full bg-purple-500" style={{ width: `${(item.rcd / maxDayCount) * 100}%` }} />}
+                                  {item.df > 0 && <div className="h-full bg-blue-500" style={{ width: `${(item.df / maxDayCount) * 100}%` }} />}
+                                  {item.hse > 0 && <div className="h-full bg-rose-500" style={{ width: `${(item.hse / maxDayCount) * 100}%` }} />}
+                                </div>
+                                <span className="font-bold text-gray-900 text-sm w-10 text-right">{item.total}h</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* TOP ENSEIGNANTS */}
+                    <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="px-4 py-2 border-b border-gray-100">
+                        <h3 className="font-semibold text-gray-900 text-sm">Top enseignants</h3>
+                      </div>
+                      <div className="p-2">
+                        {sortedTeachers.length === 0 ? (
+                          <p className="text-gray-400 text-center py-6">Aucune donnée</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {sortedTeachers.map((teacher, idx) => (
+                              <div key={teacher.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                  idx === 0 ? 'bg-gradient-to-br from-yellow-400 to-amber-500 text-white' :
+                                  idx === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' :
+                                  idx === 2 ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white' :
+                                  'bg-gray-200 text-gray-600'
+                                }`}>
+                                  {idx < 3 ? ['🥇', '🥈', '🥉'][idx] : idx + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-900 truncate text-sm">{teacher.name}</p>
+                                  {teacher.subject && <p className="text-xs text-gray-500 truncate">{teacher.subject}</p>}
+                                </div>
+                                <span className="font-bold text-amber-600 text-sm">{teacher.hours}h</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ÉVOLUTION - Toggle Semaines/Mois */}
+                  <div className="bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 rounded-xl p-3 shadow-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex bg-slate-900/50 rounded-lg p-0.5">
+                          <button
+                            onClick={() => setTimelineView('semaines')}
+                            className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                              timelineView === 'semaines'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Semaines
+                          </button>
+                          <button
+                            onClick={() => setTimelineView('mois')}
+                            className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                              timelineView === 'mois'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Mois
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {timelineView === 'semaines' && <span className="text-slate-500 text-[10px]">← Scroll</span>}
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div><span className="text-slate-400 text-[10px]">RCD</span></div>
+                          <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div><span className="text-slate-400 text-[10px]">DF</span></div>
+                          <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-rose-400"></div><span className="text-slate-400 text-[10px]">HSE</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Vue Semaines */}
+                    {timelineView === 'semaines' && (
+                      <div
+                        ref={timelineRef}
+                        className="overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+                        style={{ scrollBehavior: 'smooth' }}
+                      >
+                        <div className="flex gap-1" style={{ minWidth: `${weeks.length * 36}px` }}>
+                          {weeks.map((week, idx) => (
+                            <div key={idx} className="flex flex-col items-center gap-0.5 group" style={{ width: '32px' }}>
+                              <div className="w-full flex flex-col items-center justify-end h-16 relative">
+                                {week.count > 0 && (
+                                  <span className="absolute -top-4 text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    {week.count}h
+                                  </span>
+                                )}
+                                <div className="w-full flex flex-col justify-end rounded-t overflow-hidden" style={{ height: `${Math.max((week.count / maxWeekCount) * 100, 4)}%` }}>
+                                  {week.hse > 0 && <div className="w-full bg-rose-500" style={{ height: `${(week.hse / week.count) * 100}%`, minHeight: '2px' }} />}
+                                  {week.df > 0 && <div className="w-full bg-blue-500" style={{ height: `${(week.df / week.count) * 100}%`, minHeight: '2px' }} />}
+                                  {week.rcd > 0 && <div className="w-full bg-purple-500" style={{ height: `${(week.rcd / week.count) * 100}%`, minHeight: '2px' }} />}
+                                  {week.count === 0 && <div className="w-full bg-slate-700 h-1 rounded-t" />}
+                                </div>
+                              </div>
+                              <span className="text-[8px] text-slate-500 group-hover:text-slate-300 transition-colors">{week.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Vue Mois */}
+                    {timelineView === 'mois' && (
+                      <div className="flex gap-2 justify-center">
+                        {months.map((month, idx) => {
+                          const isCurrentMonth = month.month === today.getMonth() && month.year === today.getFullYear();
+                          return (
+                            <div key={idx} className="flex flex-col items-center gap-0.5 group flex-1 max-w-[50px]">
+                              <div className="w-full flex flex-col items-center justify-end h-16 relative">
+                                {month.count > 0 && (
+                                  <span className="absolute -top-4 text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    {month.count}h
+                                  </span>
+                                )}
+                                <div className="w-full flex flex-col justify-end rounded-t overflow-hidden" style={{ height: `${Math.max((month.count / maxMonthCount) * 100, 4)}%` }}>
+                                  {month.hse > 0 && <div className="w-full bg-rose-500" style={{ height: `${(month.hse / month.count) * 100}%`, minHeight: '2px' }} />}
+                                  {month.df > 0 && <div className="w-full bg-blue-500" style={{ height: `${(month.df / month.count) * 100}%`, minHeight: '2px' }} />}
+                                  {month.rcd > 0 && <div className="w-full bg-purple-500" style={{ height: `${(month.rcd / month.count) * 100}%`, minHeight: '2px' }} />}
+                                  {month.count === 0 && <div className="w-full bg-slate-700 h-1 rounded-t" />}
+                                </div>
+                              </div>
+                              <span className={`text-[8px] transition-colors ${isCurrentMonth ? 'text-amber-400 font-medium' : 'text-slate-500 group-hover:text-slate-300'}`}>{month.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        ) : activeTab === 'sessions' ? (
+          <div className="space-y-4">
+            {/* Sous-filtres de statut */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { id: 'pending', label: 'A valider', count: stats.pending, color: 'amber' },
+                { id: 'validated', label: 'Validées', count: stats.validated, color: 'green' },
+                { id: 'rejected', label: 'Rejetées', count: stats.rejected, color: 'red' },
+                { id: 'all', label: 'Toutes', count: sessions.length, color: 'gray' },
+              ].map(filter => (
+                <button
+                  key={filter.id}
+                  onClick={() => setSessionFilter(filter.id as typeof sessionFilter)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                    sessionFilter === filter.id
+                      ? filter.color === 'amber' ? 'bg-amber-500 text-white'
+                        : filter.color === 'green' ? 'bg-green-500 text-white'
+                        : filter.color === 'red' ? 'bg-red-500 text-white'
+                        : 'bg-purple-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {filter.label}
+                  {filter.count > 0 && (
+                    <span className={`px-1.5 py-0.5 text-xs rounded-full ${
+                      sessionFilter === filter.id ? 'bg-white/20' : 'bg-gray-200'
+                    }`}>
+                      {filter.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
             {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <div className="relative flex-1">
@@ -697,12 +1665,13 @@ export default function PrincipalDashboard() {
                 <option value="all">Tous les types</option>
                 <option value="RCD">RCD</option>
                 <option value="DEVOIRS_FAITS">Devoirs Faits</option>
+                <option value="HSE">HSE</option>
                 <option value="AUTRE">Autre</option>
               </select>
             </div>
 
             {/* Barre d'actions en lot */}
-            {activeTab === 'pending' && selectableSessions.length > 0 && (
+            {sessionFilter === 'pending' && selectableSessions.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -854,8 +1823,8 @@ export default function PrincipalDashboard() {
                 ))}
               </div>
             )}
-          </>
-        )}
+          </div>
+        ) : null}
       </main>
 
       {/* Detail Modal */}
