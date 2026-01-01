@@ -68,6 +68,15 @@ const testAccounts: TestAccount[] = [
     pacteStatus: false,
     color: 'text-gray-800',
     bgColor: 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300 hover:from-gray-100 hover:to-gray-200'
+  },
+  {
+    id: '7',
+    name: 'Admin Système',
+    role: 'Administrateur',
+    email: 'admin@example.com',
+    pacteStatus: false,
+    color: 'text-red-800',
+    bgColor: 'bg-gradient-to-r from-red-50 to-red-100 border-red-300 hover:from-red-100 hover:to-red-200'
   }
 ];
 
@@ -105,7 +114,7 @@ const LoginPage: React.FC = () => {
             navigate('/principal');
             break;
           case 'ADMIN':
-            navigate('/secretary'); // Admin voit le dashboard secretaire par defaut
+            navigate('/admin');
             break;
           case 'TEACHER':
           default:

@@ -8,6 +8,7 @@ import sessionsRoutes from './routes/sessions'
 import attachmentsRoutes from './routes/attachments'
 import pacteRoutes from './routes/pacte'
 import quotasRoutes from './routes/quotas'
+import adminRoutes from './routes/admin'
 import { testConnection } from '../src/lib/db'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -95,6 +96,7 @@ async function startServer() {
     app.use('/api/attachments', attachmentsRoutes)
     app.use('/api/pacte', pacteRoutes)
     app.use('/api/quotas', quotasRoutes)
+    app.use('/api/admin', adminRoutes)
 
     // Route de santé
     app.get('/api/health', (req, res) => {

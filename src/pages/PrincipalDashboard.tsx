@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
+import { ContratsPacte } from '../components/ContratsPacte';
 import type { TourStep } from '../components/GuidedTour';
 
 // Steps du tour guidé pour la direction
@@ -92,6 +93,7 @@ interface Teacher {
   name: string;
   username: string;
   initials: string;
+  subject?: string;
   inPacte: boolean;
   pacteHoursTarget: number;
   pacteHoursCompleted: number;
@@ -132,7 +134,7 @@ export default function PrincipalDashboard() {
   const [showTour, setShowTour] = useState(shouldShowTour('principal'));
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'teachers' | 'stats'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'teachers' | 'contrats' | 'stats'>('dashboard');
   const [sessionFilter, setSessionFilter] = useState<'all' | 'pending' | 'validated' | 'rejected'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -813,6 +815,7 @@ export default function PrincipalDashboard() {
             { id: 'dashboard', label: 'Tableau de bord', icon: Home, count: null },
             { id: 'sessions', label: 'Sessions', icon: ClipboardCheck, count: stats.pending },
             { id: 'teachers', label: 'Enseignants', icon: Users, count: null },
+            { id: 'contrats', label: 'Contrats PACTE', icon: FileText, count: null },
             { id: 'stats', label: 'Statistiques', icon: TrendingUp, count: null },
           ].map(tab => (
             <button
@@ -1184,6 +1187,48 @@ export default function PrincipalDashboard() {
               </div>
             )}
           </div>
+        ) : activeTab === 'contrats' ? (
+          <ContratsPacte
+            teachers={teachers.map(t => ({
+              id: t.id,
+              name: t.name,
+              username: t.username,
+              initials: t.initials,
+              inPacte: t.inPacte,
+              pacteHoursTarget: t.pacteHoursTarget,
+              pacteHoursCompleted: t.pacteHoursCompleted,
+              pacteHoursDF: t.pacteHoursDF,
+              pacteHoursRCD: t.pacteHoursRCD,
+              pacteHoursCompletedDF: t.pacteHoursCompletedDF,
+              pacteHoursCompletedRCD: t.pacteHoursCompletedRCD,
+              stats: {
+                totalSessions: t.stats.totalSessions,
+                rcdSessions: t.stats.rcdSessions,
+                devoirsFaitsSessions: t.stats.devoirsFaitsSessions,
+                hseSessions: t.stats.hseSessions,
+              }
+            }))}
+            pacteStats={pacteStats}
+            loading={teachersLoading}
+            apiBaseUrl={API_BASE_URL}
+            onTeachersUpdate={(updated) => setTeachers(prev => prev.map(teacher => {
+              const updatedTeacher = updated.find(u => u.id === teacher.id);
+              if (updatedTeacher) {
+                return {
+                  ...teacher,
+                  pacteHoursDF: updatedTeacher.pacteHoursDF,
+                  pacteHoursRCD: updatedTeacher.pacteHoursRCD,
+                  pacteHoursCompletedDF: updatedTeacher.pacteHoursCompletedDF,
+                  pacteHoursCompletedRCD: updatedTeacher.pacteHoursCompletedRCD,
+                  pacteHoursTarget: updatedTeacher.pacteHoursTarget,
+                  pacteHoursCompleted: updatedTeacher.pacteHoursCompleted,
+                  inPacte: updatedTeacher.inPacte,
+                };
+              }
+              return teacher;
+            }))}
+            onStatsRefresh={fetchPacteStats}
+          />
         ) : activeTab === 'stats' ? (
           <div className="space-y-3">
             {(() => {

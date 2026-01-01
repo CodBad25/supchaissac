@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import TeacherDashboard from './pages/TeacherDashboard';
 import SecretaryDashboard from './pages/SecretaryDashboard';
 import PrincipalDashboard from './pages/PrincipalDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import StyleguidePage from './pages/StyleguidePage';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
           <Route path="/dashboard" element={<TeacherDashboard />} />
           <Route path="/secretary" element={<SecretaryDashboard />} />
           <Route path="/principal" element={<PrincipalDashboard />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/styleguide" element={<StyleguidePage />} />
         </Routes>
       </div>
