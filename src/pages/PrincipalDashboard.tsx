@@ -1216,12 +1216,12 @@ export default function PrincipalDashboard() {
               if (updatedTeacher) {
                 return {
                   ...teacher,
-                  pacteHoursDF: updatedTeacher.pacteHoursDF,
-                  pacteHoursRCD: updatedTeacher.pacteHoursRCD,
-                  pacteHoursCompletedDF: updatedTeacher.pacteHoursCompletedDF,
-                  pacteHoursCompletedRCD: updatedTeacher.pacteHoursCompletedRCD,
-                  pacteHoursTarget: updatedTeacher.pacteHoursTarget,
-                  pacteHoursCompleted: updatedTeacher.pacteHoursCompleted,
+                  pacteHoursDF: updatedTeacher.pacteHoursDF || 0,
+                  pacteHoursRCD: updatedTeacher.pacteHoursRCD || 0,
+                  pacteHoursCompletedDF: updatedTeacher.pacteHoursCompletedDF || 0,
+                  pacteHoursCompletedRCD: updatedTeacher.pacteHoursCompletedRCD || 0,
+                  pacteHoursTarget: updatedTeacher.pacteHoursTarget || 0,
+                  pacteHoursCompleted: updatedTeacher.pacteHoursCompleted || 0,
                   inPacte: updatedTeacher.inPacte,
                 };
               }
