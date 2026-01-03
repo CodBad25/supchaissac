@@ -417,7 +417,10 @@ export default function AdminDashboard() {
   };
 
   // Create/Update user
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const handleSaveUser = async () => {
+    setSaveError(null);
     try {
       const url = editingUser
         ? `${API_BASE_URL}/api/admin/users/${editingUser.id}`
@@ -440,9 +443,13 @@ export default function AdminDashboard() {
         setShowUserModal(false);
         setEditingUser(null);
         fetchUsers();
+      } else {
+        const errorData = await response.json();
+        setSaveError(errorData.error || 'Erreur lors de la sauvegarde');
       }
     } catch (error) {
       console.error('Error saving user:', error);
+      setSaveError('Erreur de connexion');
     }
   };
 
@@ -1588,7 +1595,7 @@ export default function AdminDashboard() {
                   <input
                     type="text"
                     value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value.toUpperCase() })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500"
                   />
                 </div>
@@ -1676,19 +1683,26 @@ export default function AdminDashboard() {
               )}
             </div>
 
-            <div className="p-6 border-t border-gray-100 flex gap-3">
-              <button
-                onClick={() => setShowUserModal(false)}
-                className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleSaveUser}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-              >
-                Enregistrer
-              </button>
+            <div className="p-6 border-t border-gray-100">
+              {saveError && (
+                <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {saveError}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowUserModal(false); setSaveError(null); }}
+                  className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleSaveUser}
+                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  Enregistrer
+                </button>
+              </div>
             </div>
           </div>
         </div>

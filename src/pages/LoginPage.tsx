@@ -1,10 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Shield, ArrowRight, Info, User, Lock, Plus, GraduationCap, ClipboardList, Building2, Settings } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import Onboarding, { shouldShowOnboarding } from '../components/Onboarding';
 
-interface TestAccount {
+interface DBUser {
+  id: number;
+  name: string;
+  username: string;
+  role: 'TEACHER' | 'SECRETARY' | 'PRINCIPAL' | 'ADMIN';
+  inPacte: boolean;
+  civilite: string | null;
+}
+
+interface DisplayAccount {
   id: string;
   name: string;
   role: string;
@@ -15,81 +24,45 @@ interface TestAccount {
   bgColor: string;
 }
 
-const teacherAccounts: TestAccount[] = [
-  {
-    id: '1',
-    name: 'Sophie Martin',
-    role: 'Enseignante',
-    roleType: 'teacher',
-    email: 'teacher1@example.com',
-    pacteStatus: false,
-    color: 'text-gray-800',
-    bgColor: 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300 hover:from-gray-100 hover:to-gray-200'
-  },
-  {
-    id: '2',
-    name: 'Marie Petit',
-    role: 'Enseignante',
-    roleType: 'teacher',
-    email: 'teacher2@example.com',
-    pacteStatus: true,
-    color: 'text-gray-800',
-    bgColor: 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-yellow-300 hover:from-yellow-100 hover:to-yellow-200'
-  },
-  {
-    id: '3',
-    name: 'Martin Dubois',
-    role: 'Enseignant',
-    roleType: 'teacher',
-    email: 'teacher3@example.com',
-    pacteStatus: false,
-    color: 'text-gray-800',
-    bgColor: 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300 hover:from-gray-100 hover:to-gray-200'
-  },
-  {
-    id: '4',
-    name: 'Philippe Garcia',
-    role: 'Enseignant',
-    roleType: 'teacher',
-    email: 'teacher4@example.com',
-    pacteStatus: true,
-    color: 'text-gray-800',
-    bgColor: 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-yellow-300 hover:from-yellow-100 hover:to-yellow-200'
-  },
-];
-
-const adminAccounts: TestAccount[] = [
-  {
-    id: '5',
-    name: 'Laure Martin',
-    role: 'Secretariat',
-    roleType: 'secretary',
-    email: 'secretary@example.com',
-    pacteStatus: false,
-    color: 'text-blue-800',
-    bgColor: 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 hover:from-blue-100 hover:to-blue-200'
-  },
-  {
-    id: '6',
-    name: 'Jean Dupont',
-    role: 'Direction',
-    roleType: 'principal',
-    email: 'principal@example.com',
-    pacteStatus: false,
-    color: 'text-purple-800',
-    bgColor: 'bg-gradient-to-r from-purple-50 to-purple-100 border-purple-300 hover:from-purple-100 hover:to-purple-200'
-  },
-  {
-    id: '7',
-    name: 'Admin Systeme',
-    role: 'Administrateur',
-    roleType: 'admin',
-    email: 'admin@example.com',
-    pacteStatus: false,
-    color: 'text-red-800',
-    bgColor: 'bg-gradient-to-r from-red-50 to-red-100 border-red-300 hover:from-red-100 hover:to-red-200'
+const getRoleDisplay = (role: string, civilite: string | null): { roleType: 'teacher' | 'secretary' | 'principal' | 'admin'; roleLabel: string; color: string; bgColor: string } => {
+  switch (role) {
+    case 'TEACHER':
+      return {
+        roleType: 'teacher',
+        roleLabel: civilite === 'Mme' ? 'Enseignante' : 'Enseignant',
+        color: 'text-gray-800',
+        bgColor: 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300 hover:from-gray-100 hover:to-gray-200'
+      };
+    case 'SECRETARY':
+      return {
+        roleType: 'secretary',
+        roleLabel: 'Secrétariat',
+        color: 'text-blue-800',
+        bgColor: 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 hover:from-blue-100 hover:to-blue-200'
+      };
+    case 'PRINCIPAL':
+      return {
+        roleType: 'principal',
+        roleLabel: 'Direction',
+        color: 'text-purple-800',
+        bgColor: 'bg-gradient-to-r from-purple-50 to-purple-100 border-purple-300 hover:from-purple-100 hover:to-purple-200'
+      };
+    case 'ADMIN':
+      return {
+        roleType: 'admin',
+        roleLabel: 'Administrateur',
+        color: 'text-red-800',
+        bgColor: 'bg-gradient-to-r from-red-50 to-red-100 border-red-300 hover:from-red-100 hover:to-red-200'
+      };
+    default:
+      return {
+        roleType: 'teacher',
+        roleLabel: 'Utilisateur',
+        color: 'text-gray-800',
+        bgColor: 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300 hover:from-gray-100 hover:to-gray-200'
+      };
   }
-];
+};
 
 const getRoleIcon = (roleType: string) => {
   switch (roleType) {
@@ -109,6 +82,67 @@ const LoginPage: React.FC = () => {
   const [isTestMode, setIsTestMode] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(shouldShowOnboarding());
+
+  // Utilisateurs chargés depuis la base de données
+  const [teacherAccounts, setTeacherAccounts] = useState<DisplayAccount[]>([]);
+  const [adminAccounts, setAdminAccounts] = useState<DisplayAccount[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+
+  // Charger les utilisateurs au montage (seulement les comptes de démo @example.com)
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/users-list`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const users: DBUser[] = await response.json();
+
+          // Filtrer les comptes de démo (@example.com) + secrétaire et principal réels
+          const demoUsers = users.filter(u =>
+            u.username.endsWith('@example.com') ||
+            u.role === 'SECRETARY' ||
+            u.role === 'PRINCIPAL'
+          );
+
+          // Transformer les utilisateurs en DisplayAccount
+          const teachers: DisplayAccount[] = [];
+          const admins: DisplayAccount[] = [];
+
+          demoUsers.forEach((user) => {
+            const roleInfo = getRoleDisplay(user.role, user.civilite);
+            const account: DisplayAccount = {
+              id: user.id.toString(),
+              name: user.name,
+              role: roleInfo.roleLabel,
+              roleType: roleInfo.roleType,
+              email: user.username,
+              pacteStatus: user.inPacte || false,
+              color: roleInfo.color,
+              bgColor: user.inPacte
+                ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-yellow-300 hover:from-yellow-100 hover:to-yellow-200'
+                : roleInfo.bgColor,
+            };
+
+            if (user.role === 'TEACHER') {
+              teachers.push(account);
+            } else {
+              admins.push(account);
+            }
+          });
+
+          setTeacherAccounts(teachers);
+          setAdminAccounts(admins);
+        }
+      } catch (error) {
+        console.error('Erreur chargement utilisateurs:', error);
+      } finally {
+        setUsersLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +187,7 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const handleTestAccountClick = (account: TestAccount) => {
+  const handleTestAccountClick = (account: DisplayAccount) => {
     setEmail(account.email);
     setPassword('password123');
   };

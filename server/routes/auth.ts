@@ -188,6 +188,28 @@ router.patch('/profile', async (req, res) => {
   }
 });
 
+// Route pour récupérer la liste des utilisateurs (page de connexion)
+router.get('/users-list', async (req, res) => {
+  try {
+    const allUsers = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        username: users.username,
+        role: users.role,
+        inPacte: users.inPacte,
+        civilite: users.civilite,
+      })
+      .from(users)
+      .orderBy(users.role, users.name);
+
+    res.json(allUsers);
+  } catch (error) {
+    console.error('❌ [API] Erreur récupération users-list:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Route de test (à supprimer en production)
 router.get('/status', (req, res) => {
   res.json({
