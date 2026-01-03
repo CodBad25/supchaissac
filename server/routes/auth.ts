@@ -1,14 +1,24 @@
 import { Router } from 'express'
 import passport from 'passport'
 import bcrypt from 'bcrypt'
+import rateLimit from 'express-rate-limit'
 import { db } from '../../src/lib/db'
 import { users } from '../../src/lib/schema'
 import { eq, and, gt } from 'drizzle-orm'
 
 const router = Router()
 
-// Route de connexion
-router.post('/login', (req, res, next) => {
+// Rate limiting pour protéger contre les attaques brute-force
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 tentatives maximum
+  message: { error: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+// Route de connexion (avec rate limiting)
+router.post('/login', loginLimiter, (req, res, next) => {
   console.log(`🔐 [API] Tentative de connexion: ${req.body.username}`)
   
   passport.authenticate('local', (err: any, user: any, info: any) => {

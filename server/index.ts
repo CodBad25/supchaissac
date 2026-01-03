@@ -60,12 +60,30 @@ app.use((req, res, next) => {
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 
-// Headers de sécurité
+// Headers de sécurité renforcés
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('X-XSS-Protection', '1; mode=block')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+
+  // Content Security Policy
+  if (isProduction) {
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: https://s3.fr-par.scw.cloud",
+      "connect-src 'self' https://s3.fr-par.scw.cloud",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'"
+    ].join('; '))
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
+
   next()
 })
 
@@ -125,7 +143,28 @@ async function startServer() {
       })
 
       console.log(`📦 [SERVER] Mode production - Frontend servi depuis ${distPath}`)
-    } else {
+    }
+
+    // Gestionnaire d'erreurs global (DOIT être après toutes les routes)
+    app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+      console.error('❌ [ERROR]', err.stack)
+
+      // En production, masquer les détails de l'erreur
+      if (isProduction) {
+        res.status(500).json({
+          error: 'Une erreur est survenue',
+          message: 'Contactez l\'administrateur si le problème persiste'
+        })
+      } else {
+        res.status(500).json({
+          error: 'Erreur serveur',
+          message: err.message,
+          stack: err.stack
+        })
+      }
+    })
+
+    if (!isProduction) {
       // En dev: route de test
       app.get('/', (req, res) => {
         res.json({

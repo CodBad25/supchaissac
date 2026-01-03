@@ -5,6 +5,7 @@ import { parseStudentList, isValidExcelFile } from '../services/excelParser';
 import { db } from '../../src/lib/db';
 import { attachments, sessions } from '../../src/lib/schema';
 import { eq } from 'drizzle-orm';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -108,7 +109,7 @@ router.post('/upload/:sessionId', upload.single('file'), async (req: Request, re
  * PATCH /api/attachments/:id/verify
  * Marque une piece jointe comme verifiee
  */
-router.patch('/:id/verify', async (req: Request, res: Response) => {
+router.patch('/:id/verify', requireAuth, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
@@ -153,7 +154,7 @@ router.patch('/:id/verify', async (req: Request, res: Response) => {
  * DELETE /api/attachments/:id
  * Supprime un fichier
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
@@ -199,7 +200,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
  * GET /api/attachments/session/:sessionId
  * Liste les fichiers d'une session avec URLs signees (valides 1h)
  */
-router.get('/session/:sessionId', async (req: Request, res: Response) => {
+router.get('/session/:sessionId', requireAuth, async (req: Request, res: Response) => {
   try {
     const sessionId = parseInt(req.params.sessionId);
     if (isNaN(sessionId)) {
@@ -248,7 +249,7 @@ router.get('/session/:sessionId', async (req: Request, res: Response) => {
  * GET /api/attachments/:id/download-url
  * Genere une URL signee avec nom de fichier explicite (enseignant_date_creneau_nomoriginal)
  */
-router.get('/:id/download-url', async (req: Request, res: Response) => {
+router.get('/:id/download-url', requireAuth, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
@@ -309,7 +310,7 @@ router.get('/:id/download-url', async (req: Request, res: Response) => {
  * POST /api/attachments/parse-excel
  * Parse un fichier Excel sans le sauvegarder (preview)
  */
-router.post('/parse-excel', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/parse-excel', requireAuth, upload.single('file'), async (req: Request, res: Response) => {
   try {
     const file = req.file;
     if (!file) {

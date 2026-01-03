@@ -33,6 +33,15 @@ export function setupAuth(app: Express) {
   // Configuration des sessions avec PostgreSQL store
   const isProduction = process.env.NODE_ENV === 'production'
 
+  // Vérification du secret de session (obligatoire en production)
+  const sessionSecret = process.env.SESSION_SECRET
+  if (isProduction && !sessionSecret) {
+    throw new Error('SESSION_SECRET est requis en production')
+  }
+  if (!sessionSecret) {
+    console.warn('⚠️ [AUTH] SESSION_SECRET non défini, utilisation d\'une clé de développement')
+  }
+
   const sessionConfig: session.SessionOptions = {
     store: new PgSession({
       conString: process.env.DATABASE_URL,
@@ -40,7 +49,7 @@ export function setupAuth(app: Express) {
       createTableIfMissing: true, // Crée automatiquement la table
     }),
     name: 'supchaissac.sid', // Nom explicite du cookie
-    secret: process.env.SESSION_SECRET || 'dev-secret-key',
+    secret: sessionSecret || 'dev-only-secret-not-for-production-use',
     resave: false,
     saveUninitialized: false,
     cookie: {
