@@ -296,11 +296,11 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
         setDescription(duplicateData.description || '');
         setComment(duplicateData.comment || '');
       } else {
-        // Mode creation: reinitialiser (pas de creneau par defaut pour forcer le choix)
+        // Mode creation: utiliser le creneau clique si fourni, sinon forcer le choix
         setStep('type');
         setSessionType(null);
         setFormDate(date);
-        setFormTimeSlot('');
+        setFormTimeSlot(timeSlot || '');
         setClassName('');
         setReplacedPrefix('M.');
         setReplacedName('');
