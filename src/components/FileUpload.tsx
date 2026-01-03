@@ -1,10 +1,21 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Upload, X, FileText, Image, File, AlertCircle, Check, Loader2 } from 'lucide-react';
+import { Upload, X, FileText, Image, File, AlertCircle, Check, Loader2, Users, Filter } from 'lucide-react';
 
 export interface Student {
   lastName: string;
   firstName: string;
   className: string;
+}
+
+export interface ExcelParseResult {
+  students: Student[];
+  detectedColumns: {
+    lastName: string | null;
+    firstName: string | null;
+    className: string | null;
+  };
+  availableClasses: string[];
+  totalRows: number;
 }
 
 interface FileUploadProps {
@@ -14,6 +25,7 @@ interface FileUploadProps {
   acceptedTypes?: string[];
   maxSize?: number; // in MB
   disabled?: boolean;
+  showStudentSelector?: boolean; // Afficher la modale de selection
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({
@@ -23,6 +35,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   acceptedTypes = ['.pdf', '.xlsx', '.xls', '.jpg', '.jpeg', '.png'],
   maxSize = 5,
   disabled = false,
+  showStudentSelector = true,
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -32,6 +45,12 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Etat pour la selection des eleves
+  const [showSelector, setShowSelector] = useState(false);
+  const [parseResult, setParseResult] = useState<ExcelParseResult | null>(null);
+  const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set());
+  const [studentLimit, setStudentLimit] = useState<number | null>(null);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -104,6 +123,38 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
   };
 
+  // Detecte les colonnes par leurs noms dans le header
+  const detectColumns = (headerRow: any[]): { lastName: number; firstName: number; className: number } => {
+    const result = { lastName: -1, firstName: -1, className: -1 };
+
+    const patterns = {
+      lastName: ['nom', 'name', 'last_name', 'lastname', 'nom de famille', 'nom_eleve', 'nom eleve'],
+      firstName: ['prenom', 'prénom', 'firstname', 'first_name', 'prenom_eleve', 'prénom élève'],
+      className: ['classe', 'class', 'niveau', 'division', 'groupe', 'classe_eleve']
+    };
+
+    headerRow.forEach((cell, index) => {
+      const cellText = String(cell || '').toLowerCase().trim();
+
+      if (result.lastName === -1 && patterns.lastName.some(p => cellText.includes(p))) {
+        result.lastName = index;
+      }
+      if (result.firstName === -1 && patterns.firstName.some(p => cellText.includes(p))) {
+        result.firstName = index;
+      }
+      if (result.className === -1 && patterns.className.some(p => cellText.includes(p))) {
+        result.className = index;
+      }
+    });
+
+    // Fallback: si pas de header detecte, utiliser les positions par defaut
+    if (result.lastName === -1) result.lastName = 0;
+    if (result.firstName === -1) result.firstName = 1;
+    if (result.className === -1) result.className = 2;
+
+    return result;
+  };
+
   const parseExcelFile = async (file: File) => {
     try {
       const XLSX = await import('xlsx');
@@ -112,38 +163,110 @@ const FileUpload: React.FC<FileUploadProps> = ({
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json<any>(firstSheet, { header: 1 });
 
+      if (data.length < 2) {
+        setError('Fichier Excel vide ou invalide');
+        return;
+      }
+
+      // Detecter les colonnes depuis le header
+      const headerRow = data[0] as any[];
+      const columns = detectColumns(headerRow);
+
       const students: Student[] = [];
+      const classesSet = new Set<string>();
 
-      // Skip header row
+      // Parser les donnees (skip header)
       for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        if (!row || row.length < 2) continue;
+        const row = data[i] as any[];
+        if (!row || row.every(cell => !cell)) continue;
 
-        let lastName = '', firstName = '', className = '';
+        const lastName = String(row[columns.lastName] || '').trim().toUpperCase();
+        const firstName = formatFirstName(String(row[columns.firstName] || '').trim());
+        const className = String(row[columns.className] || '').trim().toUpperCase();
 
-        if (row.length >= 3) {
-          lastName = String(row[0] || '').trim().toUpperCase();
-          firstName = formatFirstName(String(row[1] || '').trim());
-          className = String(row[2] || '').trim().toUpperCase();
-        } else if (row.length === 2) {
-          const parts = String(row[0]).trim().split(/\s+/);
-          lastName = parts[0]?.toUpperCase() || '';
-          firstName = formatFirstName(parts.slice(1).join(' '));
-          className = String(row[1] || '').trim().toUpperCase();
-        }
-
-        if (lastName) {
+        if (lastName && lastName.length >= 2) {
           students.push({ lastName, firstName, className });
+          if (className) {
+            classesSet.add(className);
+          }
         }
       }
 
-      if (students.length > 0 && onStudentsParsed) {
-        onStudentsParsed(students);
+      if (students.length === 0) {
+        setError('Aucun eleve trouve dans le fichier');
+        return;
+      }
+
+      const result: ExcelParseResult = {
+        students,
+        detectedColumns: {
+          lastName: headerRow[columns.lastName] ? String(headerRow[columns.lastName]) : null,
+          firstName: headerRow[columns.firstName] ? String(headerRow[columns.firstName]) : null,
+          className: headerRow[columns.className] ? String(headerRow[columns.className]) : null,
+        },
+        availableClasses: Array.from(classesSet).sort(),
+        totalRows: students.length,
+      };
+
+      setParseResult(result);
+
+      // Si showStudentSelector actif et plusieurs classes, afficher le selecteur
+      if (showStudentSelector && result.availableClasses.length > 1) {
+        setSelectedClasses(new Set(result.availableClasses)); // Tout selectionne par defaut
+        setShowSelector(true);
+      } else {
+        // Sinon, envoyer directement les eleves
+        if (onStudentsParsed) {
+          onStudentsParsed(students);
+        }
         setSuccess(true);
       }
     } catch (err) {
       console.error('Excel parsing error:', err);
       setError('Erreur lors de la lecture du fichier Excel');
+    }
+  };
+
+  // Confirmer la selection des eleves
+  const confirmSelection = () => {
+    if (!parseResult) return;
+
+    let filteredStudents = parseResult.students;
+
+    // Filtrer par classes selectionnees
+    if (selectedClasses.size > 0 && selectedClasses.size < parseResult.availableClasses.length) {
+      filteredStudents = filteredStudents.filter(s => selectedClasses.has(s.className));
+    }
+
+    // Limiter le nombre si specifie
+    if (studentLimit && studentLimit > 0) {
+      filteredStudents = filteredStudents.slice(0, studentLimit);
+    }
+
+    if (onStudentsParsed) {
+      onStudentsParsed(filteredStudents);
+    }
+    setShowSelector(false);
+    setSuccess(true);
+  };
+
+  // Toggle une classe
+  const toggleClass = (className: string) => {
+    const newSelected = new Set(selectedClasses);
+    if (newSelected.has(className)) {
+      newSelected.delete(className);
+    } else {
+      newSelected.add(className);
+    }
+    setSelectedClasses(newSelected);
+  };
+
+  // Selectionner/Deselectionner tout
+  const toggleAllClasses = () => {
+    if (selectedClasses.size === parseResult?.availableClasses.length) {
+      setSelectedClasses(new Set());
+    } else {
+      setSelectedClasses(new Set(parseResult?.availableClasses || []));
     }
   };
 
@@ -160,6 +283,10 @@ const FileUpload: React.FC<FileUploadProps> = ({
     setError(null);
     setSuccess(false);
     setUploadProgress(0);
+    setShowSelector(false);
+    setParseResult(null);
+    setSelectedClasses(new Set());
+    setStudentLimit(null);
     if (inputRef.current) {
       inputRef.current.value = '';
     }
@@ -290,6 +417,161 @@ const FileUpload: React.FC<FileUploadProps> = ({
       <p className="text-xs text-gray-400 text-center">
         PDF, Excel (.xlsx, .xls), Images (jpg, png) - Max {maxSize}MB
       </p>
+
+      {/* Modale de selection des eleves */}
+      {showSelector && parseResult && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center">
+                    <Users className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Selection des eleves</h3>
+                    <p className="text-sm text-gray-500">
+                      {parseResult.totalRows} eleves detectes
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowSelector(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Colonnes detectees */}
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className="px-2 py-1 bg-white rounded-full text-gray-600 border">
+                  Nom: <span className="font-medium">{parseResult.detectedColumns.lastName || 'Col 1'}</span>
+                </span>
+                <span className="px-2 py-1 bg-white rounded-full text-gray-600 border">
+                  Prenom: <span className="font-medium">{parseResult.detectedColumns.firstName || 'Col 2'}</span>
+                </span>
+                <span className="px-2 py-1 bg-white rounded-full text-gray-600 border">
+                  Classe: <span className="font-medium">{parseResult.detectedColumns.className || 'Col 3'}</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 flex-1 overflow-y-auto">
+              {/* Filtre par classe */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Filtrer par classe
+                  </label>
+                  <button
+                    onClick={toggleAllClasses}
+                    className="text-xs text-blue-600 hover:text-blue-700"
+                  >
+                    {selectedClasses.size === parseResult.availableClasses.length ? 'Tout desélectionner' : 'Tout selectionner'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {parseResult.availableClasses.map(className => (
+                    <button
+                      key={className}
+                      onClick={() => toggleClass(className)}
+                      className={`
+                        px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                        ${selectedClasses.has(className)
+                          ? 'bg-blue-500 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}
+                      `}
+                    >
+                      {className}
+                      <span className="ml-1 opacity-70">
+                        ({parseResult.students.filter(s => s.className === className).length})
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Limite de nombre */}
+              <div className="mb-4">
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Limiter le nombre d'eleves (optionnel)
+                </label>
+                <div className="flex gap-2">
+                  {[null, 5, 10, 15, 20].map(limit => (
+                    <button
+                      key={limit ?? 'all'}
+                      onClick={() => setStudentLimit(limit)}
+                      className={`
+                        px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                        ${studentLimit === limit
+                          ? 'bg-amber-500 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}
+                      `}
+                    >
+                      {limit ?? 'Tous'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Apercu des eleves */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Apercu ({(() => {
+                    let filtered = parseResult.students.filter(s =>
+                      selectedClasses.size === 0 || selectedClasses.has(s.className)
+                    );
+                    if (studentLimit) filtered = filtered.slice(0, studentLimit);
+                    return filtered.length;
+                  })()} eleves)
+                </label>
+                <div className="max-h-48 overflow-y-auto bg-gray-50 rounded-lg border">
+                  {(() => {
+                    let filtered = parseResult.students.filter(s =>
+                      selectedClasses.size === 0 || selectedClasses.has(s.className)
+                    );
+                    if (studentLimit) filtered = filtered.slice(0, studentLimit);
+                    return filtered.map((student, i) => (
+                      <div
+                        key={i}
+                        className="px-3 py-2 border-b border-gray-100 last:border-0 flex justify-between text-sm"
+                      >
+                        <span className="font-medium text-gray-900">
+                          {student.lastName} {student.firstName}
+                        </span>
+                        <span className="text-gray-500 text-xs bg-gray-200 px-2 py-0.5 rounded">
+                          {student.className || '-'}
+                        </span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={() => setShowSelector(false)}
+                className="flex-1 px-4 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmSelection}
+                disabled={selectedClasses.size === 0}
+                className="flex-1 px-4 py-2.5 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirmer la selection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

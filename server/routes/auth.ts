@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import passport from 'passport'
+import bcrypt from 'bcrypt'
 import { db } from '../../src/lib/db'
 import { users } from '../../src/lib/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and, gt } from 'drizzle-orm'
 
 const router = Router()
 
@@ -115,9 +116,71 @@ router.get('/me', async (req, res) => {
   }
 })
 
+// Route pour modifier le profil
+router.patch('/profile', async (req, res) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: 'Non connecté' });
+  }
+
+  try {
+    const { firstName, currentPassword, newPassword } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    // Récupérer l'utilisateur actuel
+    const userData = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (userData.length === 0) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    const user = userData[0];
+    const updateData: any = { updatedAt: new Date() };
+
+    // Mise à jour du prénom d'usage
+    if (firstName !== undefined) {
+      // Reconstruire le nom complet avec le nouveau prénom
+      const nameParts = user.name?.split(' ') || ['', ''];
+      const lastName = nameParts.slice(1).join(' ') || '';
+      updateData.name = firstName + (lastName ? ' ' + lastName : '');
+    }
+
+    // Mise à jour du mot de passe (optionnel)
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Mot de passe actuel requis' });
+      }
+
+      // Vérifier le mot de passe actuel
+      const isValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isValid) {
+        return res.status(400).json({ error: 'Mot de passe actuel incorrect' });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
+      }
+
+      updateData.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    // Appliquer les modifications
+    await db.update(users).set(updateData).where(eq(users.id, userId));
+
+    console.log(`✅ [API] Profil mis à jour: ${user.name}`);
+
+    res.json({ success: true, message: 'Profil mis à jour' });
+  } catch (error) {
+    console.error('❌ [API] Erreur mise à jour profil:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Route de test (à supprimer en production)
 router.get('/status', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'API Auth opérationnelle',
     timestamp: new Date().toISOString(),
     authenticated: req.isAuthenticated(),
@@ -127,5 +190,112 @@ router.get('/status', (req, res) => {
     } : null
   })
 })
+
+// Vérifier un token d'activation
+router.get('/verify-token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const userData = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        username: users.username,
+        isActivated: users.isActivated,
+        activationTokenExpiry: users.activationTokenExpiry,
+      })
+      .from(users)
+      .where(eq(users.activationToken, token))
+      .limit(1);
+
+    if (userData.length === 0) {
+      return res.status(404).json({ error: 'Token invalide ou expiré' });
+    }
+
+    const user = userData[0];
+
+    // Vérifier si déjà activé
+    if (user.isActivated) {
+      return res.status(400).json({ error: 'Ce compte est déjà activé' });
+    }
+
+    // Vérifier l'expiration
+    if (user.activationTokenExpiry && new Date() > user.activationTokenExpiry) {
+      return res.status(400).json({ error: 'Ce lien a expiré. Contactez l\'administrateur.' });
+    }
+
+    res.json({
+      valid: true,
+      name: user.name,
+      email: user.username,
+    });
+  } catch (error) {
+    console.error('❌ [API] Erreur vérification token:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Activer un compte avec le token
+router.post('/activate', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token et mot de passe requis' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+    }
+
+    // Trouver l'utilisateur avec ce token
+    const userData = await db
+      .select()
+      .from(users)
+      .where(eq(users.activationToken, token))
+      .limit(1);
+
+    if (userData.length === 0) {
+      return res.status(404).json({ error: 'Token invalide' });
+    }
+
+    const user = userData[0];
+
+    // Vérifier si déjà activé
+    if (user.isActivated) {
+      return res.status(400).json({ error: 'Ce compte est déjà activé. Connectez-vous.' });
+    }
+
+    // Vérifier l'expiration
+    if (user.activationTokenExpiry && new Date() > user.activationTokenExpiry) {
+      return res.status(400).json({ error: 'Ce lien a expiré. Contactez l\'administrateur.' });
+    }
+
+    // Hasher le nouveau mot de passe
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Activer le compte
+    await db
+      .update(users)
+      .set({
+        password: hashedPassword,
+        isActivated: true,
+        activationToken: null,
+        activationTokenExpiry: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id));
+
+    console.log(`✅ [AUTH] Compte activé: ${user.name} (${user.username})`);
+
+    res.json({
+      success: true,
+      message: 'Compte activé avec succès. Vous pouvez maintenant vous connecter.',
+    });
+  } catch (error) {
+    console.error('❌ [API] Erreur activation:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 export default router

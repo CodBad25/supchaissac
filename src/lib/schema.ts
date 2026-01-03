@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, pgEnum, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -28,6 +28,10 @@ export const users = pgTable("users", {
   pacteHoursRCD: integer("pacte_hours_rcd").default(0), // Heures RCD prévues au contrat
   pacteHoursCompletedDF: integer("pacte_hours_completed_df").default(0), // Heures DF déjà réalisées (saisie manuelle)
   pacteHoursCompletedRCD: integer("pacte_hours_completed_rcd").default(0), // Heures RCD déjà réalisées (saisie manuelle)
+  // Activation par email
+  isActivated: boolean("is_activated").default(false), // Compte activé ?
+  activationToken: text("activation_token"), // Token pour activer le compte
+  activationTokenExpiry: timestamp("activation_token_expiry"), // Expiration du token
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at"),
 });
@@ -73,6 +77,7 @@ export const sessions = pgTable("sessions", {
   // Champs DEVOIRS_FAITS
   gradeLevel: text("grade_level"), // "6e", "5e", "4e", "3e", "mixte"
   studentCount: integer("student_count"), // Nombre d'élèves
+  studentsList: jsonb("students_list"), // Liste des élèves [{lastName, firstName, className}]
   
   // Champs AUTRE
   description: text("description"), // Description libre
@@ -159,6 +164,7 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({
   subject: true,
   gradeLevel: true,
   studentCount: true,
+  studentsList: true,
   description: true,
   comment: true,
   reviewComments: true,

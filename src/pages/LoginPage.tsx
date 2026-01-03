@@ -85,7 +85,7 @@ const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showTestAccounts, setShowTestAccounts] = useState(true);
+  const [isTestMode, setIsTestMode] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(shouldShowOnboarding());
 
@@ -177,6 +177,34 @@ const LoginPage: React.FC = () => {
             </p>
           </div>
 
+          {/* Mode Toggle */}
+          <div className="flex items-center justify-center mb-6">
+            <div className="bg-gray-100 rounded-xl p-1 flex">
+              <button
+                type="button"
+                onClick={() => setIsTestMode(true)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  isTestMode
+                    ? 'bg-white text-yellow-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Mode Test
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTestMode(false)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  !isTestMode
+                    ? 'bg-white text-yellow-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Mode Réel
+              </button>
+            </div>
+          </div>
+
           {/* Login Form */}
           <form onSubmit={handleLogin} className="space-y-5">
             {/* Email Field */}
@@ -238,21 +266,10 @@ const LoginPage: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Test Accounts Toggle */}
-          <div className="mt-6">
-            <button
-              onClick={() => setShowTestAccounts(!showTestAccounts)}
-              className="w-full flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-yellow-600 font-medium transition-all duration-200"
-            >
-              <Info className="w-4 h-4" />
-              {showTestAccounts ? 'Masquer les comptes de test' : 'Afficher les comptes de test'}
-            </button>
-          </div>
         </div>
 
-        {/* Test Accounts Section */}
-        {showTestAccounts && (
+        {/* Test Accounts Section - Only in test mode */}
+        {isTestMode && (
           <div className="mt-6 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 p-6 shadow-xl">
             <p className="text-xs text-gray-500 text-center mb-4 font-bold uppercase tracking-wider">
               Comptes de test (développement)

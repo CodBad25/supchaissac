@@ -96,12 +96,23 @@ export async function deleteFile(path: string): Promise<void> {
 }
 
 /**
- * Genere une URL signee pour acces temporaire (optionnel)
+ * Genere une URL signee pour acces temporaire
+ * @param path - Chemin du fichier dans S3
+ * @param expiresIn - Duree de validite en secondes (defaut: 1h)
+ * @param originalFilename - Nom original du fichier pour forcer le telechargement
  */
-export async function getSignedDownloadUrl(path: string, expiresIn = 3600): Promise<string> {
+export async function getSignedDownloadUrl(
+  path: string,
+  expiresIn = 3600,
+  originalFilename?: string
+): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,
     Key: path,
+    // Forcer le telechargement avec le nom original du fichier
+    ...(originalFilename && {
+      ResponseContentDisposition: `attachment; filename="${encodeURIComponent(originalFilename)}"`,
+    }),
   });
 
   return getSignedUrl(s3Client, command, { expiresIn });

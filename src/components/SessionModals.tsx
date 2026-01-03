@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, BookOpen, FileText, Sun, Moon, ChevronLeft, Plus, Trash2, AlertTriangle, Copy } from 'lucide-react';
+import { X, Users, BookOpen, FileText, Sun, Moon, ChevronLeft, Plus, Trash2, AlertTriangle, Copy, Upload, Edit3, Camera } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useIsMobile } from '../hooks/useMediaQuery';
@@ -69,6 +69,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
   const [studentCount, setStudentCount] = useState(1);
   const [studentsList, setStudentsList] = useState<Student[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [justificationMode, setJustificationMode] = useState<'none' | 'excel' | 'manual' | 'photo'>('none');
   const [description, setDescription] = useState('');
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -122,6 +123,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
         setStudentCount(1);
         setStudentsList([]);
         setSelectedFile(null);
+        setJustificationMode('none');
         setDescription('');
         setComment('');
       }
@@ -624,6 +626,21 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
   // DEVOIRS FAITS FORM
   // ============================================================================
   if (step === 'form' && sessionType === 'DEVOIRS_FAITS') {
+    // Handler pour selectionner le mode de justification
+    const selectJustificationMode = (mode: 'excel' | 'manual' | 'photo') => {
+      setJustificationMode(mode);
+      if (mode === 'manual') {
+        // Generer les champs eleves vides
+        generateStudentFields(studentCount);
+      } else {
+        // Effacer la liste si on change de mode
+        setStudentsList([]);
+      }
+      if (mode !== 'excel' && mode !== 'photo') {
+        setSelectedFile(null);
+      }
+    };
+
     return (
       <div className={overlayClass} onClick={!isMobile ? handleClose : undefined}>
         <div className={modalClass} onClick={e => e.stopPropagation()}>
@@ -733,7 +750,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             </div>
 
-            {/* Etape 2: Nombre d'eleves */}
+            {/* Etape 2: Nombre d'eleves (OBLIGATOIRE) */}
             <div className={`relative transition-all duration-500 ${
               formTimeSlot
                 ? 'opacity-100 translate-y-0'
@@ -742,8 +759,8 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               <div className="flex items-center gap-2 mb-2">
                 <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors duration-300 ${
                   formTimeSlot ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'
-                }`}>2</div>
-                <label className="text-sm font-medium text-gray-700">Nombre d'eleves</label>
+                }`}>{isDuplicateMode ? '3' : '2'}</div>
+                <label className="text-sm font-medium text-gray-700">Nombre d'eleves <span className="text-red-500">*</span></label>
                 {!formTimeSlot && <span className="text-xs text-gray-400 ml-auto">Selectionnez un creneau</span>}
               </div>
               <input
@@ -753,13 +770,16 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                 onChange={e => {
                   const count = parseInt(e.target.value) || 1;
                   setStudentCount(count);
-                  generateStudentFields(count);
+                  // Si mode manuel actif, regenerer les champs
+                  if (justificationMode === 'manual') {
+                    generateStudentFields(count);
+                  }
                 }}
                 className="w-full min-h-[44px] px-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            {/* Etape 3: Document et liste */}
+            {/* Etape 3: Justification (OPTIONNELLE) */}
             <div className={`relative transition-all duration-500 ${
               formTimeSlot && studentCount > 0
                 ? 'opacity-100 translate-y-0'
@@ -768,22 +788,86 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               <div className="flex items-center gap-2 mb-2">
                 <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors duration-300 ${
                   formTimeSlot && studentCount > 0 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'
-                }`}>3</div>
+                }`}>{isDuplicateMode ? '4' : '3'}</div>
                 <label className="text-sm font-medium text-gray-700">
-                  Document <span className="font-normal text-gray-400">(optionnel)</span>
+                  Justification <span className="font-normal text-gray-400">(optionnel)</span>
                 </label>
-                {!(formTimeSlot && studentCount > 0) && <span className="text-xs text-gray-400 ml-auto">Indiquez le nombre d'eleves</span>}
               </div>
-              <FileUpload
-                onFileSelect={handleFileSelect}
-                onStudentsParsed={handleStudentsParsed}
-                acceptedTypes={['.pdf', '.xlsx', '.xls', '.jpg', '.jpeg', '.png']}
-                maxSize={5}
-              />
+
+              {/* 3 boutons de choix */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <button
+                  onClick={() => selectJustificationMode('excel')}
+                  className={`${touchBtn} flex-col py-3 px-2 rounded-xl border-2 text-xs ${
+                    justificationMode === 'excel'
+                      ? 'border-green-500 bg-green-50 text-green-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <Upload className="w-5 h-5 mb-1" />
+                  Importer Excel
+                </button>
+                <button
+                  onClick={() => selectJustificationMode('manual')}
+                  className={`${touchBtn} flex-col py-3 px-2 rounded-xl border-2 text-xs ${
+                    justificationMode === 'manual'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <Edit3 className="w-5 h-5 mb-1" />
+                  Saisir noms
+                </button>
+                <button
+                  onClick={() => selectJustificationMode('photo')}
+                  className={`${touchBtn} flex-col py-3 px-2 rounded-xl border-2 text-xs ${
+                    justificationMode === 'photo'
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <Camera className="w-5 h-5 mb-1" />
+                  Photo/PDF
+                </button>
+              </div>
+
+              {/* Mode Excel: FileUpload pour Excel uniquement */}
+              {justificationMode === 'excel' && (
+                <div className="animate-fade-in">
+                  <FileUpload
+                    onFileSelect={handleFileSelect}
+                    onStudentsParsed={handleStudentsParsed}
+                    acceptedTypes={['.xlsx', '.xls']}
+                    maxSize={5}
+                  />
+                  {studentsList.length > 0 && (
+                    <p className="text-xs text-green-600 mt-2">
+                      {studentsList.length} eleves importes depuis le fichier
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Mode Photo/PDF: FileUpload pour images et PDF */}
+              {justificationMode === 'photo' && (
+                <div className="animate-fade-in">
+                  <FileUpload
+                    onFileSelect={handleFileSelect}
+                    onStudentsParsed={() => {}} // Pas de parsing pour photo
+                    acceptedTypes={['.pdf', '.jpg', '.jpeg', '.png']}
+                    maxSize={5}
+                  />
+                  {selectedFile && (
+                    <p className="text-xs text-purple-600 mt-2">
+                      Justificatif: {selectedFile.name}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Liste des eleves (apparait apres step 3) */}
-            {studentsList.length > 0 && formTimeSlot && (
+            {/* Liste des eleves (mode manuel ou apres import Excel) */}
+            {(justificationMode === 'manual' || (justificationMode === 'excel' && studentsList.length > 0)) && studentsList.length > 0 && formTimeSlot && (
               <div className="relative transition-all duration-500 opacity-100 translate-y-0">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center">
@@ -824,10 +908,12 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                     </div>
                   ))}
                 </div>
-                <button onClick={addStudent}
-                  className={`w-full mt-2 ${touchBtn} border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:bg-gray-50 rounded-xl`}>
-                  <Plus className="w-4 h-4 mr-1" /> Ajouter un eleve
-                </button>
+                {justificationMode === 'manual' && (
+                  <button onClick={addStudent}
+                    className={`w-full mt-2 ${touchBtn} border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:bg-gray-50 rounded-xl`}>
+                    <Plus className="w-4 h-4 mr-1" /> Ajouter un eleve
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -860,7 +946,8 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               Retour
             </button>
             <button onClick={handleGoToConfirmation}
-              className={`${touchBtn} flex-1 px-4 bg-blue-500 text-white hover:bg-blue-600`}>
+              disabled={!formTimeSlot || studentCount < 1}
+              className={`${touchBtn} flex-1 px-4 bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed`}>
               Continuer
             </button>
           </div>
@@ -1152,9 +1239,21 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                     <div className="text-xs text-gray-500 mb-1">Nombre d'élèves</div>
                     <div className="font-semibold text-gray-900 text-2xl text-center">{studentCount}</div>
                   </div>
+                  {/* Afficher le type de justification */}
+                  {justificationMode !== 'none' && (
+                    <div className="bg-white rounded-xl p-4 border border-gray-100">
+                      <div className="text-xs text-gray-500 mb-1">Justification</div>
+                      <div className="font-medium text-gray-900">
+                        {justificationMode === 'excel' && '📊 Import Excel'}
+                        {justificationMode === 'manual' && '✏️ Saisie manuelle'}
+                        {justificationMode === 'photo' && '📷 Photo/PDF'}
+                      </div>
+                    </div>
+                  )}
+                  {/* Liste des élèves si disponible */}
                   {studentsList.length > 0 && (
                     <div className="bg-white rounded-xl p-4 border border-gray-100">
-                      <div className="text-xs text-gray-500 mb-2">Liste des élèves</div>
+                      <div className="text-xs text-gray-500 mb-2">Liste des élèves ({studentsList.length})</div>
                       <div className="space-y-1 max-h-32 overflow-y-auto">
                         {studentsList.map((student, i) => (
                           <div key={i} className="text-sm text-gray-700">
@@ -1162,6 +1261,13 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+                  {/* Fichier attaché si mode photo */}
+                  {justificationMode === 'photo' && selectedFile && (
+                    <div className="bg-white rounded-xl p-4 border border-gray-100">
+                      <div className="text-xs text-gray-500 mb-1">Fichier joint</div>
+                      <div className="text-sm text-purple-600">{selectedFile.name}</div>
                     </div>
                   )}
                 </div>

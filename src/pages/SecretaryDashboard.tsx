@@ -5,7 +5,8 @@ import {
   Download, CheckCircle, Eye, AlertCircle,
   Paperclip, Send, Clock3, Home, ClipboardCheck,
   CreditCard, History, X, CheckSquare, Square,
-  Users, UserCheck, UserX, Edit2, TrendingUp, HelpCircle
+  Users, UserCheck, UserX, Edit2, TrendingUp, HelpCircle,
+  Image, FileSpreadsheet, File
 } from 'lucide-react';
 import { Switch } from '../components/ui/switch';
 import { API_BASE_URL } from '../config/api';
@@ -63,6 +64,12 @@ const secretaryTourSteps: TourStep[] = [
 ];
 
 // Types
+interface Student {
+  lastName: string;
+  firstName: string;
+  className: string;
+}
+
 interface Session {
   id: number;
   date: string;
@@ -71,6 +78,7 @@ interface Session {
   status: string;
   className?: string;
   studentCount?: number;
+  studentsList?: Student[];
   gradeLevel?: string;
   description?: string;
   replacedTeacherName?: string;
@@ -176,6 +184,7 @@ export default function SecretaryDashboard() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [viewedAttachments, setViewedAttachments] = useState<Set<number>>(new Set()); // Suivre les PJ consultees
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Action modals
@@ -357,6 +366,7 @@ export default function SecretaryDashboard() {
   // Load attachments for a session
   const loadAttachments = async (sessionId: number) => {
     setAttachmentsLoading(true);
+    setViewedAttachments(new Set()); // Reset des PJ consultees
     try {
       const response = await fetch(`${API_BASE_URL}/api/attachments/session/${sessionId}`, {
         credentials: 'include',
@@ -490,6 +500,35 @@ export default function SecretaryDashboard() {
       }
     } catch (error) {
       console.error('Erreur verification:', error);
+    }
+  };
+
+  // Download attachment avec nom explicite
+  const handleDownloadAttachment = async (attachmentId: number) => {
+    try {
+      // Marquer comme consulte
+      setViewedAttachments(prev => new Set(prev).add(attachmentId));
+
+      // Obtenir l'URL signee avec nom explicite
+      const response = await fetch(`${API_BASE_URL}/api/attachments/${attachmentId}/download-url`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la recuperation de l\'URL');
+      }
+
+      const { url, filename } = await response.json();
+
+      // Declencher le telechargement
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erreur telechargement:', error);
     }
   };
 
@@ -751,6 +790,13 @@ export default function SecretaryDashboard() {
               title="Aide / Tutoriel"
             >
               <HelpCircle className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => navigate('/profile')}
+              className="p-2 text-gray-400 hover:text-amber-500 transition-colors"
+              title="Mon profil"
+            >
+              <User className="w-5 h-5" />
             </button>
             <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
               <LogOut className="w-5 h-5" />
@@ -1361,11 +1407,48 @@ export default function SecretaryDashboard() {
 
                 {selectedSession.type === 'DEVOIRS_FAITS' && (
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-gray-900 mb-2">Devoirs Faits</h4>
-                    <div className="space-y-1 text-sm">
-                      {selectedSession.studentCount && <p><span className="text-gray-500">Eleves:</span> {selectedSession.studentCount}</p>}
-                      {selectedSession.gradeLevel && <p><span className="text-gray-500">Niveau:</span> {selectedSession.gradeLevel}</p>}
-                    </div>
+                    <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Devoirs Faits
+                      {selectedSession.studentCount && (
+                        <span className="text-sm font-normal text-gray-500">
+                          ({selectedSession.studentCount} eleve{selectedSession.studentCount > 1 ? 's' : ''})
+                        </span>
+                      )}
+                    </h4>
+                    {selectedSession.gradeLevel && (
+                      <p className="text-sm text-gray-600 mb-2">
+                        <span className="text-gray-500">Niveau:</span> {selectedSession.gradeLevel}
+                      </p>
+                    )}
+                    {/* Liste des eleves */}
+                    {selectedSession.studentsList && selectedSession.studentsList.length > 0 ? (
+                      <div className="mt-2 max-h-40 overflow-y-auto">
+                        <div className="grid gap-1">
+                          {selectedSession.studentsList.map((student, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between px-2 py-1 bg-white rounded border border-gray-100 text-sm"
+                            >
+                              <span className="font-medium text-gray-800">
+                                {student.lastName} {student.firstName}
+                              </span>
+                              {student.className && (
+                                <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                  {student.className}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : selectedSession.studentCount ? (
+                      <p className="text-sm text-gray-500 italic">
+                        {attachments.length > 0
+                          ? 'Voir les pieces jointes ci-dessous'
+                          : 'Aucune liste detaillee fournie'}
+                      </p>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -1402,42 +1485,86 @@ export default function SecretaryDashboard() {
                     <p className="text-amber-600 text-sm">Vous pouvez demander des documents a l'enseignant</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {attachments.map(attachment => (
-                      <div key={attachment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-5 h-5 text-blue-600" />
-                          <div>
-                            <p className="font-medium text-sm">{attachment.originalName}</p>
-                            <p className="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
-                          </div>
-                          {attachment.isVerified && (
-                            <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 flex items-center gap-1">
-                              <CheckCircle className="w-3 h-3" />
-                              Verifie
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!attachment.isVerified && (
-                            <button
-                              onClick={() => handleVerifyAttachment(attachment.id)}
-                              className="px-3 py-1 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                  <div className="space-y-3">
+                    {attachments.map(attachment => {
+                      const isImage = attachment.mimeType.startsWith('image/');
+                      const isExcel = attachment.mimeType.includes('spreadsheet') || attachment.mimeType.includes('excel');
+                      const isPdf = attachment.mimeType.includes('pdf');
+
+                      // Icone selon type
+                      const FileIcon = isImage ? Image : isExcel ? FileSpreadsheet : isPdf ? FileText : File;
+                      const iconColor = isImage ? 'text-purple-600' : isExcel ? 'text-green-600' : isPdf ? 'text-red-600' : 'text-blue-600';
+
+                      return (
+                        <div key={attachment.id} className="bg-gray-50 rounded-lg overflow-hidden">
+                          {/* Apercu image si c'est une image */}
+                          {isImage && (
+                            <div
+                              className="relative bg-gray-100 cursor-pointer group"
+                              onClick={() => {
+                                setViewedAttachments(prev => new Set(prev).add(attachment.id));
+                              }}
                             >
-                              Verifier
-                            </button>
+                              <img
+                                src={attachment.url}
+                                alt={attachment.originalName}
+                                className="w-full max-h-48 object-contain"
+                                onLoad={() => setViewedAttachments(prev => new Set(prev).add(attachment.id))}
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                <span className="opacity-0 group-hover:opacity-100 bg-white/90 px-3 py-1 rounded-full text-sm font-medium text-gray-700 transition-opacity">
+                                  Cliquer pour agrandir
+                                </span>
+                              </div>
+                            </div>
                           )}
-                          <a
-                            href={attachment.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Download className="w-4 h-4" />
-                          </a>
+
+                          {/* Info fichier */}
+                          <div className="p-3 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <FileIcon className={`w-5 h-5 ${iconColor}`} />
+                              <div>
+                                <p className="font-medium text-sm">{attachment.originalName}</p>
+                                <p className="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
+                              </div>
+                            </div>
+
+                            {/* Statut */}
+                            <div className="flex items-center gap-2">
+                              {attachment.isVerified ? (
+                                <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 flex items-center gap-1">
+                                  <CheckCircle className="w-3 h-3" />
+                                  Verifie
+                                </span>
+                              ) : viewedAttachments.has(attachment.id) ? (
+                                <button
+                                  onClick={() => handleVerifyAttachment(attachment.id)}
+                                  className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1"
+                                  title="Cliquez pour confirmer la verification"
+                                >
+                                  <CheckCircle className="w-3 h-3" />
+                                  Valider
+                                </button>
+                              ) : (
+                                <span className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" />
+                                  A consulter
+                                </span>
+                              )}
+
+                              {/* Bouton telecharger */}
+                              <button
+                                onClick={() => handleDownloadAttachment(attachment.id)}
+                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Telecharger avec nom explicite"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

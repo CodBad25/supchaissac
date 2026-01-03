@@ -12,7 +12,8 @@ import {
   LogOut,
   Hourglass,
   ArrowRight,
-  HelpCircle
+  HelpCircle,
+  User
 } from 'lucide-react';
 import SmartCalendar from '../components/SmartCalendar';
 import SessionModals from '../components/SessionModals';
@@ -96,6 +97,7 @@ const TeacherDashboard: React.FC = () => {
   const [duplicateData, setDuplicateData] = useState<any>(null);
   const [showTour, setShowTour] = useState(shouldShowTour('teacher'));
   const [timelineView, setTimelineView] = useState<'semaines' | 'mois'>('semaines');
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Récupérer les vraies données utilisateur depuis l'API
   useEffect(() => {
@@ -369,14 +371,20 @@ const TeacherDashboard: React.FC = () => {
         ...(sessionData.type === 'DEVOIRS_FAITS' && {
           gradeLevel: sessionData.gradeLevel,
           studentCount: sessionData.studentCount,
+          studentsList: sessionData.studentsList,
           comment: sessionData.comment
         }),
-        
+
         ...(sessionData.type === 'AUTRE' && {
           description: sessionData.description,
           comment: sessionData.comment
         })
       };
+
+      // DEBUG: Voir ce qui est envoyé
+      console.log('🔵 [DEBUG] sessionData reçu:', sessionData);
+      console.log('🔵 [DEBUG] apiData envoyé:', apiData);
+      console.log('🔵 [DEBUG] studentsList:', sessionData.studentsList);
 
       // Envoyer à l'API (à implémenter côté serveur)
       const response = await fetch(`${API_BASE_URL}/api/sessions`, {
@@ -411,12 +419,15 @@ const TeacherDashboard: React.FC = () => {
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json();
             console.log('Fichier uploadé:', uploadResult);
+            setUploadError(null);
           } else {
-            console.error('Erreur upload fichier:', await uploadResponse.text());
+            const errorText = await uploadResponse.text();
+            console.error('Erreur upload fichier:', errorText);
+            setUploadError('Le fichier n\'a pas pu être uploadé. La session a été créée sans pièce jointe.');
           }
-        } catch (uploadError) {
-          console.error('Erreur upload:', uploadError);
-          // On ne bloque pas la création de session si l'upload échoue
+        } catch (uploadErr) {
+          console.error('Erreur upload:', uploadErr);
+          setUploadError('Erreur de connexion lors de l\'upload. La session a été créée sans pièce jointe.');
         }
       }
 
@@ -452,6 +463,7 @@ const TeacherDashboard: React.FC = () => {
         ...(sessionData.type === 'DEVOIRS_FAITS' && {
           gradeLevel: sessionData.gradeLevel,
           studentCount: sessionData.studentCount,
+          studentsList: sessionData.studentsList,
           comment: sessionData.comment
         }),
 
@@ -493,11 +505,15 @@ const TeacherDashboard: React.FC = () => {
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json();
             console.log('Fichier uploadé:', uploadResult);
+            setUploadError(null);
           } else {
-            console.error('Erreur upload fichier:', await uploadResponse.text());
+            const errorText = await uploadResponse.text();
+            console.error('Erreur upload fichier:', errorText);
+            setUploadError('Le fichier n\'a pas pu être uploadé. La session a été modifiée sans pièce jointe.');
           }
-        } catch (uploadError) {
-          console.error('Erreur upload:', uploadError);
+        } catch (uploadErr) {
+          console.error('Erreur upload:', uploadErr);
+          setUploadError('Erreur de connexion lors de l\'upload. La session a été modifiée sans pièce jointe.');
         }
       }
 
@@ -596,6 +612,15 @@ const TeacherDashboard: React.FC = () => {
                 <HelpCircle className="w-4 h-4 text-yellow-600" />
               </button>
 
+              {/* Profile */}
+              <button
+                onClick={() => navigate('/profile')}
+                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                title="Mon profil"
+              >
+                <User className="w-4 h-4 text-gray-600" />
+              </button>
+
               {/* Logout */}
               <button
                 onClick={handleLogout}
@@ -644,6 +669,26 @@ const TeacherDashboard: React.FC = () => {
           </nav>
         </div>
       </div>
+
+      {/* Upload Error Banner */}
+      {uploadError && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-3">
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="flex items-center gap-2 text-red-700">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <span className="font-medium">{uploadError}</span>
+            </div>
+            <button
+              onClick={() => setUploadError(null)}
+              className="text-red-500 hover:text-red-700 font-medium"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="px-3 sm:px-6 py-2 sm:py-4">

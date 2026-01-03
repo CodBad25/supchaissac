@@ -3,6 +3,7 @@ import { db } from '../../src/lib/db';
 import { users, sessions } from '../../src/lib/schema';
 import { eq, and, gte, lte, count, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
+import { generateActivationToken, sendActivationEmail, isAcademicEmail, getActivationLink, isEmailEnabled } from '../services/email';
 
 const router = Router();
 
@@ -96,6 +97,8 @@ router.get('/users', requireAdmin, async (req, res) => {
         role: users.role,
         initials: users.initials,
         inPacte: users.inPacte,
+        isActivated: users.isActivated,
+        activationTokenExpiry: users.activationTokenExpiry,
         createdAt: users.createdAt,
       })
       .from(users)
@@ -300,6 +303,113 @@ router.post('/import', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Erreur import CSV:', error);
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/admin/users/:id/send-activation - Envoyer/renvoyer lien d'activation
+router.post('/users/:id/send-activation', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Récupérer l'utilisateur
+    const userData = await db.select().from(users).where(eq(users.id, parseInt(id))).limit(1);
+
+    if (userData.length === 0) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    const user = userData[0];
+
+    // Vérifier si déjà activé
+    if (user.isActivated) {
+      return res.status(400).json({ error: 'Ce compte est déjà activé' });
+    }
+
+    // Générer un nouveau token (48h d'expiration)
+    const token = generateActivationToken();
+    const expiry = new Date();
+    expiry.setHours(expiry.getHours() + 48);
+
+    // Mettre à jour l'utilisateur
+    await db
+      .update(users)
+      .set({
+        activationToken: token,
+        activationTokenExpiry: expiry,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id));
+
+    // Envoyer l'email (ou simuler)
+    const result = await sendActivationEmail(user.username, user.name, token);
+
+    console.log(`[ADMIN] Lien d'activation généré pour ${user.name} (${user.username})`);
+
+    res.json({
+      success: true,
+      message: result.message,
+      // En mode présentation, on retourne le lien pour l'afficher dans l'admin
+      activationLink: result.link,
+      emailEnabled: isEmailEnabled(),
+    });
+  } catch (error) {
+    console.error('Erreur envoi activation:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/admin/email-status - Vérifier si l'envoi d'email est activé
+router.get('/email-status', requireAdmin, async (req, res) => {
+  res.json({
+    emailEnabled: isEmailEnabled(),
+    message: isEmailEnabled()
+      ? 'Envoi d\'emails activé'
+      : 'Mode présentation : les liens d\'activation sont affichés dans l\'interface admin',
+  });
+});
+
+// DELETE /api/admin/sessions/all - Supprimer toutes les sessions
+router.delete('/sessions/all', requireAdmin, async (req, res) => {
+  try {
+    const result = await db.delete(sessions);
+    console.log('🗑️ [ADMIN] Toutes les sessions supprimées');
+    res.json({ success: true, message: 'Toutes les sessions ont été supprimées' });
+  } catch (error) {
+    console.error('Erreur suppression sessions:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression' });
+  }
+});
+
+// DELETE /api/admin/users/all - Supprimer tous les utilisateurs sauf admin
+router.delete('/users/all', requireAdmin, async (req, res) => {
+  try {
+    // D'abord supprimer les sessions (foreign key)
+    await db.delete(sessions);
+    // Puis supprimer les utilisateurs non-admin
+    await db.delete(users).where(sql`${users.role} != 'ADMIN'`);
+    console.log('🗑️ [ADMIN] Tous les utilisateurs (sauf admin) supprimés');
+    res.json({ success: true, message: 'Tous les utilisateurs (sauf admin) ont été supprimés' });
+  } catch (error) {
+    console.error('Erreur suppression utilisateurs:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression' });
+  }
+});
+
+// DELETE /api/admin/reset - Réinitialisation complète (sessions + utilisateurs sauf admin)
+router.delete('/reset', requireAdmin, async (req, res) => {
+  try {
+    // Supprimer toutes les sessions
+    const sessionResult = await db.delete(sessions);
+    // Supprimer tous les utilisateurs sauf admin
+    const userResult = await db.delete(users).where(sql`${users.role} != 'ADMIN'`);
+    console.log('🗑️ [ADMIN] Réinitialisation complète effectuée');
+    res.json({
+      success: true,
+      message: 'Base de données réinitialisée (sessions et utilisateurs supprimés, admin conservé)'
+    });
+  } catch (error) {
+    console.error('Erreur réinitialisation:', error);
+    res.status(500).json({ error: 'Erreur lors de la réinitialisation' });
   }
 });
 

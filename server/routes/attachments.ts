@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { uploadFile, deleteFile, validateFile, isStorageConfigured } from '../services/storage';
+import { uploadFile, deleteFile, validateFile, isStorageConfigured, getSignedDownloadUrl } from '../services/storage';
 import { parseStudentList, isValidExcelFile } from '../services/excelParser';
 import { db } from '../../src/lib/db';
-import { attachments } from '../../src/lib/schema';
+import { attachments, sessions } from '../../src/lib/schema';
 import { eq } from 'drizzle-orm';
 
 const router = Router();
@@ -197,7 +197,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
 /**
  * GET /api/attachments/session/:sessionId
- * Liste les fichiers d'une session
+ * Liste les fichiers d'une session avec URLs signees (valides 1h)
  */
 router.get('/session/:sessionId', async (req: Request, res: Response) => {
   try {
@@ -211,12 +211,95 @@ router.get('/session/:sessionId', async (req: Request, res: Response) => {
       .from(attachments)
       .where(eq(attachments.sessionId, sessionId));
 
-    res.json(sessionAttachments);
+    // Generer des URLs signees pour chaque piece jointe (valides 1 heure)
+    const attachmentsWithSignedUrls = await Promise.all(
+      sessionAttachments.map(async (attachment) => {
+        try {
+          // Le champ 'filename' contient le chemin S3 (ex: sessions/123/timestamp_file.png)
+          // Passer originalName pour forcer le telechargement avec le bon nom
+          const signedUrl = await getSignedDownloadUrl(
+            attachment.filename,
+            3600,
+            attachment.originalName // Nom original pour Content-Disposition
+          );
+          return {
+            ...attachment,
+            url: signedUrl, // Remplacer l'URL publique par l'URL signee
+          };
+        } catch (err) {
+          console.error(`[LIST] Erreur generation URL signee pour ${attachment.filename}:`, err);
+          return attachment; // Retourner l'attachment sans modification en cas d'erreur
+        }
+      })
+    );
+
+    res.json(attachmentsWithSignedUrls);
 
   } catch (error) {
     console.error('[LIST] Erreur:', error);
     res.status(500).json({
       error: 'Erreur lors de la recuperation des fichiers',
+      message: error instanceof Error ? error.message : 'Erreur inconnue'
+    });
+  }
+});
+
+/**
+ * GET /api/attachments/:id/download-url
+ * Genere une URL signee avec nom de fichier explicite (enseignant_date_creneau_nomoriginal)
+ */
+router.get('/:id/download-url', async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'ID invalide' });
+    }
+
+    // Recuperer l'attachment avec sa session
+    const [attachment] = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.id, id))
+      .limit(1);
+
+    if (!attachment) {
+      return res.status(404).json({ error: 'Fichier non trouve' });
+    }
+
+    // Recuperer la session pour avoir les infos enseignant/date/creneau
+    const [session] = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, attachment.sessionId))
+      .limit(1);
+
+    // Construire le nom explicite
+    let explicitFilename = attachment.originalName;
+    if (session) {
+      const teacherName = session.teacherName?.replace(/\s+/g, '_') || 'Enseignant';
+      const date = session.date ? session.date.replace(/-/g, '') : '';
+      const slot = session.timeSlot || '';
+      const ext = attachment.originalName.split('.').pop() || '';
+      const baseName = attachment.originalName.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9]/g, '_');
+      explicitFilename = `${teacherName}_${date}_${slot}_${baseName}.${ext}`;
+    }
+
+    // Generer URL signee avec le nom explicite
+    const signedUrl = await getSignedDownloadUrl(
+      attachment.filename,
+      3600,
+      explicitFilename
+    );
+
+    res.json({
+      url: signedUrl,
+      filename: explicitFilename
+    });
+
+  } catch (error) {
+    console.error('[DOWNLOAD-URL] Erreur:', error);
+    res.status(500).json({
+      error: 'Erreur lors de la generation de l\'URL',
       message: error instanceof Error ? error.message : 'Erreur inconnue'
     });
   }

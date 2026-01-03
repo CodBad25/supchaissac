@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../../src/lib/db';
-import { sessions, insertSessionSchema, users } from '../../src/lib/schema';
+import { sessions, insertSessionSchema, users, attachments } from '../../src/lib/schema';
 import { requireAuth, requireSecretary, requirePrincipal } from '../middleware/auth';
 import { eq, and, desc, or, inArray } from 'drizzle-orm';
 import { isBlockedDate } from '../services/holidays';
@@ -127,6 +127,7 @@ router.get('/admin/all', requireSecretary, async (req, res) => {
         subject: sessions.subject,
         gradeLevel: sessions.gradeLevel,
         studentCount: sessions.studentCount,
+        studentsList: sessions.studentsList,
         description: sessions.description,
         comment: sessions.comment,
         reviewComments: sessions.reviewComments,
@@ -300,35 +301,48 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'ID de session invalide' });
     }
 
-    // Récupérer la session pour vérifier les permissions
+    const isPrincipal = req.user.role === 'PRINCIPAL';
+    const isAdmin = req.user.role === 'ADMIN';
+
+    // Récupérer la session
     const [existingSession] = await db
       .select()
       .from(sessions)
-      .where(
-        and(
-          eq(sessions.id, sessionId),
-          eq(sessions.teacherId, req.user.id)
-        )
-      );
+      .where(eq(sessions.id, sessionId));
 
     if (!existingSession) {
       return res.status(404).json({ error: 'Session non trouvée' });
     }
 
-    // Vérifier si la session peut être supprimée (seulement PENDING_REVIEW)
-    if (existingSession.status !== 'PENDING_REVIEW') {
-      return res.status(403).json({
-        error: 'Cette session ne peut pas être supprimée',
-        details: `Statut actuel: ${existingSession.status}. Seules les sessions en attente de révision peuvent être supprimées.`
-      });
+    // Vérifier les permissions
+    const isOwner = existingSession.teacherId === req.user.id;
+
+    if (isPrincipal || isAdmin) {
+      // Principal/Admin peut supprimer n'importe quelle session
+      console.log(`🗑️ [API] Principal/Admin ${req.user.name} supprime session ${sessionId}`);
+    } else if (isOwner) {
+      // Enseignant peut supprimer seulement ses propres sessions en PENDING_REVIEW
+      if (existingSession.status !== 'PENDING_REVIEW') {
+        return res.status(403).json({
+          error: 'Cette session ne peut pas être supprimée',
+          details: `Statut actuel: ${existingSession.status}. Seules les sessions en attente de révision peuvent être supprimées.`
+        });
+      }
+    } else {
+      return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à supprimer cette session' });
     }
+
+    // Supprimer les pièces jointes associées
+    await db
+      .delete(attachments)
+      .where(eq(attachments.sessionId, sessionId));
 
     // Supprimer la session
     await db
       .delete(sessions)
       .where(eq(sessions.id, sessionId));
 
-    console.log(`✅ [API] Session ${sessionId} supprimée par ${req.user.name}`);
+    console.log(`✅ [API] Session ${sessionId} supprimée par ${req.user.name} (${req.user.role})`);
 
     res.json({
       success: true,

@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  LogOut, Search, Users, UserCheck, UserX, Settings,
-  Upload, Key, Home, TrendingUp, Edit2, Trash2, Plus,
-  X, AlertCircle, FileText, Clock
+  LogOut, Search, Users, UserCheck, UserX, User as UserIcon,
+  Upload, Key, Home, Edit2, Trash2, Plus,
+  X, AlertCircle, Mail, Link2, CheckCircle,
+  Copy, ExternalLink, Settings, RefreshCcw
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 
@@ -19,6 +20,8 @@ interface User {
   role: 'TEACHER' | 'SECRETARY' | 'PRINCIPAL' | 'ADMIN';
   initials?: string;
   inPacte: boolean;
+  isActivated?: boolean;
+  activationTokenExpiry?: string;
   createdAt?: string;
 }
 
@@ -59,7 +62,7 @@ export default function AdminDashboard() {
   const [usersLoading, setUsersLoading] = useState(false);
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'import' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'import' | 'maintenance'>('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'TEACHER' | 'SECRETARY' | 'PRINCIPAL' | 'ADMIN'>('all');
   const [pacteFilter, setPacteFilter] = useState<'all' | 'pacte' | 'non-pacte'>('all');
@@ -69,6 +72,14 @@ export default function AdminDashboard() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<User | null>(null);
   const [showResetPassword, setShowResetPassword] = useState<User | null>(null);
+  const [showActivationModal, setShowActivationModal] = useState<{ user: User; link?: string } | null>(null);
+  const [activationFilter, setActivationFilter] = useState<'all' | 'activated' | 'pending'>('all');
+  const [sendingActivation, setSendingActivation] = useState(false);
+
+  // Selection state for bulk actions
+  const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set());
+  const [showBulkActivationModal, setShowBulkActivationModal] = useState(false);
+  const [bulkActivationResults, setBulkActivationResults] = useState<{ user: User; link: string }[]>([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -172,8 +183,14 @@ export default function AdminDashboard() {
       filtered = filtered.filter(u => u.role === 'TEACHER' && !u.inPacte);
     }
 
+    if (activationFilter === 'activated') {
+      filtered = filtered.filter(u => u.isActivated);
+    } else if (activationFilter === 'pending') {
+      filtered = filtered.filter(u => !u.isActivated);
+    }
+
     return filtered;
-  }, [users, searchTerm, roleFilter, pacteFilter]);
+  }, [users, searchTerm, roleFilter, pacteFilter, activationFilter]);
 
   // Logout
   const handleLogout = async () => {
@@ -191,11 +208,17 @@ export default function AdminDashboard() {
         ? `${API_BASE_URL}/api/admin/users/${editingUser.id}`
         : `${API_BASE_URL}/api/admin/users`;
 
+      // Auto-générer le nom complet à partir du prénom et du nom
+      const dataToSend = {
+        ...formData,
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+      };
+
       const response = await fetch(url, {
         method: editingUser ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(dataToSend),
       });
 
       if (response.ok) {
@@ -277,6 +300,103 @@ export default function AdminDashboard() {
     }
   };
 
+  // Send activation link
+  const handleSendActivation = async (userToActivate: User) => {
+    setSendingActivation(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userToActivate.id}/send-activation`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setShowActivationModal({
+          user: userToActivate,
+          link: data.activationLink,
+        });
+        fetchUsers(); // Rafraîchir pour voir le token expiry
+      }
+    } catch (error) {
+      console.error('Error sending activation:', error);
+    } finally {
+      setSendingActivation(false);
+    }
+  };
+
+  // Copy to clipboard
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  // Get pending users (not activated) from filtered list
+  const pendingUsers = useMemo(() => {
+    return filteredUsers.filter(u => !u.isActivated);
+  }, [filteredUsers]);
+
+  // Toggle user selection
+  const toggleUserSelection = (userId: number) => {
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all pending users
+  const selectAllPending = () => {
+    if (selectedUsers.size === pendingUsers.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(pendingUsers.map(u => u.id)));
+    }
+  };
+
+  // Bulk send activation links
+  const handleBulkSendActivation = async () => {
+    setSendingActivation(true);
+    const results: { user: User; link: string }[] = [];
+
+    for (const userId of selectedUsers) {
+      const userToActivate = users.find(u => u.id === userId);
+      if (!userToActivate || userToActivate.isActivated) continue;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/send-activation`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.activationLink) {
+            results.push({ user: userToActivate, link: data.activationLink });
+          }
+        }
+      } catch (error) {
+        console.error(`Error sending activation for user ${userId}:`, error);
+      }
+    }
+
+    setBulkActivationResults(results);
+    setShowBulkActivationModal(true);
+    setSelectedUsers(new Set());
+    fetchUsers();
+    setSendingActivation(false);
+  };
+
+  // Copy all links to clipboard
+  const copyAllLinks = () => {
+    const text = bulkActivationResults
+      .map(r => `${r.user.name} (${r.user.username}): ${r.link}`)
+      .join('\n\n');
+    navigator.clipboard.writeText(text);
+  };
+
   // Open edit modal
   const openEditModal = (userToEdit?: User) => {
     if (userToEdit) {
@@ -350,13 +470,23 @@ export default function AdminDashboard() {
               <h1 className="text-xl font-bold">SupChaissac Admin</h1>
               <p className="text-red-200 text-sm">{user?.name}</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Déconnexion</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/profile')}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+                title="Mon profil"
+              >
+                <UserIcon className="w-4 h-4" />
+                <span>Profil</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Déconnexion</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -368,7 +498,7 @@ export default function AdminDashboard() {
             { id: 'dashboard', label: 'Tableau de bord', icon: Home },
             { id: 'users', label: 'Utilisateurs', icon: Users },
             { id: 'import', label: 'Import CSV', icon: Upload },
-            { id: 'settings', label: 'Paramètres', icon: Settings },
+            { id: 'maintenance', label: 'Maintenance', icon: Settings },
           ].map(tab => (
             <button
               key={tab.id}
@@ -450,16 +580,6 @@ export default function AdminDashboard() {
                     <p className="text-sm text-gray-500">Importer des enseignants</p>
                   </div>
                 </button>
-                <button
-                  onClick={() => setActiveTab('settings')}
-                  className="flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
-                >
-                  <Settings className="w-8 h-8 text-gray-500" />
-                  <div>
-                    <p className="font-medium text-gray-900">Paramètres</p>
-                    <p className="text-sm text-gray-500">Configuration système</p>
-                  </div>
-                </button>
               </div>
             </div>
           </div>
@@ -517,16 +637,55 @@ export default function AdminDashboard() {
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
+                        <th className="w-12 px-4 py-3">
+                          {pendingUsers.length > 0 && (
+                            <button
+                              onClick={selectAllPending}
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                selectedUsers.size > 0 && selectedUsers.size === pendingUsers.length
+                                  ? 'bg-red-500 border-red-500 text-white'
+                                  : selectedUsers.size > 0
+                                  ? 'bg-red-200 border-red-500'
+                                  : 'border-gray-300 hover:border-red-400'
+                              }`}
+                              title={selectedUsers.size === pendingUsers.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                            >
+                              {selectedUsers.size > 0 && selectedUsers.size === pendingUsers.length && (
+                                <CheckCircle className="w-3 h-3" />
+                              )}
+                              {selectedUsers.size > 0 && selectedUsers.size < pendingUsers.length && (
+                                <span className="w-2 h-0.5 bg-red-500 rounded" />
+                              )}
+                            </button>
+                          )}
+                        </th>
                         <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Utilisateur</th>
                         <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Email/Login</th>
                         <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Rôle</th>
                         <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">PACTE</th>
+                        <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Statut</th>
                         <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {filteredUsers.map(u => (
-                        <tr key={u.id} className="hover:bg-gray-50">
+                        <tr key={u.id} className={`hover:bg-gray-50 ${selectedUsers.has(u.id) ? 'bg-red-50' : ''}`}>
+                          <td className="px-4 py-3">
+                            {!u.isActivated ? (
+                              <button
+                                onClick={() => toggleUserSelection(u.id)}
+                                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                  selectedUsers.has(u.id)
+                                    ? 'bg-red-500 border-red-500 text-white'
+                                    : 'border-gray-300 hover:border-red-400'
+                                }`}
+                              >
+                                {selectedUsers.has(u.id) && <CheckCircle className="w-3 h-3" />}
+                              </button>
+                            ) : (
+                              <div className="w-5 h-5" />
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium text-white ${
@@ -558,6 +717,23 @@ export default function AdminDashboard() {
                               </span>
                             )}
                           </td>
+                          <td className="px-4 py-3 text-center">
+                            {u.isActivated ? (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-medium bg-green-100 text-green-700">
+                                <CheckCircle className="w-3 h-3" />
+                                Activé
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleSendActivation(u)}
+                                disabled={sendingActivation}
+                                className="inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                              >
+                                <Mail className="w-3 h-3" />
+                                En attente
+                              </button>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-center gap-2">
                               <button
@@ -567,6 +743,16 @@ export default function AdminDashboard() {
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
+                              {!u.isActivated && (
+                                <button
+                                  onClick={() => handleSendActivation(u)}
+                                  disabled={sendingActivation}
+                                  className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"
+                                  title="Envoyer lien d'activation"
+                                >
+                                  <Link2 className="w-4 h-4" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => setShowResetPassword(u)}
                                 className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
@@ -645,15 +831,126 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'settings' && (
-          <div className="max-w-2xl mx-auto">
+        {/* Maintenance Tab */}
+        {activeTab === 'maintenance' && (
+          <div className="max-w-2xl mx-auto space-y-6">
             <div className="bg-white rounded-xl p-6 border border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Paramètres</h2>
-              <p className="text-gray-500">Les paramètres système seront disponibles prochainement.</p>
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Maintenance</h2>
+              <p className="text-sm text-gray-500 mb-6">
+                Actions de maintenance pour gérer les données de l'application.
+              </p>
+
+              <div className="space-y-4">
+                {/* Supprimer toutes les sessions */}
+                <div className="p-4 border border-amber-200 bg-amber-50 rounded-xl">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-medium text-amber-800">Supprimer toutes les sessions</h3>
+                      <p className="text-sm text-amber-600 mt-1">
+                        Supprime toutes les déclarations d'heures. Les utilisateurs sont conservés.
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('Êtes-vous sûr de vouloir supprimer TOUTES les sessions ? Cette action est irréversible.')) {
+                          try {
+                            const res = await fetch(`${API_BASE_URL}/api/admin/sessions/all`, {
+                              method: 'DELETE',
+                              credentials: 'include',
+                            });
+                            if (res.ok) {
+                              alert('Toutes les sessions ont été supprimées');
+                              window.location.reload();
+                            } else {
+                              alert('Erreur lors de la suppression');
+                            }
+                          } catch (e) {
+                            alert('Erreur de connexion');
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+
+                {/* Supprimer tous les utilisateurs */}
+                <div className="p-4 border border-orange-200 bg-orange-50 rounded-xl">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-medium text-orange-800">Supprimer tous les utilisateurs</h3>
+                      <p className="text-sm text-orange-600 mt-1">
+                        Supprime tous les utilisateurs sauf le compte admin. Les sessions seront aussi supprimées.
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('Êtes-vous sûr de vouloir supprimer TOUS les utilisateurs (sauf admin) et leurs sessions ? Cette action est irréversible.')) {
+                          try {
+                            const res = await fetch(`${API_BASE_URL}/api/admin/users/all`, {
+                              method: 'DELETE',
+                              credentials: 'include',
+                            });
+                            if (res.ok) {
+                              alert('Tous les utilisateurs ont été supprimés');
+                              window.location.reload();
+                            } else {
+                              alert('Erreur lors de la suppression');
+                            }
+                          } catch (e) {
+                            alert('Erreur de connexion');
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+
+                {/* Réinitialisation complète */}
+                <div className="p-4 border border-red-200 bg-red-50 rounded-xl">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-medium text-red-800">Réinitialisation complète</h3>
+                      <p className="text-sm text-red-600 mt-1">
+                        Supprime toutes les sessions ET tous les utilisateurs (sauf admin). Recommencer à zéro.
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('⚠️ ATTENTION ⚠️\n\nCette action va supprimer TOUTES les données :\n- Toutes les sessions\n- Tous les utilisateurs (sauf admin)\n\nÊtes-vous VRAIMENT sûr ?')) {
+                          try {
+                            const res = await fetch(`${API_BASE_URL}/api/admin/reset`, {
+                              method: 'DELETE',
+                              credentials: 'include',
+                            });
+                            if (res.ok) {
+                              alert('Base de données réinitialisée');
+                              window.location.reload();
+                            } else {
+                              alert('Erreur lors de la réinitialisation');
+                            }
+                          } catch (e) {
+                            alert('Erreur de connexion');
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                    >
+                      Réinitialiser
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
-      </main>
+
+              </main>
 
       {/* User Modal */}
       {showUserModal && (
@@ -693,16 +990,6 @@ export default function AdminDashboard() {
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nom complet</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500"
-                />
               </div>
 
               <div>
@@ -879,6 +1166,186 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Activation Link Modal */}
+      {showActivationModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <Link2 className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Lien d'activation</h2>
+                  <p className="text-sm text-gray-500">Pour {showActivationModal.user.name}</p>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                <p className="text-amber-800 text-sm">
+                  <strong>Mode présentation</strong> : L'envoi d'emails est désactivé.
+                  Partagez ce lien directement avec l'utilisateur.
+                </p>
+              </div>
+
+              {showActivationModal.link && (
+                <div className="space-y-3">
+                  <div className="bg-gray-50 rounded-lg p-3 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={showActivationModal.link}
+                      readOnly
+                      className="flex-1 bg-transparent border-none text-sm text-gray-700 font-mono focus:outline-none"
+                    />
+                    <button
+                      onClick={() => copyToClipboard(showActivationModal.link!)}
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg"
+                      title="Copier"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <a
+                      href={showActivationModal.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg"
+                      title="Ouvrir"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                  <p className="text-xs text-gray-500 text-center">
+                    Ce lien expire dans 48 heures
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setShowActivationModal(null)}
+                  className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Activation Modal */}
+      {showBulkActivationModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <Mail className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Liens d'activation générés</h2>
+                    <p className="text-sm text-gray-500">{bulkActivationResults.length} utilisateur(s)</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBulkActivationModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                <p className="text-amber-800 text-sm">
+                  <strong>Mode présentation</strong> : Partagez ces liens directement avec les utilisateurs.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {bulkActivationResults.map((result, index) => (
+                  <div key={index} className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-gray-900">{result.user.name}</p>
+                        <p className="text-sm text-gray-500">{result.user.username}</p>
+                      </div>
+                      <button
+                        onClick={() => copyToClipboard(result.link)}
+                        className="flex items-center gap-2 px-3 py-1 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copier
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={result.link}
+                      readOnly
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-mono text-gray-600"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={copyAllLinks}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
+              >
+                <Copy className="w-4 h-4" />
+                Copier tous les liens
+              </button>
+              <button
+                onClick={() => setShowBulkActivationModal(false)}
+                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating action bar when users are selected */}
+      {selectedUsers.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 z-40">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center font-bold">
+              {selectedUsers.size}
+            </div>
+            <span className="text-sm">utilisateur(s) sélectionné(s)</span>
+          </div>
+          <div className="h-8 w-px bg-gray-700" />
+          <button
+            onClick={handleBulkSendActivation}
+            disabled={sendingActivation}
+            className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-400 disabled:bg-gray-600 rounded-xl transition-colors"
+          >
+            {sendingActivation ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Envoi...
+              </>
+            ) : (
+              <>
+                <Mail className="w-4 h-4" />
+                Envoyer les liens d'activation
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => setSelectedUsers(new Set())}
+            className="p-2 hover:bg-gray-800 rounded-lg"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
       )}
     </div>

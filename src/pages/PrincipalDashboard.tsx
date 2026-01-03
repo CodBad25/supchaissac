@@ -4,7 +4,7 @@ import {
   LogOut, Search, Calendar, Clock, User, FileText,
   Download, CheckCircle, Eye, AlertCircle, XCircle,
   Paperclip, Home, ClipboardCheck, X, CheckSquare, Square, HelpCircle,
-  Users, TrendingUp, Pencil
+  Users, TrendingUp, Pencil, Trash2, AlertTriangle
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
@@ -37,6 +37,12 @@ const principalTourSteps: TourStep[] = [
 ];
 
 // Types
+interface Student {
+  lastName: string;
+  firstName: string;
+  className: string;
+}
+
 interface Session {
   id: number;
   date: string;
@@ -45,6 +51,7 @@ interface Session {
   status: string;
   className?: string;
   studentCount?: number;
+  studentsList?: Student[];
   gradeLevel?: string;
   description?: string;
   replacedTeacherName?: string;
@@ -177,6 +184,10 @@ export default function PrincipalDashboard() {
   const [showBatchRejectModal, setShowBatchRejectModal] = useState(false);
   const [batchRejectReason, setBatchRejectReason] = useState('');
   const [batchActionLoading, setBatchActionLoading] = useState(false);
+
+  // Suppression session
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
 
   // Vider la selection quand les filtres changent
   useEffect(() => {
@@ -424,6 +435,36 @@ export default function PrincipalDashboard() {
     }
   };
 
+  // Supprimer une session (uniquement Principal)
+  const handleDeleteSession = async () => {
+    if (!selectedSession) return;
+    setActionLoading(true);
+
+    try {
+      console.log('🗑️ Suppression session:', selectedSession.id);
+      const response = await fetch(`${API_BASE_URL}/api/sessions/${selectedSession.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        console.log('✅ Suppression réussie');
+        setSessions(prev => prev.filter(s => s.id !== selectedSession.id));
+        setShowDeleteModal(false);
+        closeModal();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Erreur API suppression:', response.status, errorData);
+        alert(`Erreur: ${errorData.error || errorData.details || 'Erreur serveur'}`);
+      }
+    } catch (error) {
+      console.error('❌ Erreur suppression:', error);
+      alert('Erreur de connexion au serveur');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Annuler decision (VALIDATED/REJECTED -> PENDING_VALIDATION, PAID -> VALIDATED)
   const handleCancelDecision = async () => {
     if (!selectedSession) return;
@@ -615,6 +656,32 @@ export default function PrincipalDashboard() {
     }
   };
 
+  // Supprimer en lot
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setBatchActionLoading(true);
+
+    try {
+      const promises = Array.from(selectedIds).map(id =>
+        fetch(`${API_BASE_URL}/api/sessions/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })
+      );
+
+      await Promise.all(promises);
+
+      setSessions(prev => prev.filter(s => !selectedIds.has(s.id)));
+      setSelectedIds(new Set());
+      setShowBatchDeleteModal(false);
+    } catch (error) {
+      console.error('Erreur suppression en lot:', error);
+      alert('Erreur lors de la suppression');
+    } finally {
+      setBatchActionLoading(false);
+    }
+  };
+
   // Filter teachers
   const filteredTeachers = useMemo(() => {
     let filtered = teachers;
@@ -800,6 +867,13 @@ export default function PrincipalDashboard() {
               title="Aide / Tutoriel"
             >
               <HelpCircle className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => navigate('/profile')}
+              className="p-2 text-gray-400 hover:text-purple-500 transition-colors"
+              title="Mon profil"
+            >
+              <User className="w-5 h-5" />
             </button>
             <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
               <LogOut className="w-5 h-5" />
@@ -1748,6 +1822,14 @@ export default function PrincipalDashboard() {
                   {selectedIds.size > 0 && (
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() => setShowBatchDeleteModal(true)}
+                        disabled={batchActionLoading}
+                        className="px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                        title="Supprimer la selection"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={openBatchRejectModal}
                         disabled={batchActionLoading}
                         className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50"
@@ -1930,17 +2012,47 @@ export default function PrincipalDashboard() {
 
               {/* Details Devoirs Faits */}
               {selectedSession.type === 'DEVOIRS_FAITS' && (
-                <div className="grid grid-cols-2 gap-4">
-                  {selectedSession.gradeLevel && (
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase font-medium">Niveau</p>
-                      <p className="font-semibold text-gray-900">{selectedSession.gradeLevel}</p>
-                    </div>
-                  )}
-                  {selectedSession.studentCount && (
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase font-medium">Nombre d'eleves</p>
-                      <p className="font-semibold text-gray-900">{selectedSession.studentCount}</p>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedSession.gradeLevel && (
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase font-medium">Niveau</p>
+                        <p className="font-semibold text-gray-900">{selectedSession.gradeLevel}</p>
+                      </div>
+                    )}
+                    {selectedSession.studentCount && (
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase font-medium">Nombre d'eleves</p>
+                        <p className="font-semibold text-gray-900">{selectedSession.studentCount}</p>
+                      </div>
+                    )}
+                  </div>
+                  {/* Liste des eleves */}
+                  {selectedSession.studentsList && selectedSession.studentsList.length > 0 && (
+                    <div className="bg-blue-50 rounded-xl p-4">
+                      <p className="text-xs text-blue-700 uppercase font-medium mb-2 flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Liste des eleves
+                      </p>
+                      <div className="max-h-40 overflow-y-auto">
+                        <div className="grid gap-1">
+                          {selectedSession.studentsList.map((student, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between px-2 py-1 bg-white rounded border border-blue-100 text-sm"
+                            >
+                              <span className="font-medium text-gray-800">
+                                {student.lastName} {student.firstName}
+                              </span>
+                              {student.className && (
+                                <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                  {student.className}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2080,9 +2192,12 @@ export default function PrincipalDashboard() {
                               <p className="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
                             </div>
                             {attachment.isVerified && (
-                              <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 flex items-center gap-1">
+                              <span
+                                className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 flex items-center gap-1"
+                                title="Ce document a ete verifie par la secretaire"
+                              >
                                 <CheckCircle className="w-3 h-3" />
-                                Verifie
+                                Document verifie
                               </span>
                             )}
                           </div>
@@ -2238,6 +2353,13 @@ export default function PrincipalDashboard() {
                 {actionState === null && (
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
+                      onClick={() => setShowDeleteModal(true)}
+                      className="py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                      title="Supprimer cette session"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                    <button
                       onClick={handleReject}
                       className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors"
                     >
@@ -2257,13 +2379,22 @@ export default function PrincipalDashboard() {
             {/* Footer pour sessions deja traitees (VALIDATED, REJECTED ou PAID) */}
             {(selectedSession.status === 'VALIDATED' || selectedSession.status === 'REJECTED' || selectedSession.status === 'PAID') && (
               <div className="p-6 border-t border-gray-100 space-y-3">
-                <button
-                  onClick={handleCancelDecision}
-                  disabled={actionLoading}
-                  className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {actionLoading ? 'Annulation...' : selectedSession.status === 'PAID' ? 'Retirer de la mise en paiement' : 'Annuler la decision'}
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowDeleteModal(true)}
+                    className="py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium rounded-lg transition-colors flex items-center justify-center"
+                    title="Supprimer cette session"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={handleCancelDecision}
+                    disabled={actionLoading}
+                    className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Annulation...' : selectedSession.status === 'PAID' ? 'Retirer de la mise en paiement' : 'Annuler la decision'}
+                  </button>
+                </div>
                 <button
                   onClick={closeModal}
                   className="w-full py-2 px-4 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -2330,6 +2461,128 @@ export default function PrincipalDashboard() {
                 className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
               >
                 {batchActionLoading ? 'Traitement...' : `Rejeter ${selectedIds.size} session${selectedIds.size > 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale confirmation suppression */}
+      {showDeleteModal && selectedSession && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">Supprimer la session</h2>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                  <div className="text-sm text-red-800">
+                    <p className="font-medium">Action irreversible</p>
+                    <p>Cette session sera definitivement supprimee de la base de donnees.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                <p className="text-sm">
+                  <span className="font-medium">Enseignant:</span> {selectedSession.teacherName}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">Date:</span> {new Date(selectedSession.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">Type:</span> {selectedSession.type === 'DEVOIRS_FAITS' ? 'Devoirs Faits' : selectedSession.type}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">Statut:</span> {selectedSession.status}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-2 px-4 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteSession}
+                disabled={actionLoading}
+                className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                {actionLoading ? 'Suppression...' : 'Supprimer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale confirmation suppression en lot */}
+      {showBatchDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">Supprimer en lot</h2>
+                <button
+                  onClick={() => setShowBatchDeleteModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                  <div className="text-sm text-red-800">
+                    <p className="font-medium">Action irreversible</p>
+                    <p>Vous allez supprimer definitivement <strong>{selectedIds.size} session{selectedIds.size > 1 ? 's' : ''}</strong>.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600 mb-2">Sessions selectionnees :</p>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {sessions.filter(s => selectedIds.has(s.id)).map(s => (
+                    <div key={s.id} className="text-sm text-gray-800">
+                      {s.teacherName} - {new Date(s.date).toLocaleDateString('fr-FR')} - {s.type === 'DEVOIRS_FAITS' ? 'DF' : s.type}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setShowBatchDeleteModal(false)}
+                className="flex-1 py-2 px-4 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleBatchDelete}
+                disabled={batchActionLoading}
+                className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                {batchActionLoading ? 'Suppression...' : `Supprimer ${selectedIds.size} session${selectedIds.size > 1 ? 's' : ''}`}
               </button>
             </div>
           </div>
