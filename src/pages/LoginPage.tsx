@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Shield, ArrowRight, Info, User, Lock, Plus } from 'lucide-react';
+import { Eye, EyeOff, Shield, ArrowRight, Info, User, Lock, Plus, GraduationCap, ClipboardList, Building2, Settings } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import Onboarding, { shouldShowOnboarding } from '../components/Onboarding';
 
@@ -8,17 +8,19 @@ interface TestAccount {
   id: string;
   name: string;
   role: string;
+  roleType: 'teacher' | 'secretary' | 'principal' | 'admin';
   email: string;
   pacteStatus: boolean;
   color: string;
   bgColor: string;
 }
 
-const testAccounts: TestAccount[] = [
+const teacherAccounts: TestAccount[] = [
   {
     id: '1',
     name: 'Sophie Martin',
-    role: 'Enseignante sans pacte',
+    role: 'Enseignante',
+    roleType: 'teacher',
     email: 'teacher1@example.com',
     pacteStatus: false,
     color: 'text-gray-800',
@@ -27,7 +29,8 @@ const testAccounts: TestAccount[] = [
   {
     id: '2',
     name: 'Marie Petit',
-    role: 'Enseignante avec pacte',
+    role: 'Enseignante',
+    roleType: 'teacher',
     email: 'teacher2@example.com',
     pacteStatus: true,
     color: 'text-gray-800',
@@ -36,7 +39,8 @@ const testAccounts: TestAccount[] = [
   {
     id: '3',
     name: 'Martin Dubois',
-    role: 'Enseignant sans pacte',
+    role: 'Enseignant',
+    roleType: 'teacher',
     email: 'teacher3@example.com',
     pacteStatus: false,
     color: 'text-gray-800',
@@ -45,40 +49,57 @@ const testAccounts: TestAccount[] = [
   {
     id: '4',
     name: 'Philippe Garcia',
-    role: 'Enseignant avec pacte',
+    role: 'Enseignant',
+    roleType: 'teacher',
     email: 'teacher4@example.com',
     pacteStatus: true,
     color: 'text-gray-800',
     bgColor: 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-yellow-300 hover:from-yellow-100 hover:to-yellow-200'
   },
+];
+
+const adminAccounts: TestAccount[] = [
   {
     id: '5',
     name: 'Laure Martin',
-    role: 'Secrétariat',
+    role: 'Secretariat',
+    roleType: 'secretary',
     email: 'secretary@example.com',
     pacteStatus: false,
-    color: 'text-gray-800',
-    bgColor: 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300 hover:from-gray-100 hover:to-gray-200'
+    color: 'text-blue-800',
+    bgColor: 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 hover:from-blue-100 hover:to-blue-200'
   },
   {
     id: '6',
     name: 'Jean Dupont',
     role: 'Direction',
+    roleType: 'principal',
     email: 'principal@example.com',
     pacteStatus: false,
-    color: 'text-gray-800',
-    bgColor: 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300 hover:from-gray-100 hover:to-gray-200'
+    color: 'text-purple-800',
+    bgColor: 'bg-gradient-to-r from-purple-50 to-purple-100 border-purple-300 hover:from-purple-100 hover:to-purple-200'
   },
   {
     id: '7',
-    name: 'Admin Système',
+    name: 'Admin Systeme',
     role: 'Administrateur',
+    roleType: 'admin',
     email: 'admin@example.com',
     pacteStatus: false,
     color: 'text-red-800',
     bgColor: 'bg-gradient-to-r from-red-50 to-red-100 border-red-300 hover:from-red-100 hover:to-red-200'
   }
 ];
+
+const getRoleIcon = (roleType: string) => {
+  switch (roleType) {
+    case 'teacher': return <GraduationCap className="w-5 h-5" />;
+    case 'secretary': return <ClipboardList className="w-5 h-5" />;
+    case 'principal': return <Building2 className="w-5 h-5" />;
+    case 'admin': return <Settings className="w-5 h-5" />;
+    default: return <User className="w-5 h-5" />;
+  }
+};
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -152,7 +173,8 @@ const LoginPage: React.FC = () => {
       <div className="absolute top-40 right-20 w-96 h-96 bg-yellow-300/20 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-2000"></div>
       <div className="absolute -bottom-20 left-1/2 w-96 h-96 bg-yellow-100/20 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-4000"></div>
       
-      <div className="w-full max-w-md relative z-10">
+      <div className={`w-full relative z-10 ${isTestMode ? 'max-w-4xl' : 'max-w-md'}`}>
+        <div className={`${isTestMode ? 'lg:grid lg:grid-cols-2 lg:gap-6' : ''}`}>
         {/* Main Card - Light theme with your logo colors */}
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-200 p-8 relative overflow-hidden">
           {/* Subtle yellow reflection effect */}
@@ -162,19 +184,15 @@ const LoginPage: React.FC = () => {
           <div className="text-center mb-8">
             <div className="flex items-center justify-center mb-6">
               <div className="relative">
-                <img 
-                  src="/images/logo_supchaissac_v5_minimaliste (1).png" 
-                  alt="SupChaissac Logo" 
-                  className="w-32 h-32 object-contain drop-shadow-lg"
+                <img
+                  src="/logo.png"
+                  alt="SupChaissac Logo"
+                  className="w-40 h-40 object-contain drop-shadow-lg"
                 />
                 {/* Subtle glow effect around logo */}
                 <div className="absolute inset-0 rounded-full bg-yellow-400/20 blur-xl"></div>
               </div>
             </div>
-            
-            <p className="text-gray-600 text-sm font-medium">
-              Gestion des Heures Supplémentaires
-            </p>
           </div>
 
           {/* Mode Toggle */}
@@ -270,34 +288,83 @@ const LoginPage: React.FC = () => {
 
         {/* Test Accounts Section - Only in test mode */}
         {isTestMode && (
-          <div className="mt-6 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 p-6 shadow-xl">
-            <p className="text-xs text-gray-500 text-center mb-4 font-bold uppercase tracking-wider">
-              Comptes de test (développement)
-            </p>
-            <div className="grid grid-cols-1 gap-3">
-              {testAccounts.map((account) => (
-                <button
-                  key={account.id}
-                  onClick={() => handleTestAccountClick(account)}
-                  className={`relative p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg ${account.bgColor} group overflow-hidden`}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-                  <div className="relative text-left">
-                    <div className={`font-bold ${account.color} text-base`}>
-                      {account.name}
+          <div className="mt-6 lg:mt-0 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 p-4 shadow-xl lg:max-h-[600px] lg:overflow-y-auto">
+            {/* Section Enseignants */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <GraduationCap className="w-4 h-4 text-yellow-600" />
+                <p className="text-xs text-gray-600 font-bold uppercase tracking-wider">
+                  Enseignants
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {teacherAccounts.map((account) => (
+                  <button
+                    key={account.id}
+                    onClick={() => handleTestAccountClick(account)}
+                    className={`relative p-3 rounded-xl border-2 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg ${account.bgColor} group overflow-hidden`}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
+                    <div className="relative text-left flex items-center gap-3">
+                      <div className={`${account.pacteStatus ? 'text-yellow-600' : 'text-gray-500'}`}>
+                        {getRoleIcon(account.roleType)}
+                      </div>
+                      <div className="flex-1">
+                        <div className={`font-bold ${account.color} text-sm`}>
+                          {account.name}
+                        </div>
+                      </div>
+                      {account.pacteStatus ? (
+                        <span className="px-2 py-0.5 bg-yellow-200 text-yellow-800 text-[10px] font-bold rounded-full">PACTE</span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-[10px] font-medium rounded-full">Sans PACTE</span>
+                      )}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1 font-medium">
-                      {account.role}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Separateur */}
+            <div className="border-t border-gray-200 my-4"></div>
+
+            {/* Section Administration */}
+            <div>
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <Building2 className="w-4 h-4 text-purple-600" />
+                <p className="text-xs text-gray-600 font-bold uppercase tracking-wider">
+                  Administration
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {adminAccounts.map((account) => (
+                  <button
+                    key={account.id}
+                    onClick={() => handleTestAccountClick(account)}
+                    className={`relative p-3 rounded-xl border-2 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg ${account.bgColor} group overflow-hidden`}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
+                    <div className="relative text-left flex items-center gap-3">
+                      <div className={account.color}>
+                        {getRoleIcon(account.roleType)}
+                      </div>
+                      <div className="flex-1">
+                        <div className={`font-bold ${account.color} text-sm`}>
+                          {account.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {account.role}
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {account.email}
-                    </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
+        </div>
       </div>
 
       <style>{`
