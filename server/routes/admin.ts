@@ -480,13 +480,15 @@ router.post('/preview-teachers-csv', requireAdmin, upload.single('file'), async 
       row['EMAIL'] || row['Email'] || row['LOGIN'] || ''
     ).filter(e => e);
 
-    const existingUsers = await db
-      .select({ username: users.username })
-      .from(users)
-      .where(sql`${users.username} IN (${sql.join(allEmails.map(e => sql`${e}`), sql`, `)})`);
+    let willBeSkipped = 0;
+    if (allEmails.length > 0) {
+      const existingUsers = await db
+        .select({ username: users.username })
+        .from(users);
 
-    const existingEmails = new Set(existingUsers.map(u => u.username));
-    const willBeSkipped = allEmails.filter(e => existingEmails.has(e)).length;
+      const existingEmails = new Set(existingUsers.map(u => u.username.toLowerCase()));
+      willBeSkipped = allEmails.filter(e => existingEmails.has(e.toLowerCase())).length;
+    }
 
     res.json({
       headers,
