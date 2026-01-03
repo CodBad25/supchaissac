@@ -717,7 +717,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                   className ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-400'
                 }`}>{isDuplicateMode ? '4' : '3'}</div>
                 <label className="text-sm font-medium text-gray-700">
-                  {replacedPrefix === 'Mme' ? 'Enseignante remplacee' : 'Enseignant remplace'}
+                  {replacedPrefix === 'Mme' ? 'Enseignante remplacée' : 'Enseignant remplacé'}
                 </label>
               </div>
 
@@ -734,7 +734,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                   onFocus={() => {
                     if (teacherSearchResults.length > 0) setShowTeacherResults(true);
                   }}
-                  placeholder="Rechercher par nom ou prenom..."
+                  placeholder="Rechercher par nom ou prénom..."
                   className="w-full min-h-[36px] pl-9 pr-3 border border-purple-200 rounded-lg text-sm bg-purple-50 focus:border-purple-400 focus:ring-1 focus:ring-purple-200 outline-none"
                 />
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
