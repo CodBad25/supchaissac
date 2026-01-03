@@ -20,6 +20,16 @@ interface StudentSearchResult {
   className: string;
 }
 
+// Type pour les resultats de recherche enseignants
+interface TeacherSearchResult {
+  id: number;
+  firstName: string;
+  lastName: string;
+  civilite: 'M.' | 'Mme';
+  subject: string;
+  displayName: string;
+}
+
 /**
  * SessionModals - Formulaires de declaration de sessions
  * Design mobile-first "ROYAL" avec animations fluides
@@ -83,7 +93,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Autocomplete state - recherche globale
+  // Autocomplete state - recherche globale eleves
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<StudentSearchResult[]>([]);
   const [matchingClass, setMatchingClass] = useState<{ name: string; count: number } | null>(null);
@@ -92,6 +102,13 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
   const [isAddingClass, setIsAddingClass] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Autocomplete state - recherche enseignants (RCD)
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+  const [teacherSearchResults, setTeacherSearchResults] = useState<TeacherSearchResult[]>([]);
+  const [showTeacherResults, setShowTeacherResults] = useState(false);
+  const teacherSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const teacherSearchInputRef = useRef<HTMLInputElement>(null);
 
   // Search students for autocomplete (recherche globale nom + prenom)
   const searchStudents = useCallback(async (query: string) => {
@@ -157,6 +174,48 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
       searchStudents(query);
     }, 200);
   }, [searchStudents]);
+
+  // Search teachers for autocomplete (RCD)
+  const searchTeachers = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setTeacherSearchResults([]);
+      setShowTeacherResults(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/teachers/search?q=${encodeURIComponent(query)}&limit=10`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTeacherSearchResults(data || []);
+        setShowTeacherResults(data.length > 0);
+      }
+    } catch (error) {
+      console.error('Erreur recherche enseignants:', error);
+    }
+  }, []);
+
+  // Debounced teacher search
+  const debouncedTeacherSearch = useCallback((query: string) => {
+    if (teacherSearchTimeoutRef.current) {
+      clearTimeout(teacherSearchTimeoutRef.current);
+    }
+    teacherSearchTimeoutRef.current = setTimeout(() => {
+      searchTeachers(query);
+    }, 200);
+  }, [searchTeachers]);
+
+  // Handle teacher selection from search results
+  const selectTeacher = (teacher: TeacherSearchResult) => {
+    setReplacedPrefix(teacher.civilite);
+    setReplacedName(teacher.lastName);
+    setReplacedFirstName(teacher.firstName);
+    setTeacherSearchQuery('');
+    setTeacherSearchResults([]);
+    setShowTeacherResults(false);
+  };
 
   // Handle student selection from search results
   const addStudentFromSearch = (student: StudentSearchResult) => {
@@ -649,7 +708,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             </div>
 
-            {/* Etape 3: Enseignant remplacé */}
+            {/* Etape 3: Enseignant remplacé - avec recherche intelligente */}
             <div className={`relative transition-all duration-300 ${
               className ? '' : 'opacity-40 pointer-events-none'
             }`}>
@@ -658,43 +717,137 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                   className ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-400'
                 }`}>{isDuplicateMode ? '4' : '3'}</div>
                 <label className="text-sm font-medium text-gray-700">
-                  {replacedPrefix === 'Mme' ? 'Enseignante' : 'Enseignant'}
+                  {replacedPrefix === 'Mme' ? 'Enseignante remplacee' : 'Enseignant remplace'}
                 </label>
               </div>
-              <div className="flex gap-1 mb-2">
-                <button onClick={() => setReplacedPrefix('M.')}
-                  className={`min-h-[32px] px-3 text-xs rounded-lg ${
-                    replacedPrefix === 'M.'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-blue-50 text-blue-600 border border-blue-200'
-                  }`}>
-                  M.
-                </button>
-                <button onClick={() => setReplacedPrefix('Mme')}
-                  className={`min-h-[32px] px-3 text-xs rounded-lg ${
-                    replacedPrefix === 'Mme'
-                      ? 'bg-pink-500 text-white'
-                      : 'bg-pink-50 text-pink-600 border border-pink-200'
-                  }`}>
-                  Mme
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-1">
+
+              {/* Champ de recherche enseignant */}
+              <div className="relative mb-2">
                 <input
+                  ref={teacherSearchInputRef}
                   type="text"
-                  value={replacedName}
-                  onChange={e => setReplacedName(e.target.value.toUpperCase())}
-                  placeholder="NOM"
-                  className="w-full min-h-[36px] px-2 border border-gray-300 rounded-lg text-sm uppercase focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  value={teacherSearchQuery}
+                  onChange={e => {
+                    setTeacherSearchQuery(e.target.value);
+                    debouncedTeacherSearch(e.target.value);
+                  }}
+                  onFocus={() => {
+                    if (teacherSearchResults.length > 0) setShowTeacherResults(true);
+                  }}
+                  placeholder="Rechercher par nom ou prenom..."
+                  className="w-full min-h-[36px] pl-9 pr-3 border border-purple-200 rounded-lg text-sm bg-purple-50 focus:border-purple-400 focus:ring-1 focus:ring-purple-200 outline-none"
                 />
-                <input
-                  type="text"
-                  value={replacedFirstName}
-                  onChange={e => setReplacedFirstName(formatFirstName(e.target.value))}
-                  placeholder="Prenom"
-                  className="w-full min-h-[36px] px-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
-                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
+                {teacherSearchQuery && (
+                  <button
+                    onClick={() => { setTeacherSearchQuery(''); setTeacherSearchResults([]); setShowTeacherResults(false); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
+
+              {/* Resultats de recherche enseignants */}
+              {showTeacherResults && teacherSearchResults.length > 0 && (
+                <div className="mb-2 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+                  <div className="px-3 py-1.5 bg-purple-50 border-b border-purple-100 text-xs text-purple-600 font-medium">
+                    {teacherSearchResults.length} enseignant{teacherSearchResults.length > 1 ? 's' : ''} trouve{teacherSearchResults.length > 1 ? 's' : ''}
+                  </div>
+                  <div className="divide-y divide-gray-100 max-h-40 overflow-y-auto">
+                    {teacherSearchResults.map((teacher) => (
+                      <button
+                        key={teacher.id}
+                        onClick={() => selectTeacher(teacher)}
+                        className="w-full px-3 py-2 text-left hover:bg-purple-50 flex items-center justify-between"
+                      >
+                        <div>
+                          <span className="font-medium text-gray-900 text-sm">
+                            {teacher.civilite} {teacher.lastName} {teacher.firstName}
+                          </span>
+                          {teacher.subject && (
+                            <span className="ml-2 text-xs text-gray-500">
+                              ({teacher.subject})
+                            </span>
+                          )}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          teacher.civilite === 'Mme' ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          {teacher.civilite}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Affichage enseignant selectionne */}
+              {replacedName && (
+                <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      replacedPrefix === 'Mme' ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600'
+                    }`}>
+                      {replacedPrefix}
+                    </span>
+                    <span className="font-medium text-gray-900 text-sm">
+                      {replacedName} {replacedFirstName}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setReplacedName('');
+                      setReplacedFirstName('');
+                      setReplacedPrefix('M.');
+                    }}
+                    className="w-6 h-6 flex items-center justify-center text-red-500 hover:bg-red-100 rounded"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Saisie manuelle (si pas de resultat ou preference) */}
+              {!replacedName && (
+                <>
+                  <div className="text-xs text-gray-500 mb-1 text-center">ou saisie manuelle</div>
+                  <div className="flex gap-1 mb-2">
+                    <button onClick={() => setReplacedPrefix('M.')}
+                      className={`min-h-[32px] px-3 text-xs rounded-lg ${
+                        replacedPrefix === 'M.'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-blue-50 text-blue-600 border border-blue-200'
+                      }`}>
+                      M.
+                    </button>
+                    <button onClick={() => setReplacedPrefix('Mme')}
+                      className={`min-h-[32px] px-3 text-xs rounded-lg ${
+                        replacedPrefix === 'Mme'
+                          ? 'bg-pink-500 text-white'
+                          : 'bg-pink-50 text-pink-600 border border-pink-200'
+                      }`}>
+                      Mme
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    <input
+                      type="text"
+                      value={replacedName}
+                      onChange={e => setReplacedName(e.target.value.toUpperCase())}
+                      placeholder="NOM"
+                      className="w-full min-h-[36px] px-2 border border-gray-300 rounded-lg text-sm uppercase focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                    <input
+                      type="text"
+                      value={replacedFirstName}
+                      onChange={e => setReplacedFirstName(formatFirstName(e.target.value))}
+                      placeholder="Prenom"
+                      className="w-full min-h-[36px] px-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Commentaire (inline) */}
