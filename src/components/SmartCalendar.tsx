@@ -651,7 +651,7 @@ interface MonthGridProps {
   onCreateSession: (date: string, timeSlot: string) => void;
 }
 
-const MonthGrid: React.FC<MonthGridProps> = ({ currentDate, sessions, onDayClick }) => {
+const MonthGrid: React.FC<MonthGridProps> = ({ currentDate, sessions, onDayClick, onCreateSession }) => {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -716,7 +716,15 @@ const MonthGrid: React.FC<MonthGridProps> = ({ currentDate, sessions, onDayClick
           return (
             <button
               key={day.toISOString()}
-              onClick={() => onDayClick(day)}
+              onClick={() => {
+                if (blocked.isBlocked) {
+                  // Jour bloqué: aller en vue semaine pour consulter
+                  onDayClick(day);
+                } else {
+                  // Jour disponible: ouvrir directement la modale
+                  onCreateSession(format(day, 'yyyy-MM-dd'), '');
+                }
+              }}
               className={`
                 h-16 rounded-lg border transition-all flex flex-col items-center justify-start pt-1 relative cursor-pointer
                 ${today && blocked.isBlocked

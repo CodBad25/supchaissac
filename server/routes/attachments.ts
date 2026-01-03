@@ -5,7 +5,7 @@ import { parseStudentList, isValidExcelFile } from '../services/excelParser';
 import { db } from '../../src/lib/db';
 import { attachments, sessions } from '../../src/lib/schema';
 import { eq } from 'drizzle-orm';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireSecretary } from '../middleware/auth';
 
 const router = Router();
 
@@ -21,7 +21,7 @@ const upload = multer({
  * POST /api/attachments/upload/:sessionId
  * Upload un fichier pour une session
  */
-router.post('/upload/:sessionId', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/upload/:sessionId', requireAuth, upload.single('file'), async (req: Request, res: Response) => {
   try {
     // Verifier si le storage est configure
     if (!isStorageConfigured()) {
@@ -107,9 +107,9 @@ router.post('/upload/:sessionId', upload.single('file'), async (req: Request, re
 
 /**
  * PATCH /api/attachments/:id/verify
- * Marque une piece jointe comme verifiee
+ * Marque une piece jointe comme verifiee (secretaire/principal seulement)
  */
-router.patch('/:id/verify', requireAuth, async (req: Request, res: Response) => {
+router.patch('/:id/verify', requireSecretary, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
@@ -152,7 +152,7 @@ router.patch('/:id/verify', requireAuth, async (req: Request, res: Response) => 
 
 /**
  * DELETE /api/attachments/:id
- * Supprime un fichier
+ * Supprime un fichier (proprietaire de la session ou secretaire/principal)
  */
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -161,7 +161,9 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'ID invalide' });
     }
 
-    // Recuperer l'attachment
+    const user = req.user as any;
+
+    // Recuperer l'attachment avec sa session
     const [attachment] = await db
       .select()
       .from(attachments)
@@ -170,6 +172,20 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 
     if (!attachment) {
       return res.status(404).json({ error: 'Fichier non trouve' });
+    }
+
+    // Verifier les permissions: proprietaire de la session ou role eleve
+    const [session] = await db
+      .select({ teacherId: sessions.teacherId })
+      .from(sessions)
+      .where(eq(sessions.id, attachment.sessionId))
+      .limit(1);
+
+    const isOwner = session && session.teacherId === user?.id;
+    const isStaff = ['SECRETARY', 'PRINCIPAL', 'ADMIN'].includes(user?.role);
+
+    if (!isOwner && !isStaff) {
+      return res.status(403).json({ error: 'Vous ne pouvez pas supprimer ce fichier' });
     }
 
     // Supprimer du storage
@@ -199,12 +215,33 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 /**
  * GET /api/attachments/session/:sessionId
  * Liste les fichiers d'une session avec URLs signees (valides 1h)
+ * Accessible au proprietaire ou au staff (secretaire/principal/admin)
  */
 router.get('/session/:sessionId', requireAuth, async (req: Request, res: Response) => {
   try {
     const sessionId = parseInt(req.params.sessionId);
     if (isNaN(sessionId)) {
       return res.status(400).json({ error: 'ID de session invalide' });
+    }
+
+    const user = req.user as any;
+
+    // Verifier les permissions
+    const [session] = await db
+      .select({ teacherId: sessions.teacherId })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session non trouvee' });
+    }
+
+    const isOwner = session.teacherId === user?.id;
+    const isStaff = ['SECRETARY', 'PRINCIPAL', 'ADMIN'].includes(user?.role);
+
+    if (!isOwner && !isStaff) {
+      return res.status(403).json({ error: 'Acces non autorise' });
     }
 
     const sessionAttachments = await db
@@ -248,6 +285,7 @@ router.get('/session/:sessionId', requireAuth, async (req: Request, res: Respons
 /**
  * GET /api/attachments/:id/download-url
  * Genere une URL signee avec nom de fichier explicite (enseignant_date_creneau_nomoriginal)
+ * Accessible au proprietaire ou au staff (secretaire/principal/admin)
  */
 router.get('/:id/download-url', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -255,6 +293,8 @@ router.get('/:id/download-url', requireAuth, async (req: Request, res: Response)
     if (isNaN(id)) {
       return res.status(400).json({ error: 'ID invalide' });
     }
+
+    const user = req.user as any;
 
     // Recuperer l'attachment avec sa session
     const [attachment] = await db
@@ -273,6 +313,14 @@ router.get('/:id/download-url', requireAuth, async (req: Request, res: Response)
       .from(sessions)
       .where(eq(sessions.id, attachment.sessionId))
       .limit(1);
+
+    // Verifier les permissions
+    const isOwner = session && session.teacherId === user?.id;
+    const isStaff = ['SECRETARY', 'PRINCIPAL', 'ADMIN'].includes(user?.role);
+
+    if (!isOwner && !isStaff) {
+      return res.status(403).json({ error: 'Acces non autorise' });
+    }
 
     // Construire le nom explicite
     let explicitFilename = attachment.originalName;
