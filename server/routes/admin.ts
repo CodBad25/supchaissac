@@ -3,9 +3,62 @@ import { db } from '../../src/lib/db';
 import { users, sessions } from '../../src/lib/schema';
 import { eq, and, gte, lte, count, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
+import multer from 'multer';
+import iconv from 'iconv-lite';
 import { generateActivationToken, sendActivationEmail, isAcademicEmail, getActivationLink, isEmailEnabled } from '../services/email';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Decoder le buffer CSV (gere Windows-1252, UTF-8, etc.)
+function decodeCSVBuffer(buffer: Buffer): string {
+  const utf8Content = buffer.toString('utf-8');
+  const hasReplacementChars = utf8Content.includes('\ufffd');
+  const hasBrokenAccents = /Ã©|Ã¨|Ã |Ã¹|Ãª|Ã®|Ã´|Ã»|Ã§|Ã‰|Ã€/.test(utf8Content);
+
+  if (hasReplacementChars || hasBrokenAccents) {
+    try {
+      return iconv.decode(buffer, 'win1252');
+    } catch {
+      try {
+        return iconv.decode(buffer, 'iso-8859-1');
+      } catch {
+        return utf8Content;
+      }
+    }
+  }
+  return utf8Content;
+}
+
+// Parser CSV enseignants
+function parseTeacherCSV(content: string): { headers: string[]; rows: Record<string, string>[] } {
+  let cleanContent = content.replace(/^\uFEFF/, '').replace(/^\xEF\xBB\xBF/, '');
+  const lines = cleanContent.split(/\r?\n/).filter(line => line.trim());
+
+  if (lines.length === 0) return { headers: [], rows: [] };
+
+  const firstLine = lines[0];
+  let separator = ';';
+  if (firstLine.includes('\t')) separator = '\t';
+  else if (firstLine.includes(';')) separator = ';';
+  else if (firstLine.includes(',')) separator = ',';
+
+  const headers = firstLine.split(separator).map(h => h.trim().replace(/^"|"$/g, ''));
+  const rows: Record<string, string>[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(separator).map(v => v.trim().replace(/^"|"$/g, ''));
+    if (values.length >= 2 && values.some(v => v)) {
+      const row: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] || '';
+      });
+      rows.push(row);
+    }
+  }
+
+  return { headers, rows };
+}
 
 // Middleware pour vérifier le rôle admin
 const requireAdmin = (req: any, res: any, next: any) => {
@@ -303,6 +356,148 @@ router.post('/import', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Erreur import CSV:', error);
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/admin/import-teachers-csv - Import CSV enseignants (fichier)
+router.post('/import-teachers-csv', requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+
+    const content = decodeCSVBuffer(req.file.buffer);
+    const { headers, rows } = parseTeacherCSV(content);
+
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'Fichier CSV vide ou invalide' });
+    }
+
+    console.log(`[ADMIN] Import CSV enseignants: ${rows.length} lignes, headers:`, headers);
+
+    let created = 0;
+    let skipped = 0;
+    let errors: { line: number; reason: string }[] = [];
+    const skippedNames: string[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      try {
+        // Detecter les colonnes (format Pronote)
+        const civilite = row['CIVILITE'] || row['Civilité'] || row['civilite'] || '';
+        const nom = row['NOM'] || row['Nom'] || row['nom'] || '';
+        const prenom = row['PRENOM'] || row['Prénom'] || row['prenom'] || '';
+        const email = row['EMAIL'] || row['Email'] || row['email'] || row['LOGIN'] || '';
+        const discipline = row['DISCIPLINE'] || row['MATIERE_PREF'] || row['Discipline'] || row['Matière'] || '';
+        const statutPacte = row['PACTE'] || row['pacte'] || row['Statut_PACTE'] || '';
+
+        // Validation: nom, prenom et email obligatoires
+        if (!nom || !prenom || !email) {
+          errors.push({ line: i + 2, reason: 'Données manquantes (nom, prénom ou email)' });
+          continue;
+        }
+
+        // Verifier si l'utilisateur existe deja (par email)
+        const existing = await db.select().from(users).where(eq(users.username, email)).limit(1);
+
+        if (existing.length > 0) {
+          skipped++;
+          skippedNames.push(`${prenom} ${nom}`);
+          console.log(`[ADMIN] Enseignant ignoré (existe déjà): ${prenom} ${nom} (${email})`);
+          continue;
+        }
+
+        // Creer le nouvel enseignant
+        const fullName = `${prenom} ${nom}`.trim();
+        const initials = `${prenom?.[0] || ''}${nom?.[0] || ''}`.toUpperCase();
+        const hashedPassword = await bcrypt.hash('password123', 10);
+
+        await db.insert(users).values({
+          username: email,
+          password: hashedPassword,
+          name: fullName,
+          firstName: prenom,
+          lastName: nom.toUpperCase(),
+          civilite: civilite === 'M.' || civilite === 'M' ? 'M.' : civilite === 'Mme' || civilite === 'Mme.' ? 'Mme' : null,
+          subject: discipline || null,
+          role: 'TEACHER',
+          initials,
+          inPacte: statutPacte?.toUpperCase() === 'OUI' || statutPacte === '1' || statutPacte?.toUpperCase() === 'TRUE',
+          isActivated: false,
+        });
+
+        created++;
+        console.log(`[ADMIN] Enseignant créé: ${fullName} (${email})`);
+
+      } catch (err: any) {
+        errors.push({ line: i + 2, reason: err.message });
+      }
+    }
+
+    console.log(`[ADMIN] Import terminé: ${created} créés, ${skipped} ignorés (existants)`);
+
+    res.json({
+      success: true,
+      created,
+      skipped,
+      skippedNames: skippedNames.slice(0, 10), // Max 10 noms
+      errors: errors.length,
+      errorDetails: errors.slice(0, 10),
+      headers, // Pour debug
+    });
+  } catch (error) {
+    console.error('[ADMIN] Erreur import CSV:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'import' });
+  }
+});
+
+// POST /api/admin/preview-teachers-csv - Aperçu avant import
+router.post('/preview-teachers-csv', requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+
+    const content = decodeCSVBuffer(req.file.buffer);
+    const { headers, rows } = parseTeacherCSV(content);
+
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'Fichier CSV vide ou invalide' });
+    }
+
+    // Extraire les aperçus (format Pronote)
+    const preview = rows.slice(0, 5).map(row => ({
+      civilite: row['CIVILITE'] || row['Civilité'] || '',
+      nom: row['NOM'] || row['Nom'] || '',
+      prenom: row['PRENOM'] || row['Prénom'] || '',
+      email: row['EMAIL'] || row['Email'] || row['LOGIN'] || '',
+      discipline: row['DISCIPLINE'] || row['MATIERE_PREF'] || row['Discipline'] || '',
+      pacte: row['PACTE'] || row['pacte'] || '',
+    }));
+
+    // Compter les emails existants
+    const allEmails = rows.map(row =>
+      row['EMAIL'] || row['Email'] || row['LOGIN'] || ''
+    ).filter(e => e);
+
+    const existingUsers = await db
+      .select({ username: users.username })
+      .from(users)
+      .where(sql`${users.username} IN (${sql.join(allEmails.map(e => sql`${e}`), sql`, `)})`);
+
+    const existingEmails = new Set(existingUsers.map(u => u.username));
+    const willBeSkipped = allEmails.filter(e => existingEmails.has(e)).length;
+
+    res.json({
+      headers,
+      totalRows: rows.length,
+      willBeCreated: rows.length - willBeSkipped,
+      willBeSkipped,
+      preview,
+    });
+  } catch (error) {
+    console.error('[ADMIN] Erreur preview CSV:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'analyse' });
   }
 });
 

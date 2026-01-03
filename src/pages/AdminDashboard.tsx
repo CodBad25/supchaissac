@@ -99,6 +99,24 @@ export default function AdminDashboard() {
   const [csvData, setCsvData] = useState('');
   const [importResult, setImportResult] = useState<{ created: number; updated: number; errors?: string[] } | null>(null);
 
+  // Teacher CSV import state
+  const [teacherFile, setTeacherFile] = useState<File | null>(null);
+  const [teacherPreview, setTeacherPreview] = useState<{
+    headers: string[];
+    totalRows: number;
+    willBeCreated: number;
+    willBeSkipped: number;
+    preview: { civilite: string; nom: string; prenom: string; email: string; discipline: string; pacte: string }[];
+  } | null>(null);
+  const [teacherImportResult, setTeacherImportResult] = useState<{
+    success: boolean;
+    created: number;
+    skipped: number;
+    skippedNames: string[];
+    errors: number;
+  } | null>(null);
+  const [teachersLoading, setTeachersLoading] = useState(false);
+
   // Student import state
   const [studentFile, setStudentFile] = useState<File | null>(null);
   const [studentPreview, setStudentPreview] = useState<{
@@ -266,6 +284,74 @@ export default function AdminDashboard() {
       alert('Erreur de connexion');
     } finally {
       setStudentsLoading(false);
+    }
+  };
+
+  // Preview teacher CSV
+  const handleTeacherFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setTeacherFile(file);
+    setTeacherImportResult(null);
+    setTeachersLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/preview-teachers-csv`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTeacherPreview(data);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de l\'analyse du fichier');
+      }
+    } catch (error) {
+      console.error('Error previewing file:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setTeachersLoading(false);
+    }
+  };
+
+  // Import teachers
+  const handleTeacherImport = async () => {
+    if (!teacherFile) return;
+
+    setTeachersLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', teacherFile);
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/import-teachers-csv`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTeacherImportResult(data);
+        setTeacherFile(null);
+        setTeacherPreview(null);
+        fetchUsers(); // Rafraichir la liste
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de l\'import');
+      }
+    } catch (error) {
+      console.error('Error importing teachers:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setTeachersLoading(false);
     }
   };
 
@@ -916,48 +1002,189 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'import' && (
-          <div className="max-w-2xl mx-auto space-y-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Import enseignants par fichier */}
             <div className="bg-white rounded-xl p-6 border border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Import CSV (Pronote)</h2>
-              <p className="text-sm text-gray-600 mb-4">
-                Format attendu : login,civilite,nom,prenom,email,discipline,classes,statut_pacte
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Import des enseignants</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Importez un fichier CSV depuis Pronote. Les enseignants existants seront ignores.
               </p>
-              <textarea
-                value={csvData}
-                onChange={(e) => setCsvData(e.target.value)}
-                placeholder="Collez votre CSV ici..."
-                className="w-full h-64 p-4 border border-gray-200 rounded-lg font-mono text-sm resize-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              />
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={handleImport}
-                  disabled={!csvData.trim()}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Upload className="w-4 h-4" />
-                  Importer
-                </button>
-              </div>
+
+              {!teacherPreview ? (
+                <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    {teachersLoading ? (
+                      <>
+                        <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                        <p className="text-sm text-gray-500">Analyse du fichier...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-10 h-10 text-gray-400 mb-3" />
+                        <p className="mb-2 text-sm text-gray-500">
+                          <span className="font-semibold">Cliquez pour selectionner</span> ou glissez-deposez
+                        </p>
+                        <p className="text-xs text-gray-500">Fichier CSV uniquement</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    onChange={handleTeacherFileChange}
+                    className="hidden"
+                    disabled={teachersLoading}
+                  />
+                </label>
+              ) : (
+                <div className="space-y-4">
+                  {/* Preview info */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span className="font-medium text-blue-800">{teacherFile?.name}</span>
+                    </div>
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-blue-700">
+                        <strong>{teacherPreview.totalRows}</strong> enseignants dans le fichier
+                      </span>
+                      <span className="text-green-700">
+                        <strong>{teacherPreview.willBeCreated}</strong> seront crees
+                      </span>
+                      {teacherPreview.willBeSkipped > 0 && (
+                        <span className="text-amber-700">
+                          <strong>{teacherPreview.willBeSkipped}</strong> ignores (existent deja)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Colonnes detectees */}
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Colonnes detectees:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {teacherPreview.headers.map(h => (
+                        <span key={h} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                          {h}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Apercu */}
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Apercu (5 premiers):</p>
+                    <div className="bg-gray-50 rounded-lg p-3 overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500">
+                            <th className="pb-2 pr-4">Civilite</th>
+                            <th className="pb-2 pr-4">Nom</th>
+                            <th className="pb-2 pr-4">Prenom</th>
+                            <th className="pb-2 pr-4">Email</th>
+                            <th className="pb-2 pr-4">Discipline</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-gray-700">
+                          {teacherPreview.preview.map((t, i) => (
+                            <tr key={i}>
+                              <td className="py-1 pr-4">{t.civilite || '-'}</td>
+                              <td className="py-1 pr-4 font-medium">{t.nom}</td>
+                              <td className="py-1 pr-4">{t.prenom}</td>
+                              <td className="py-1 pr-4 text-blue-600">{t.email}</td>
+                              <td className="py-1 pr-4">{t.discipline || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => {
+                        setTeacherFile(null);
+                        setTeacherPreview(null);
+                      }}
+                      className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={handleTeacherImport}
+                      disabled={teachersLoading || teacherPreview.willBeCreated === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                    >
+                      {teachersLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Import en cours...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Importer {teacherPreview.willBeCreated} enseignant{teacherPreview.willBeCreated > 1 ? 's' : ''}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {importResult && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                <p className="text-green-800 font-medium">Import réussi !</p>
-                <p className="text-green-700 text-sm mt-1">
-                  {importResult.created} créés, {importResult.updated} mis à jour
-                </p>
-                {importResult.errors && importResult.errors.length > 0 && (
-                  <div className="mt-2 text-red-600 text-sm">
-                    <p className="font-medium">Erreurs :</p>
-                    <ul className="list-disc list-inside">
-                      {importResult.errors.map((err, i) => (
-                        <li key={i}>{err}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+            {/* Resultat import */}
+            {teacherImportResult && (
+              <div className={`rounded-xl p-4 border ${
+                teacherImportResult.success
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {teacherImportResult.success ? (
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-red-600" />
+                  )}
+                  <p className={`font-medium ${
+                    teacherImportResult.success ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    Import termine !
+                  </p>
+                </div>
+                <div className="text-sm space-y-1">
+                  <p className="text-green-700">
+                    <strong>{teacherImportResult.created}</strong> enseignant{teacherImportResult.created > 1 ? 's' : ''} cree{teacherImportResult.created > 1 ? 's' : ''}
+                  </p>
+                  {teacherImportResult.skipped > 0 && (
+                    <p className="text-amber-700">
+                      <strong>{teacherImportResult.skipped}</strong> ignore{teacherImportResult.skipped > 1 ? 's' : ''} (existaient deja)
+                      {teacherImportResult.skippedNames.length > 0 && (
+                        <span className="text-gray-500 ml-1">
+                          : {teacherImportResult.skippedNames.join(', ')}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {teacherImportResult.errors > 0 && (
+                    <p className="text-red-600">
+                      <strong>{teacherImportResult.errors}</strong> erreur{teacherImportResult.errors > 1 ? 's' : ''}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
+
+            {/* Info format */}
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+              <h3 className="font-medium text-gray-800 mb-2">Format CSV attendu (Pronote)</h3>
+              <p className="text-sm text-gray-600 mb-2">
+                Colonnes reconnues : <code className="bg-gray-200 px-1 rounded">NOM</code>, <code className="bg-gray-200 px-1 rounded">PRENOM</code>, <code className="bg-gray-200 px-1 rounded">EMAIL</code>, <code className="bg-gray-200 px-1 rounded">CIVILITE</code>, <code className="bg-gray-200 px-1 rounded">DISCIPLINE</code> ou <code className="bg-gray-200 px-1 rounded">MATIERE_PREF</code>
+              </p>
+              <p className="text-xs text-gray-500">
+                Les enseignants avec un email deja existant seront automatiquement ignores.
+              </p>
+            </div>
           </div>
         )}
 
