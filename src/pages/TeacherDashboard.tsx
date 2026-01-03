@@ -1072,10 +1072,12 @@ const TeacherDashboard: React.FC = () => {
                 {sessions.slice(0, 3).map((session) => {
                   const statusClasses = getStatusClasses(session.status);
                   const typeColors = getTypeColors(session.type);
+                  const canEdit = session.status === 'PENDING_REVIEW' || session.status === 'PENDING_VALIDATION';
                   return (
                     <div
                       key={session.id}
-                      className={`px-3 sm:px-4 py-2 hover:bg-gray-50 transition-colors border-l-4 ${typeColors.border}`}
+                      onClick={() => handleEditSession(session)}
+                      className={`px-3 sm:px-4 py-2 hover:bg-gray-50 transition-colors border-l-4 ${typeColors.border} cursor-pointer active:bg-gray-100`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">

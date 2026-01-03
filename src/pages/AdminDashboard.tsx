@@ -4,7 +4,8 @@ import {
   LogOut, Search, Users, UserCheck, UserX, User as UserIcon,
   Upload, Key, Home, Edit2, Trash2, Plus,
   X, AlertCircle, Mail, Link2, CheckCircle,
-  Copy, ExternalLink, Settings, RefreshCcw
+  Copy, ExternalLink, Settings, RefreshCcw,
+  GraduationCap, FileText, Eye, Check
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 
@@ -62,7 +63,7 @@ export default function AdminDashboard() {
   const [usersLoading, setUsersLoading] = useState(false);
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'import' | 'maintenance'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'import' | 'students' | 'maintenance'>('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'TEACHER' | 'SECRETARY' | 'PRINCIPAL' | 'ADMIN'>('all');
   const [pacteFilter, setPacteFilter] = useState<'all' | 'pacte' | 'non-pacte'>('all');
@@ -97,6 +98,29 @@ export default function AdminDashboard() {
   // Import state
   const [csvData, setCsvData] = useState('');
   const [importResult, setImportResult] = useState<{ created: number; updated: number; errors?: string[] } | null>(null);
+
+  // Student import state
+  const [studentFile, setStudentFile] = useState<File | null>(null);
+  const [studentPreview, setStudentPreview] = useState<{
+    headers: string[];
+    totalRows: number;
+    classesFound: string[];
+    projectsFound: string[];
+    preview: { nom: string; prenom: string; classe: string; projet: string }[];
+  } | null>(null);
+  const [studentImportResult, setStudentImportResult] = useState<{
+    success: boolean;
+    imported: number;
+    errors: number;
+    classes: string[];
+  } | null>(null);
+  const [studentStats, setStudentStats] = useState<{
+    totalStudents: number;
+    totalClasses: number;
+    classCounts: Record<string, number>;
+    schoolYear: string;
+  } | null>(null);
+  const [studentsLoading, setStudentsLoading] = useState(false);
 
   // Fetch user info
   useEffect(() => {
@@ -143,6 +167,9 @@ export default function AdminDashboard() {
     if (activeTab === 'users') {
       fetchUsers();
     }
+    if (activeTab === 'students') {
+      fetchStudentStats();
+    }
   }, [activeTab]);
 
   const fetchUsers = async () => {
@@ -157,6 +184,108 @@ export default function AdminDashboard() {
       console.error('Error fetching users:', error);
     } finally {
       setUsersLoading(false);
+    }
+  };
+
+  // Fetch student stats
+  const fetchStudentStats = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/students/stats`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setStudentStats(data);
+      }
+    } catch (error) {
+      console.error('Error fetching student stats:', error);
+    }
+  };
+
+  // Preview student CSV
+  const handleStudentFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setStudentFile(file);
+    setStudentImportResult(null);
+    setStudentsLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/api/students/preview`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setStudentPreview(data);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de l\'analyse du fichier');
+      }
+    } catch (error) {
+      console.error('Error previewing file:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setStudentsLoading(false);
+    }
+  };
+
+  // Import students
+  const handleStudentImport = async (replaceExisting: boolean) => {
+    if (!studentFile) return;
+
+    setStudentsLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', studentFile);
+      formData.append('replaceExisting', String(replaceExisting));
+
+      const response = await fetch(`${API_BASE_URL}/api/students/import`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setStudentImportResult(data);
+        setStudentFile(null);
+        setStudentPreview(null);
+        fetchStudentStats();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de l\'import');
+      }
+    } catch (error) {
+      console.error('Error importing students:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setStudentsLoading(false);
+    }
+  };
+
+  // Clear students
+  const handleClearStudents = async () => {
+    if (!confirm('Voulez-vous vraiment supprimer tous les eleves de cette annee scolaire ?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/students`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        setStudentStats(null);
+        setStudentImportResult(null);
+        fetchStudentStats();
+      }
+    } catch (error) {
+      console.error('Error clearing students:', error);
     }
   };
 
@@ -498,6 +627,7 @@ export default function AdminDashboard() {
             { id: 'dashboard', label: 'Tableau de bord', icon: Home },
             { id: 'users', label: 'Utilisateurs', icon: Users },
             { id: 'import', label: 'Import CSV', icon: Upload },
+            { id: 'students', label: 'Eleves', icon: GraduationCap },
             { id: 'maintenance', label: 'Maintenance', icon: Settings },
           ].map(tab => (
             <button
@@ -826,6 +956,251 @@ export default function AdminDashboard() {
                     </ul>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Students Tab */}
+        {activeTab === 'students' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Stats actuelles */}
+            {studentStats && studentStats.totalStudents > 0 && (
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Eleves importes</h2>
+                  <span className="text-sm text-gray-500">{studentStats.schoolYear}</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-blue-50 rounded-lg p-4 text-center">
+                    <p className="text-3xl font-bold text-blue-600">{studentStats.totalStudents}</p>
+                    <p className="text-sm text-blue-700">Eleves</p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4 text-center">
+                    <p className="text-3xl font-bold text-green-600">{studentStats.totalClasses}</p>
+                    <p className="text-sm text-green-700">Classes</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(studentStats.classCounts)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([className, count]) => (
+                      <span
+                        key={className}
+                        className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
+                      >
+                        {className}: {count}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upload zone */}
+            <div className="bg-white rounded-xl p-6 border border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Import des eleves</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Importez un fichier CSV depuis Pronote avec les colonnes: Nom, Prenom, Classe, etc.
+              </p>
+
+              {!studentPreview ? (
+                <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    {studentsLoading ? (
+                      <>
+                        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                        <p className="text-sm text-gray-500">Analyse du fichier...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-10 h-10 text-gray-400 mb-3" />
+                        <p className="mb-2 text-sm text-gray-500">
+                          <span className="font-semibold">Cliquez pour selectionner</span> ou glissez-deposez
+                        </p>
+                        <p className="text-xs text-gray-500">Fichier CSV uniquement</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleStudentFileChange}
+                    className="hidden"
+                    disabled={studentsLoading}
+                  />
+                </label>
+              ) : (
+                <div className="space-y-4">
+                  {/* Preview info */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span className="font-medium text-blue-800">{studentFile?.name}</span>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      {studentPreview.totalRows} eleves trouves dans {studentPreview.classesFound.length} classes
+                    </p>
+                  </div>
+
+                  {/* Classes detectees */}
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Classes detectees:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {studentPreview.classesFound.map(c => (
+                        <span key={c} className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Projets detectes */}
+                  {studentPreview.projectsFound.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 mb-2">Projets d'accompagnement:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {studentPreview.projectsFound.map(p => (
+                          <span key={p} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Apercu */}
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Apercu (5 premiers):</p>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500">
+                            <th className="pb-2">Nom</th>
+                            <th className="pb-2">Prenom</th>
+                            <th className="pb-2">Classe</th>
+                            <th className="pb-2">Projet</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-gray-700">
+                          {studentPreview.preview.map((s, i) => (
+                            <tr key={i}>
+                              <td className="py-1">{s.nom}</td>
+                              <td className="py-1">{s.prenom}</td>
+                              <td className="py-1 font-medium">{s.classe}</td>
+                              <td className="py-1 text-purple-600">{s.projet || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => {
+                        setStudentFile(null);
+                        setStudentPreview(null);
+                      }}
+                      className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                      Annuler
+                    </button>
+                    {studentStats && studentStats.totalStudents > 0 ? (
+                      <>
+                        <button
+                          onClick={() => handleStudentImport(false)}
+                          disabled={studentsLoading}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+                        >
+                          Ajouter aux existants
+                        </button>
+                        <button
+                          onClick={() => handleStudentImport(true)}
+                          disabled={studentsLoading}
+                          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                        >
+                          Remplacer tous
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => handleStudentImport(false)}
+                        disabled={studentsLoading}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+                      >
+                        {studentsLoading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Import en cours...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-4 h-4" />
+                            Importer {studentPreview.totalRows} eleves
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Resultat import */}
+            {studentImportResult && (
+              <div className={`rounded-xl p-4 border ${
+                studentImportResult.success
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {studentImportResult.success ? (
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-red-600" />
+                  )}
+                  <p className={`font-medium ${
+                    studentImportResult.success ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {studentImportResult.success ? 'Import reussi !' : 'Erreurs lors de l\'import'}
+                  </p>
+                </div>
+                <p className={`text-sm ${
+                  studentImportResult.success ? 'text-green-700' : 'text-red-700'
+                }`}>
+                  {studentImportResult.imported} eleves importes
+                  {studentImportResult.errors > 0 && `, ${studentImportResult.errors} erreurs`}
+                </p>
+                {studentImportResult.classes.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {studentImportResult.classes.map(c => (
+                      <span key={c} className="px-2 py-0.5 bg-green-200 text-green-800 rounded text-xs">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Danger zone */}
+            {studentStats && studentStats.totalStudents > 0 && (
+              <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-medium text-red-800">Supprimer tous les eleves</h3>
+                    <p className="text-sm text-red-600 mt-1">
+                      Supprime tous les eleves de l'annee {studentStats.schoolYear}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleClearStudents}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                  >
+                    Supprimer
+                  </button>
+                </div>
               </div>
             )}
           </div>

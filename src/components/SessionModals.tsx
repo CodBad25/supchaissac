@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Users, BookOpen, FileText, Sun, Moon, ChevronLeft, Plus, Trash2, AlertTriangle, Copy, Upload, Edit3, Camera } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Users, BookOpen, FileText, Sun, Moon, ChevronLeft, Plus, Trash2, AlertTriangle, Copy, Upload, Edit3, Camera, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useIsMobile } from '../hooks/useMediaQuery';
@@ -7,6 +7,14 @@ import FileUpload from './FileUpload';
 
 // Type Student (defini localement pour eviter probleme d'import)
 interface Student {
+  lastName: string;
+  firstName: string;
+  className: string;
+}
+
+// Type pour les resultats de recherche
+interface StudentSearchResult {
+  id: number;
   lastName: string;
   firstName: string;
   className: string;
@@ -74,6 +82,124 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Autocomplete state - recherche globale
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<StudentSearchResult[]>([]);
+  const [matchingClass, setMatchingClass] = useState<{ name: string; count: number } | null>(null);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualStudent, setManualStudent] = useState<Student>({ lastName: '', firstName: '', className: '' });
+  const [isAddingClass, setIsAddingClass] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Search students for autocomplete (recherche globale nom + prenom)
+  const searchStudents = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      setMatchingClass(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/students/search?q=${encodeURIComponent(query)}&limit=15`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data.students || []);
+        setMatchingClass(data.matchingClass || null);
+      }
+    } catch (error) {
+      console.error('Erreur recherche eleves:', error);
+    }
+  }, []);
+
+  // Add entire class
+  const addEntireClass = useCallback(async (className: string) => {
+    setIsAddingClass(true);
+    try {
+      const response = await fetch(`/api/students/class/${encodeURIComponent(className)}`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const classStudents: StudentSearchResult[] = await response.json();
+
+        // Ajouter tous les eleves de la classe (sans doublons)
+        setStudentsList(prev => {
+          const existingKeys = new Set(prev.map(s => `${s.lastName}-${s.firstName}-${s.className}`));
+          const newStudents = classStudents
+            .filter(s => !existingKeys.has(`${s.lastName}-${s.firstName}-${s.className}`))
+            .map(s => ({ lastName: s.lastName, firstName: s.firstName, className: s.className }));
+
+          // Supprimer les lignes vides et ajouter les nouveaux
+          const nonEmpty = prev.filter(s => s.lastName || s.firstName);
+          return [...nonEmpty, ...newStudents];
+        });
+
+        setSearchQuery('');
+        setSearchResults([]);
+        setMatchingClass(null);
+      }
+    } catch (error) {
+      console.error('Erreur ajout classe:', error);
+    } finally {
+      setIsAddingClass(false);
+    }
+  }, []);
+
+  // Debounced search
+  const debouncedSearch = useCallback((query: string) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      searchStudents(query);
+    }, 200);
+  }, [searchStudents]);
+
+  // Handle student selection from search results
+  const addStudentFromSearch = (student: StudentSearchResult) => {
+    // Verifier si l'eleve n'est pas deja dans la liste
+    const alreadyExists = studentsList.some(
+      s => s.lastName === student.lastName && s.firstName === student.firstName && s.className === student.className
+    );
+    if (alreadyExists) {
+      return; // Ne pas ajouter de doublon
+    }
+
+    // Remplacer la ligne vide ou ajouter
+    const emptyIndex = studentsList.findIndex(s => !s.lastName && !s.firstName);
+    if (emptyIndex !== -1) {
+      setStudentsList(prev => {
+        const updated = [...prev];
+        updated[emptyIndex] = {
+          lastName: student.lastName,
+          firstName: student.firstName,
+          className: student.className,
+        };
+        return updated;
+      });
+    } else {
+      setStudentsList(prev => [...prev, {
+        lastName: student.lastName,
+        firstName: student.firstName,
+        className: student.className,
+      }]);
+    }
+
+    // Ne PAS fermer le menu - garder les resultats pour ajouts multiples
+    // Le menu se fermera quand l'utilisateur clique sur X ou tape autre chose
+  };
+
+  // Add manual student
+  const addManualStudent = () => {
+    if (manualStudent.lastName && manualStudent.firstName) {
+      setStudentsList(prev => [...prev, { ...manualStudent }]);
+      setManualStudent({ lastName: '', firstName: '', className: '' });
+      setShowManualEntry(false);
+    }
+  };
 
   const isEditMode = !!editSession;
   const isDuplicateMode = !!duplicateData && !editSession;
@@ -797,17 +923,6 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               {/* 3 boutons de choix */}
               <div className="grid grid-cols-3 gap-2 mb-3">
                 <button
-                  onClick={() => selectJustificationMode('excel')}
-                  className={`${touchBtn} flex-col py-3 px-2 rounded-xl border-2 text-xs ${
-                    justificationMode === 'excel'
-                      ? 'border-green-500 bg-green-50 text-green-700'
-                      : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
-                  }`}
-                >
-                  <Upload className="w-5 h-5 mb-1" />
-                  Importer Excel
-                </button>
-                <button
                   onClick={() => selectJustificationMode('manual')}
                   className={`${touchBtn} flex-col py-3 px-2 rounded-xl border-2 text-xs ${
                     justificationMode === 'manual'
@@ -828,6 +943,17 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                 >
                   <Camera className="w-5 h-5 mb-1" />
                   Photo/PDF
+                </button>
+                <button
+                  onClick={() => selectJustificationMode('excel')}
+                  className={`${touchBtn} flex-col py-3 px-2 rounded-xl border-2 text-xs ${
+                    justificationMode === 'excel'
+                      ? 'border-green-500 bg-green-50 text-green-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <Upload className="w-5 h-5 mb-1" />
+                  Import Excel
                 </button>
               </div>
 
@@ -867,52 +993,195 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
             </div>
 
             {/* Liste des eleves (mode manuel ou apres import Excel) */}
-            {(justificationMode === 'manual' || (justificationMode === 'excel' && studentsList.length > 0)) && studentsList.length > 0 && formTimeSlot && (
+            {(justificationMode === 'manual' || (justificationMode === 'excel' && studentsList.length > 0)) && formTimeSlot && (
               <div className="relative transition-all duration-500 opacity-100 translate-y-0">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center">
                     <Users className="w-3 h-3" />
                   </div>
                   <label className="text-sm font-medium text-gray-700">
-                    Liste des eleves ({studentsList.length})
+                    Eleves ({studentsList.filter(s => s.lastName || s.firstName).length})
                   </label>
                 </div>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {studentsList.map((student, index) => (
-                    <div key={index} className="flex gap-1.5 items-center">
-                      <input
-                        type="text"
-                        value={student.lastName}
-                        onChange={e => updateStudentField(index, 'lastName', e.target.value.toUpperCase())}
-                        placeholder="NOM"
-                        className="flex-1 min-w-0 min-h-[40px] px-2 border border-gray-200 rounded-lg text-sm bg-gray-50 uppercase"
-                      />
-                      <input
-                        type="text"
-                        value={student.firstName}
-                        onChange={e => updateStudentField(index, 'firstName', formatFirstName(e.target.value))}
-                        placeholder="Prenom"
-                        className="flex-1 min-w-0 min-h-[40px] px-2 border border-gray-200 rounded-lg text-sm bg-gray-50"
-                      />
-                      <input
-                        type="text"
-                        value={student.className}
-                        onChange={e => updateStudentField(index, 'className', e.target.value.toUpperCase())}
-                        placeholder="Cl."
-                        className="w-12 min-h-[40px] px-1 border border-gray-200 rounded-lg text-sm bg-gray-50 text-center"
-                      />
-                      <button onClick={() => removeStudent(index)}
-                        className="w-10 h-10 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center justify-center flex-shrink-0">
-                        <X className="w-4 h-4" />
+
+                {/* Champ de recherche global */}
+                <div className="relative mb-3">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => {
+                      setSearchQuery(e.target.value);
+                      debouncedSearch(e.target.value);
+                    }}
+                    placeholder="Nom, prenom ou classe (ex: 6A, 5B...)"
+                    className="w-full min-h-[44px] pl-10 pr-4 border border-blue-200 rounded-xl text-sm bg-blue-50 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
+                  />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
+                  {searchQuery && (
+                    <button
+                      onClick={() => { setSearchQuery(''); setSearchResults([]); setMatchingClass(null); }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Resultats de recherche */}
+                {(searchResults.length > 0 || matchingClass) && (
+                  <div className="mb-3 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                    {/* Bouton ajouter classe entiere */}
+                    {matchingClass && (
+                      <button
+                        onClick={() => addEntireClass(matchingClass.name)}
+                        disabled={isAddingClass}
+                        className="w-full px-3 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-left flex items-center justify-between hover:from-blue-600 hover:to-blue-700 disabled:opacity-70"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users className="w-5 h-5" />
+                          <span className="font-medium">
+                            {isAddingClass ? 'Ajout en cours...' : `Ajouter toute la classe ${matchingClass.name}`}
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 bg-white/20 rounded text-sm">
+                          {matchingClass.count} eleves
+                        </span>
+                      </button>
+                    )}
+                    {/* Header resultats individuels */}
+                    {searchResults.length > 0 && (
+                      <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-medium flex items-center justify-between">
+                        <span>{matchingClass ? 'Ou ajouter individuellement' : `${searchResults.length} eleve${searchResults.length > 1 ? 's' : ''} trouve${searchResults.length > 1 ? 's' : ''}`}</span>
+                        <span className="text-gray-400">Cliquez pour ajouter</span>
+                      </div>
+                    )}
+                    {/* Liste eleves individuels */}
+                    {searchResults.length > 0 && (
+                      <div className="divide-y divide-gray-100 max-h-32 overflow-y-auto">
+                        {searchResults.map((result) => {
+                          const isAlreadyAdded = studentsList.some(
+                            s => s.lastName === result.lastName && s.firstName === result.firstName && s.className === result.className
+                          );
+                          return (
+                            <button
+                              key={result.id}
+                              onClick={() => !isAlreadyAdded && addStudentFromSearch(result)}
+                              disabled={isAlreadyAdded}
+                              className={`w-full px-3 py-1.5 text-left flex items-center justify-between text-sm ${
+                                isAlreadyAdded
+                                  ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                                  : 'hover:bg-blue-50 text-gray-900'
+                              }`}
+                            >
+                              <span className="font-medium">
+                                {result.lastName} {result.firstName}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded text-xs ${
+                                isAlreadyAdded ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {isAlreadyAdded ? 'Ajoute' : result.className}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Liste compacte des eleves selectionnes */}
+                {studentsList.filter(s => s.lastName || s.firstName).length > 0 && (
+                  <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-3 py-2 bg-green-50 border-b border-green-200 flex items-center justify-between">
+                      <span className="text-sm font-medium text-green-800">
+                        {studentsList.filter(s => s.lastName || s.firstName).length} eleve{studentsList.filter(s => s.lastName || s.firstName).length > 1 ? 's' : ''} selectionne{studentsList.filter(s => s.lastName || s.firstName).length > 1 ? 's' : ''}
+                      </span>
+                      <button
+                        onClick={() => setStudentsList([{ lastName: '', firstName: '', className: '' }])}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Tout effacer
                       </button>
                     </div>
-                  ))}
-                </div>
-                {justificationMode === 'manual' && (
-                  <button onClick={addStudent}
-                    className={`w-full mt-2 ${touchBtn} border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:bg-gray-50 rounded-xl`}>
-                    <Plus className="w-4 h-4 mr-1" /> Ajouter un eleve
+                    <div className="divide-y divide-gray-200 max-h-40 overflow-y-auto">
+                      {studentsList.map((student, index) => (
+                        student.lastName || student.firstName ? (
+                          <div key={index} className="flex items-center justify-between px-3 py-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-medium text-gray-900 text-sm truncate">
+                                {student.lastName} {student.firstName}
+                              </span>
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium flex-shrink-0">
+                                {student.className || '?'}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => removeStudent(index)}
+                              className="w-7 h-7 flex items-center justify-center text-red-500 hover:bg-red-100 rounded-lg flex-shrink-0"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : null
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Bouton ajout manuel */}
+                {justificationMode === 'manual' && !showManualEntry && (
+                  <button
+                    onClick={() => setShowManualEntry(true)}
+                    className="w-full mt-2 py-2 text-sm text-gray-500 hover:text-gray-700 flex items-center justify-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" /> Saisie manuelle
                   </button>
+                )}
+
+                {/* Formulaire saisie manuelle */}
+                {showManualEntry && (
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="text-xs text-amber-700 mb-2 font-medium">Saisie manuelle (eleve non trouve)</p>
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={manualStudent.lastName}
+                        onChange={e => setManualStudent(prev => ({ ...prev, lastName: e.target.value.toUpperCase() }))}
+                        placeholder="NOM"
+                        className="flex-1 min-h-[36px] px-2 border border-gray-200 rounded-lg text-sm bg-white uppercase"
+                      />
+                      <input
+                        type="text"
+                        value={manualStudent.firstName}
+                        onChange={e => setManualStudent(prev => ({ ...prev, firstName: formatFirstName(e.target.value) }))}
+                        placeholder="Prenom"
+                        className="flex-1 min-h-[36px] px-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      />
+                      <input
+                        type="text"
+                        value={manualStudent.className}
+                        onChange={e => setManualStudent(prev => ({ ...prev, className: e.target.value.toUpperCase() }))}
+                        placeholder="Cl."
+                        className="w-14 min-h-[36px] px-2 border border-gray-200 rounded-lg text-sm bg-white text-center"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setShowManualEntry(false); setManualStudent({ lastName: '', firstName: '', className: '' }); }}
+                        className="flex-1 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        onClick={addManualStudent}
+                        disabled={!manualStudent.lastName || !manualStudent.firstName}
+                        className="flex-1 py-2 text-sm text-white bg-amber-500 hover:bg-amber-600 rounded-lg disabled:opacity-50"
+                      >
+                        Ajouter
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

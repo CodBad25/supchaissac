@@ -127,6 +127,21 @@ export const hourQuotas = pgTable("hour_quotas", {
   updatedBy: text("updated_by"),
 });
 
+// Students model - Élèves importés depuis CSV Pronote
+export const students = pgTable("students", {
+  id: serial("id").primaryKey(),
+  lastName: text("last_name").notNull(), // Nom
+  firstName: text("first_name").notNull(), // Prénom
+  birthDate: text("birth_date"), // Né(e) le - format texte pour flexibilité
+  usageFirstName: text("usage_first_name"), // Prénom d'usage
+  gender: text("gender"), // Sexe (M/F)
+  className: text("class_name").notNull(), // Classe (6A, 5B, etc.)
+  accompanimentProject: text("accompaniment_project"), // Projet d'accompagnement (PAP, PPS, etc.)
+  schoolYear: text("school_year").notNull(), // Année scolaire "2024-2025"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  importedBy: text("imported_by"), // Qui a fait l'import
+});
+
 // Types TypeScript
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -138,6 +153,8 @@ export type Attachment = typeof attachments.$inferSelect;
 export type InsertAttachment = typeof attachments.$inferInsert;
 export type HourQuota = typeof hourQuotas.$inferSelect;
 export type InsertHourQuota = typeof hourQuotas.$inferInsert;
+export type Student = typeof students.$inferSelect;
+export type InsertStudent = typeof students.$inferInsert;
 
 // Schémas de validation Zod
 export const insertUserSchema = createInsertSchema(users).omit({
