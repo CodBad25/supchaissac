@@ -1095,10 +1095,10 @@ export default function SecretaryDashboard() {
                           <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">A examiner</span>
                         )}
                         {session.status === 'VALIDATED' && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">A payer</span>
+                          <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-100">A payer</span>
                         )}
                         {session.status === 'PAID' && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Paye</span>
+                          <span className="px-2 py-1 text-xs rounded-full bg-green-300 text-green-900 border border-green-400">Paye</span>
                         )}
                         <Eye className="w-4 h-4 text-gray-400" />
                       </div>
