@@ -89,11 +89,11 @@ const HelpPage: React.FC = () => {
       },
       {
         question: "Puis-je modifier une session déclarée ?",
-        answer: "Oui, mais uniquement si elle est encore en statut 'En attente de vérification'. Cliquez sur la session puis sur 'Modifier'."
+        answer: "Oui, mais sous deux conditions : (1) la session doit être en statut 'En attente de vérification' (pas encore traitée par le secrétariat), et (2) vous disposez d'un délai maximum de 60 minutes après la création. Passé ce délai ou une fois la session transmise à la Direction, la modification n'est plus possible."
       },
       {
         question: "Comment ajouter une pièce jointe ?",
-        answer: "Cliquez sur une session existante, puis sur 'Ajouter un fichier'. Formats acceptés : PDF, images. Taille max : 10 Mo."
+        answer: "Cliquez sur une session existante, puis sur 'Ajouter un fichier'. Formats acceptés : PDF, images. Taille max : 5 Mo."
       },
       {
         question: "Qu'est-ce que le contrat PACTE ?",
