@@ -586,26 +586,39 @@ export function ContratsPacte({
               </div>
 
               {/* Resume */}
-              <div className="bg-amber-50 p-4 rounded-lg">
-                <p className="text-sm font-medium text-amber-800 mb-3">Resume du contrat PACTE</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-2 bg-white rounded-lg">
-                    <p className="text-2xl font-bold text-amber-600">{contratHoursDF + contratHoursRCD}h</p>
-                    <p className="text-xs text-gray-600">Total au contrat</p>
+              {(() => {
+                const totalContrat = contratHoursDF + contratHoursRCD;
+                const heuresAvantApp = contratCompletedDF + contratCompletedRCD;
+                const sessionsApp = editingContrat.stats.devoirsFaitsSessions + editingContrat.stats.rcdSessions;
+                const totalRealise = heuresAvantApp + sessionsApp;
+                const reste = Math.max(0, totalContrat - totalRealise);
+                return (
+                  <div className="bg-amber-50 p-4 rounded-lg">
+                    <p className="text-sm font-medium text-amber-800 mb-3">Résumé du contrat PACTE</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-2 bg-white rounded-lg">
+                        <p className="text-2xl font-bold text-amber-600">{totalContrat}h</p>
+                        <p className="text-xs text-gray-600">Total au contrat</p>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded-lg">
+                        <p className="text-2xl font-bold text-green-600">{totalRealise}h</p>
+                        <p className="text-xs text-gray-600">Déjà réalisées</p>
+                        {showPreviousHours && heuresAvantApp > 0 && (
+                          <p className="text-xs text-gray-400">({heuresAvantApp}h avant + {sessionsApp} sess.)</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 text-center">
+                      <p className="text-xs text-gray-500">
+                        Reste à réaliser : <span className={`font-bold ${reste > 0 ? 'text-amber-700' : 'text-green-600'}`}>
+                          {reste}h
+                        </span>
+                        {reste === 0 && totalContrat > 0 && <span className="ml-1 text-green-600">✓</span>}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-center p-2 bg-white rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">{contratCompletedDF + contratCompletedRCD}h</p>
-                    <p className="text-xs text-gray-600">Deja realisees</p>
-                  </div>
-                </div>
-                <div className="mt-3 text-center">
-                  <p className="text-xs text-gray-500">
-                    Reste a realiser : <span className="font-bold text-gray-700">
-                      {Math.max(0, (contratHoursDF + contratHoursRCD) - (contratCompletedDF + contratCompletedRCD))}h
-                    </span>
-                  </p>
-                </div>
-              </div>
+                );
+              })()}
             </div>
 
             <div className="p-6 border-t border-gray-100 flex gap-3">
