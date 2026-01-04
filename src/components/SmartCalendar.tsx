@@ -424,7 +424,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({ sessions, onCreateSession
                       }`}
                     >
                       {cellSessions.map(session => (
-                        <SessionBlock key={session.id} session={session} onClick={session.status === 'PENDING_REVIEW' ? () => onEditSession?.(session) : undefined} />
+                        <SessionBlock key={session.id} session={session} onClick={(session.status === 'PENDING_REVIEW' || session.status === 'PENDING_VALIDATION') ? () => onEditSession?.(session) : undefined} />
                       ))}
                     </div>
                   );
@@ -465,7 +465,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({ sessions, onCreateSession
                       }`}
                     >
                       {cellSessions.map(session => (
-                        <SessionBlock key={session.id} session={session} onClick={session.status === 'PENDING_REVIEW' ? () => onEditSession?.(session) : undefined} />
+                        <SessionBlock key={session.id} session={session} onClick={(session.status === 'PENDING_REVIEW' || session.status === 'PENDING_VALIDATION') ? () => onEditSession?.(session) : undefined} />
                       ))}
                     </div>
                   );
@@ -596,7 +596,7 @@ const SessionBlock: React.FC<SessionBlockProps> = ({ session, onClick }) => {
     HSE: 'bg-rose-500',
   };
 
-  const isEditable = session.status === 'PENDING_REVIEW';
+  const isEditable = session.status === 'PENDING_REVIEW' || session.status === 'PENDING_VALIDATION';
 
   // Build teacher name for RCD
   const getTeacherName = () => {
@@ -873,7 +873,7 @@ const SessionsSummary: React.FC<SessionsSummaryProps> = ({ sessions, onEditSessi
       {sortedSessions.length > 0 ? (
         <div className="space-y-2">
           {sortedSessions.map(session => {
-            const isEditable = session.status === 'PENDING_REVIEW';
+            const isEditable = session.status === 'PENDING_REVIEW' || session.status === 'PENDING_VALIDATION';
             return (
               <div
                 key={session.id}

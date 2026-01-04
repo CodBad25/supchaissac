@@ -1085,8 +1085,8 @@ const TeacherDashboard: React.FC = () => {
                   return (
                     <div
                       key={session.id}
-                      onClick={() => handleEditSession(session)}
-                      className={`px-3 sm:px-4 py-2 hover:bg-gray-50 transition-colors border-l-4 ${typeColors.border} cursor-pointer active:bg-gray-100`}
+                      onClick={() => canEdit && handleEditSession(session)}
+                      className={`px-3 sm:px-4 py-2 transition-colors border-l-4 ${typeColors.border} ${canEdit ? 'hover:bg-gray-50 cursor-pointer active:bg-gray-100' : 'cursor-default opacity-80'}`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
