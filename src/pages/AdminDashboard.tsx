@@ -5,7 +5,7 @@ import {
   Upload, Key, Home, Edit2, Trash2, Plus,
   X, AlertCircle, Mail, Link2, CheckCircle,
   Copy, ExternalLink, Settings, RefreshCcw,
-  GraduationCap, FileText, Eye, Check
+  GraduationCap, FileText, Eye, Check, HelpCircle, BookOpen
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 
@@ -693,6 +693,14 @@ export default function AdminDashboard() {
               <p className="text-red-200 text-sm">{user?.name}</p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/help')}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+                title="Centre d'aide"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span className="hidden sm:inline">Aide</span>
+              </button>
               <button
                 onClick={() => navigate('/profile')}
                 className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"

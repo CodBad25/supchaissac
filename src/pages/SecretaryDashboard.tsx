@@ -6,7 +6,7 @@ import {
   Paperclip, Send, Clock3, Home, ClipboardCheck,
   CreditCard, History, X, CheckSquare, Square,
   Users, UserCheck, UserX, Edit2, TrendingUp, HelpCircle,
-  Image, FileSpreadsheet, File
+  Image, FileSpreadsheet, File, BookOpen
 } from 'lucide-react';
 import { Switch } from '../components/ui/switch';
 import { API_BASE_URL } from '../config/api';
@@ -787,9 +787,16 @@ export default function SecretaryDashboard() {
             <button
               onClick={() => setShowTour(true)}
               className="p-2 text-gray-400 hover:text-amber-500 transition-colors"
-              title="Aide / Tutoriel"
+              title="Visite guidée"
             >
               <HelpCircle className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => navigate('/help')}
+              className="p-2 text-gray-400 hover:text-blue-500 transition-colors"
+              title="Centre d'aide"
+            >
+              <BookOpen className="w-5 h-5" />
             </button>
             <button
               onClick={() => navigate('/profile')}

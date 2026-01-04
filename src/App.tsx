@@ -8,6 +8,7 @@ import PrincipalDashboard from './pages/PrincipalDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ProfilePage from './pages/ProfilePage';
 import StyleguidePage from './pages/StyleguidePage';
+import HelpPage from './pages/HelpPage';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="/principal" element={<PrincipalDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/help" element={<HelpPage />} />
           <Route path="/styleguide" element={<StyleguidePage />} />
         </Routes>
       </div>

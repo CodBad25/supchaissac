@@ -4,7 +4,7 @@ import {
   LogOut, Search, Calendar, Clock, User, FileText,
   Download, CheckCircle, Eye, AlertCircle, XCircle,
   Paperclip, Home, ClipboardCheck, X, CheckSquare, Square, HelpCircle,
-  Users, TrendingUp, Pencil, Trash2, AlertTriangle
+  Users, TrendingUp, Pencil, Trash2, AlertTriangle, BookOpen
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
@@ -864,9 +864,16 @@ export default function PrincipalDashboard() {
             <button
               onClick={() => setShowTour(true)}
               className="p-2 text-gray-400 hover:text-purple-500 transition-colors"
-              title="Aide / Tutoriel"
+              title="Visite guidée"
             >
               <HelpCircle className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => navigate('/help')}
+              className="p-2 text-gray-400 hover:text-blue-500 transition-colors"
+              title="Centre d'aide"
+            >
+              <BookOpen className="w-5 h-5" />
             </button>
             <button
               onClick={() => navigate('/profile')}

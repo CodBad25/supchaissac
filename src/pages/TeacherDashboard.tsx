@@ -603,14 +603,23 @@ const TeacherDashboard: React.FC = () => {
                 </span>
               </div>
 
-              {/* Help/Tutorial */}
-              <button
-                onClick={() => setShowTour(true)}
-                className="p-2 rounded-lg bg-yellow-100 hover:bg-yellow-200 transition-colors"
-                title="Aide / Tutoriel"
-              >
-                <HelpCircle className="w-4 h-4 text-yellow-600" />
-              </button>
+              {/* Help: Tour + Page */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowTour(true)}
+                  className="p-2 rounded-lg bg-yellow-100 hover:bg-yellow-200 transition-colors"
+                  title="Visite guidée"
+                >
+                  <HelpCircle className="w-4 h-4 text-yellow-600" />
+                </button>
+                <button
+                  onClick={() => navigate('/help')}
+                  className="p-2 rounded-lg bg-blue-100 hover:bg-blue-200 transition-colors"
+                  title="Centre d'aide"
+                >
+                  <BookOpen className="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
 
               {/* Profile */}
               <button
