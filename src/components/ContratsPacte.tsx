@@ -391,7 +391,8 @@ export function ContratsPacte({
                       <td className="px-4 py-3 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-sm font-medium">
-                            {(teacher.pacteHoursCompletedDF || 0) + teacher.stats.devoirsFaitsSessions} / {teacher.pacteHoursDF || 0}h
+                            {(teacher.pacteHoursCompletedDF || 0) + teacher.stats.devoirsFaitsSessions}h
+                            {teacher.inPacte && <span className="text-blue-400"> / {teacher.pacteHoursDF || 0}h</span>}
                           </span>
                           <span className="text-xs text-gray-400">
                             ({teacher.pacteHoursCompletedDF || 0}h + {teacher.stats.devoirsFaitsSessions} sess.)
@@ -401,7 +402,8 @@ export function ContratsPacte({
                       <td className="px-4 py-3 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-sm font-medium">
-                            {(teacher.pacteHoursCompletedRCD || 0) + teacher.stats.rcdSessions} / {teacher.pacteHoursRCD || 0}h
+                            {(teacher.pacteHoursCompletedRCD || 0) + teacher.stats.rcdSessions}h
+                            {teacher.inPacte && <span className="text-purple-400"> / {teacher.pacteHoursRCD || 0}h</span>}
                           </span>
                           <span className="text-xs text-gray-400">
                             ({teacher.pacteHoursCompletedRCD || 0}h + {teacher.stats.rcdSessions} sess.)
@@ -409,25 +411,36 @@ export function ContratsPacte({
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-sm font-bold">
-                          {totalContrat}h
-                        </span>
+                        {teacher.inPacte ? (
+                          <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-sm font-bold">
+                            {totalContrat}h
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-sm font-medium">{realise}h / {totalContrat}h</span>
-                          <div className="w-full max-w-[100px] bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all ${
-                                progressPercent >= 100 ? 'bg-green-500' :
-                                progressPercent >= 75 ? 'bg-amber-500' :
-                                'bg-blue-500'
-                              }`}
-                              style={{ width: `${progressPercent}%` }}
-                            />
+                        {teacher.inPacte ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-sm font-medium">{realise}h / {totalContrat}h</span>
+                            <div className="w-full max-w-[100px] bg-gray-200 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full transition-all ${
+                                  progressPercent >= 100 ? 'bg-green-500' :
+                                  progressPercent >= 75 ? 'bg-amber-500' :
+                                  'bg-blue-500'
+                                }`}
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-500">{progressPercent}%</span>
                           </div>
-                          <span className="text-xs text-gray-500">{progressPercent}%</span>
-                        </div>
+                        ) : (
+                          <div className="text-center">
+                            <span className="text-sm font-medium text-gray-600">{realise}h</span>
+                            <p className="text-xs text-gray-400">effectuées</p>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
