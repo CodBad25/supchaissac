@@ -332,6 +332,10 @@ const TeacherDashboard: React.FC = () => {
 
   // Gestion de l'edition de sessions
   const handleEditSession = (session: any) => {
+    // Bloquer l'édition si la session n'est plus modifiable
+    if (session.status !== 'PENDING_REVIEW' && session.status !== 'PENDING_VALIDATION') {
+      return;
+    }
     setSelectedDate(session.date);
     setSelectedTimeSlot(session.timeSlot);
     setEditSession(session);
