@@ -965,8 +965,11 @@ export default function PrincipalDashboard() {
 
             {/* Budgets annuels de l'etablissement */}
             <div className="bg-white rounded-2xl border border-gray-200 p-6 mt-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-gray-900">Budgets annuels de l'établissement</h3>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Budgets annuels de l'établissement</h3>
+                  <p className="text-sm text-gray-500">Année scolaire 2025-2026</p>
+                </div>
                 <button
                   onClick={() => {
                     if (editingQuotas) {
@@ -990,6 +993,12 @@ export default function PrincipalDashboard() {
                 </button>
               </div>
 
+              {/* Explication */}
+              <p className="text-sm text-gray-600 mb-4 bg-gray-50 p-3 rounded-lg">
+                <span className="font-medium">Définissez ici le nombre d'heures budgétées</span> pour chaque type de session.
+                Les heures consommées correspondent aux sessions validées ou mises en paiement.
+              </p>
+
               {editingQuotas && (
                 <button
                   onClick={() => setEditingQuotas(false)}
@@ -1008,30 +1017,41 @@ export default function PrincipalDashboard() {
                   const percentage = budget > 0 ? Math.min(100, (consumed / budget) * 100) : 0;
                   return (
                     <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-rose-700">Heures Supp. Effectives</span>
-                        <span className="text-xs text-gray-500">HSE</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500">HSE</span>
+                          <div className="group relative">
+                            <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                            <div className="absolute right-0 top-6 w-48 p-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                              Heures supplémentaires hors PACTE, payées individuellement
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                      <p className="text-xs text-rose-600 mb-2">{consumed}h validées sur {budget}h budgétées</p>
                       {editingQuotas ? (
                         <div className="flex items-center gap-2 mb-3">
+                          <span className="text-sm text-gray-500">Budget:</span>
                           <input
                             type="number"
                             min="0"
                             value={tempQuotas.HSE || 0}
                             onChange={(e) => setTempQuotas(prev => ({...prev, HSE: Number(e.target.value)}))}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold"
+                            className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold text-center"
                           />
                           <span className="text-gray-500">h</span>
                         </div>
                       ) : (
-                        <div className="text-3xl font-bold text-gray-900 mb-3">
-                          {consumed}h <span className="text-lg font-normal text-gray-400">/ {budget}h</span>
+                        <div className="text-2xl font-bold text-gray-900 mb-2">
+                          {consumed}h <span className="text-base font-normal text-gray-400">/ {budget}h</span>
                         </div>
                       )}
-                      <div className="w-full bg-gray-200 rounded-full h-3">
-                        <div className="bg-rose-500 h-3 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div className="bg-rose-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
                       </div>
-                      <div className="text-right mt-1">
+                      <div className="flex justify-between mt-1">
+                        <span className="text-xs text-gray-500">Consommé</span>
                         <span className="text-sm font-medium text-rose-700">{percentage.toFixed(0)}%</span>
                       </div>
                     </div>
@@ -1046,30 +1066,41 @@ export default function PrincipalDashboard() {
                   const percentage = budget > 0 ? Math.min(100, (consumed / budget) * 100) : 0;
                   return (
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-blue-700">Devoirs Faits</span>
-                        <span className="text-xs text-gray-500">DF</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500">DF</span>
+                          <div className="group relative">
+                            <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                            <div className="absolute right-0 top-6 w-48 p-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                              Accompagnement des élèves dans leurs devoirs (PACTE ou HSE)
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                      <p className="text-xs text-blue-600 mb-2">{consumed}h validées sur {budget}h budgétées</p>
                       {editingQuotas ? (
                         <div className="flex items-center gap-2 mb-3">
+                          <span className="text-sm text-gray-500">Budget:</span>
                           <input
                             type="number"
                             min="0"
                             value={tempQuotas.DEVOIRS_FAITS || 0}
                             onChange={(e) => setTempQuotas(prev => ({...prev, DEVOIRS_FAITS: Number(e.target.value)}))}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold"
+                            className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold text-center"
                           />
                           <span className="text-gray-500">h</span>
                         </div>
                       ) : (
-                        <div className="text-3xl font-bold text-gray-900 mb-3">
-                          {consumed}h <span className="text-lg font-normal text-gray-400">/ {budget}h</span>
+                        <div className="text-2xl font-bold text-gray-900 mb-2">
+                          {consumed}h <span className="text-base font-normal text-gray-400">/ {budget}h</span>
                         </div>
                       )}
-                      <div className="w-full bg-gray-200 rounded-full h-3">
-                        <div className="bg-blue-500 h-3 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div className="bg-blue-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
                       </div>
-                      <div className="text-right mt-1">
+                      <div className="flex justify-between mt-1">
+                        <span className="text-xs text-gray-500">Consommé</span>
                         <span className="text-sm font-medium text-blue-700">{percentage.toFixed(0)}%</span>
                       </div>
                     </div>
@@ -1084,30 +1115,41 @@ export default function PrincipalDashboard() {
                   const percentage = budget > 0 ? Math.min(100, (consumed / budget) * 100) : 0;
                   return (
                     <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-purple-700">Remplacements</span>
-                        <span className="text-xs text-gray-500">RCD</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500">RCD</span>
+                          <div className="group relative">
+                            <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                            <div className="absolute right-0 top-6 w-48 p-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                              Remplacement de Courte Durée d'un collègue absent (PACTE)
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                      <p className="text-xs text-purple-600 mb-2">{consumed}h validées sur {budget}h budgétées</p>
                       {editingQuotas ? (
                         <div className="flex items-center gap-2 mb-3">
+                          <span className="text-sm text-gray-500">Budget:</span>
                           <input
                             type="number"
                             min="0"
                             value={tempQuotas.RCD || 0}
                             onChange={(e) => setTempQuotas(prev => ({...prev, RCD: Number(e.target.value)}))}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold"
+                            className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold text-center"
                           />
                           <span className="text-gray-500">h</span>
                         </div>
                       ) : (
-                        <div className="text-3xl font-bold text-gray-900 mb-3">
-                          {consumed}h <span className="text-lg font-normal text-gray-400">/ {budget}h</span>
+                        <div className="text-2xl font-bold text-gray-900 mb-2">
+                          {consumed}h <span className="text-base font-normal text-gray-400">/ {budget}h</span>
                         </div>
                       )}
-                      <div className="w-full bg-gray-200 rounded-full h-3">
-                        <div className="bg-purple-500 h-3 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div className="bg-purple-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
                       </div>
-                      <div className="text-right mt-1">
+                      <div className="flex justify-between mt-1">
+                        <span className="text-xs text-gray-500">Consommé</span>
                         <span className="text-sm font-medium text-purple-700">{percentage.toFixed(0)}%</span>
                       </div>
                     </div>
