@@ -188,7 +188,8 @@ router.patch('/profile', async (req, res) => {
   }
 });
 
-// Route pour récupérer la liste des utilisateurs (page de connexion)
+// Route pour récupérer la liste des utilisateurs de démo (page de connexion)
+// Sécurité: ne retourne que les comptes démo + staff, jamais les vrais enseignants
 router.get('/users-list', async (req, res) => {
   try {
     const allUsers = await db
@@ -203,7 +204,14 @@ router.get('/users-list', async (req, res) => {
       .from(users)
       .orderBy(users.role, users.name);
 
-    res.json(allUsers);
+    // Filtrer: seulement comptes démo (@example.com) + secrétaire + principal
+    const filteredUsers = allUsers.filter(u =>
+      u.username.endsWith('@example.com') ||
+      u.role === 'SECRETARY' ||
+      u.role === 'PRINCIPAL'
+    );
+
+    res.json(filteredUsers);
   } catch (error) {
     console.error('❌ [API] Erreur récupération users-list:', error);
     res.status(500).json({ error: 'Erreur serveur' });
