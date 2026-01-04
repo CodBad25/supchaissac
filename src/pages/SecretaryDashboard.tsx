@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LogOut, Search, Calendar, Clock, User, FileText,
-  Download, CheckCircle, Eye, AlertCircle,
+  Download, CheckCircle, Eye, AlertCircle, AlertTriangle,
   Paperclip, Send, Clock3, Home, ClipboardCheck,
   CreditCard, History, X, CheckSquare, Square,
   Users, UserCheck, UserX, Edit2, TrendingUp, HelpCircle,
@@ -157,7 +157,7 @@ export default function SecretaryDashboard() {
   const [showTour, setShowTour] = useState(shouldShowTour('secretary'));
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'teachers' | 'contrats'>('sessions');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'teachers' | 'contrats'>('dashboard');
   const [sessionFilter, setSessionFilter] = useState<'pending' | 'to-pay' | 'history'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -262,7 +262,7 @@ export default function SecretaryDashboard() {
 
   // Fetch teachers when tab is active
   useEffect(() => {
-    if (activeTab === 'teachers' || activeTab === 'contrats') {
+    if (activeTab === 'dashboard' || activeTab === 'teachers' || activeTab === 'contrats') {
       fetchTeachers();
       fetchPacteStats();
     }
@@ -759,6 +759,34 @@ export default function SecretaryDashboard() {
     paid: sessions.filter(s => s.status === 'PAID').length,
   };
 
+  // Sessions recentes (5 dernieres)
+  const recentSessions = useMemo(() => {
+    return [...sessions]
+      .sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime())
+      .slice(0, 5);
+  }, [sessions]);
+
+  // Alertes
+  const alerts = useMemo(() => {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const pendingTooLong = sessions.filter(s => {
+      if (s.status !== 'PENDING_REVIEW' && s.status !== 'PENDING_DOCUMENTS') return false;
+      const created = new Date(s.createdAt || s.date);
+      return created < sevenDaysAgo;
+    });
+
+    const validatedNotPaid = sessions.filter(s => {
+      if (s.status !== 'VALIDATED') return false;
+      const created = new Date(s.createdAt || s.date);
+      return created < fourteenDaysAgo;
+    });
+
+    return { pendingTooLong, validatedNotPaid };
+  }, [sessions]);
+
   // Helpers
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('fr-FR', {
@@ -915,43 +943,170 @@ export default function SecretaryDashboard() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === 'dashboard' && (
           /* Dashboard */
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <button
-              onClick={() => { setActiveTab('sessions'); setSessionFilter('pending'); }}
-              className="bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-yellow-100 text-sm">A examiner</p>
-                  <p className="text-4xl font-bold">{stats.pending}</p>
+          <div className="space-y-6">
+            {/* Cartes stats principales */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <button
+                onClick={() => { setActiveTab('sessions'); setSessionFilter('pending'); }}
+                className="bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-yellow-100 text-sm">A examiner</p>
+                    <p className="text-4xl font-bold">{stats.pending}</p>
+                  </div>
+                  <ClipboardCheck className="w-12 h-12 text-yellow-200" />
                 </div>
-                <ClipboardCheck className="w-12 h-12 text-yellow-200" />
-              </div>
-            </button>
-            <button
-              onClick={() => { setActiveTab('sessions'); setSessionFilter('to-pay'); }}
-              className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100 text-sm">A mettre en paiement</p>
-                  <p className="text-4xl font-bold">{stats.toPay}</p>
+              </button>
+              <button
+                onClick={() => { setActiveTab('sessions'); setSessionFilter('to-pay'); }}
+                className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm">A mettre en paiement</p>
+                    <p className="text-4xl font-bold">{stats.toPay}</p>
+                  </div>
+                  <CreditCard className="w-12 h-12 text-green-200" />
                 </div>
-                <CreditCard className="w-12 h-12 text-green-200" />
-              </div>
-            </button>
-            <button
-              onClick={() => { setActiveTab('sessions'); setSessionFilter('history'); }}
-              className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-200 text-sm">Mis en paiement</p>
-                  <p className="text-4xl font-bold">{stats.paid}</p>
+              </button>
+              <button
+                onClick={() => { setActiveTab('sessions'); setSessionFilter('history'); }}
+                className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-200 text-sm">Mis en paiement</p>
+                    <p className="text-4xl font-bold">{stats.paid}</p>
+                  </div>
+                  <CheckCircle className="w-12 h-12 text-gray-300" />
                 </div>
-                <CheckCircle className="w-12 h-12 text-gray-300" />
+              </button>
+            </div>
+
+            {/* Apercu PACTE */}
+            {pacteStats && (
+              <button
+                onClick={() => setActiveTab('contrats')}
+                className="w-full bg-white rounded-xl border border-gray-200 p-4 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer text-left"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-purple-600" />
+                    Apercu PACTE
+                  </h3>
+                  <span className="text-xs text-gray-500">Cliquer pour gerer</span>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-purple-600">{pacteStats.teachersWithPacte}</p>
+                    <p className="text-xs text-gray-500">Enseignants PACTE</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-gray-600">{pacteStats.totalTeachers - pacteStats.teachersWithPacte}</p>
+                    <p className="text-xs text-gray-500">Sans PACTE</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-600">{pacteStats.sessionsWithPacte}</p>
+                    <p className="text-xs text-gray-500">Sessions PACTE</p>
+                  </div>
+                </div>
+              </button>
+            )}
+
+            {/* Alertes */}
+            {(alerts.pendingTooLong.length > 0 || alerts.validatedNotPaid.length > 0) && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <h3 className="font-semibold text-red-800 flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-5 h-5" />
+                  Alertes
+                </h3>
+                <div className="space-y-2">
+                  {alerts.pendingTooLong.length > 0 && (
+                    <button
+                      onClick={() => { setActiveTab('sessions'); setSessionFilter('pending'); }}
+                      className="w-full flex items-center justify-between p-2 bg-white rounded-lg hover:bg-red-100 transition-colors text-left"
+                    >
+                      <span className="text-sm text-red-700">
+                        {alerts.pendingTooLong.length} session(s) en attente depuis + de 7 jours
+                      </span>
+                      <span className="text-xs text-red-500">Voir</span>
+                    </button>
+                  )}
+                  {alerts.validatedNotPaid.length > 0 && (
+                    <button
+                      onClick={() => { setActiveTab('sessions'); setSessionFilter('to-pay'); }}
+                      className="w-full flex items-center justify-between p-2 bg-white rounded-lg hover:bg-red-100 transition-colors text-left"
+                    >
+                      <span className="text-sm text-red-700">
+                        {alerts.validatedNotPaid.length} session(s) validee(s) non mises en paiement depuis + de 14 jours
+                      </span>
+                      <span className="text-xs text-red-500">Voir</span>
+                    </button>
+                  )}
+                </div>
               </div>
-            </button>
+            )}
+
+            {/* Sessions recentes */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Clock3 className="w-5 h-5 text-gray-600" />
+                  Sessions recentes
+                </h3>
+                <button
+                  onClick={() => setActiveTab('sessions')}
+                  className="text-xs text-amber-600 hover:text-amber-700"
+                >
+                  Voir toutes
+                </button>
+              </div>
+              {recentSessions.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">Aucune session</p>
+              ) : (
+                <div className="space-y-2">
+                  {recentSessions.map(session => (
+                    <button
+                      key={session.id}
+                      onClick={() => {
+                        setActiveTab('sessions');
+                        if (session.status === 'PENDING_REVIEW' || session.status === 'PENDING_DOCUMENTS') {
+                          setSessionFilter('pending');
+                        } else if (session.status === 'VALIDATED') {
+                          setSessionFilter('to-pay');
+                        } else {
+                          setSessionFilter('history');
+                        }
+                      }}
+                      className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`px-2 py-1 rounded text-xs font-medium ${getTypeColor(session.type)}`}>
+                          {getTypeLabel(session.type)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{session.teacherName}</p>
+                          <p className="text-xs text-gray-500">{formatDate(session.date)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {session.status === 'PENDING_REVIEW' && (
+                          <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">A examiner</span>
+                        )}
+                        {session.status === 'VALIDATED' && (
+                          <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">A payer</span>
+                        )}
+                        {session.status === 'PAID' && (
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Paye</span>
+                        )}
+                        <Eye className="w-4 h-4 text-gray-400" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
