@@ -734,53 +734,73 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                   onFocus={() => {
                     if (teacherSearchResults.length > 0) setShowTeacherResults(true);
                   }}
+                  onBlur={(e) => {
+                    // Délai pour permettre le clic sur un résultat avant de fermer
+                    setTimeout(() => {
+                      if (!e.currentTarget.contains(document.activeElement)) {
+                        setShowTeacherResults(false);
+                      }
+                    }, 200);
+                  }}
                   placeholder="Rechercher par nom ou prénom..."
-                  className="w-full min-h-[36px] pl-9 pr-3 border border-purple-200 rounded-lg text-sm bg-purple-50 focus:border-purple-400 focus:ring-1 focus:ring-purple-200 outline-none"
+                  className="w-full min-h-[44px] pl-10 pr-10 border border-purple-200 rounded-xl text-base bg-purple-50 focus:border-purple-400 focus:ring-2 focus:ring-purple-200 outline-none"
                 />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400" />
                 {teacherSearchQuery && (
                   <button
+                    type="button"
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      setTeacherSearchQuery('');
+                      setTeacherSearchResults([]);
+                      setShowTeacherResults(false);
+                    }}
                     onClick={() => { setTeacherSearchQuery(''); setTeacherSearchResults([]); setShowTeacherResults(false); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 active:bg-gray-100 rounded-full"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 )}
-              </div>
 
-              {/* Resultats de recherche enseignants */}
-              {showTeacherResults && teacherSearchResults.length > 0 && (
-                <div className="mb-2 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
-                  <div className="px-3 py-1.5 bg-purple-50 border-b border-purple-100 text-xs text-purple-600 font-medium">
-                    {teacherSearchResults.length} enseignant{teacherSearchResults.length > 1 ? 's' : ''} trouve{teacherSearchResults.length > 1 ? 's' : ''}
-                  </div>
-                  <div className="divide-y divide-gray-100 max-h-40 overflow-y-auto">
-                    {teacherSearchResults.map((teacher) => (
-                      <button
-                        key={teacher.id}
-                        onClick={() => selectTeacher(teacher)}
-                        className="w-full px-3 py-2 text-left hover:bg-purple-50 flex items-center justify-between"
-                      >
-                        <div>
-                          <span className="font-medium text-gray-900 text-sm">
-                            {teacher.civilite} {teacher.lastName} {teacher.firstName}
-                          </span>
-                          {teacher.subject && (
-                            <span className="ml-2 text-xs text-gray-500">
-                              ({teacher.subject})
+                {/* Resultats de recherche enseignants - positionné en absolu */}
+                {showTeacherResults && teacherSearchResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden z-50">
+                    <div className="px-3 py-2 bg-purple-50 border-b border-purple-100 text-xs text-purple-600 font-medium">
+                      {teacherSearchResults.length} enseignant{teacherSearchResults.length > 1 ? 's' : ''} trouve{teacherSearchResults.length > 1 ? 's' : ''}
+                    </div>
+                    <div className="divide-y divide-gray-100 max-h-48 overflow-y-auto overscroll-contain">
+                      {teacherSearchResults.map((teacher) => (
+                        <button
+                          key={teacher.id}
+                          type="button"
+                          onTouchStart={(e) => {
+                            e.preventDefault();
+                            selectTeacher(teacher);
+                          }}
+                          onClick={() => selectTeacher(teacher)}
+                          className="w-full px-3 py-3 text-left hover:bg-purple-50 active:bg-purple-100 flex items-center justify-between min-h-[48px]"
+                        >
+                          <div>
+                            <span className="font-medium text-gray-900 text-sm">
+                              {teacher.civilite} {teacher.lastName} {teacher.firstName}
                             </span>
-                          )}
-                        </div>
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          teacher.civilite === 'Mme' ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600'
-                        }`}>
-                          {teacher.civilite}
-                        </span>
-                      </button>
-                    ))}
+                            {teacher.subject && (
+                              <span className="ml-2 text-xs text-gray-500">
+                                ({teacher.subject})
+                              </span>
+                            )}
+                          </div>
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            teacher.civilite === 'Mme' ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600'
+                          }`}>
+                            {teacher.civilite}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Affichage enseignant selectionne */}
               {replacedName && (
