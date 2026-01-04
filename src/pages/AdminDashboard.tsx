@@ -404,6 +404,13 @@ export default function AdminDashboard() {
       filtered = filtered.filter(u => !u.isActivated);
     }
 
+    // Trier par nom de famille
+    filtered = filtered.sort((a, b) => {
+      const lastNameA = (a.lastName || a.name.split(' ').pop() || '').toLowerCase();
+      const lastNameB = (b.lastName || b.name.split(' ').pop() || '').toLowerCase();
+      return lastNameA.localeCompare(lastNameB, 'fr');
+    });
+
     return filtered;
   }, [users, searchTerm, roleFilter, pacteFilter, activationFilter]);
 

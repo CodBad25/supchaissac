@@ -131,11 +131,11 @@ export const colors = {
       label: 'Validée',
     },
     PAID: {
-      bg: 'bg-emerald-100',
-      text: 'text-emerald-800',
-      border: 'border-emerald-200',
-      full: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      icon: 'text-emerald-600',
+      bg: 'bg-teal-100',
+      text: 'text-teal-800',
+      border: 'border-teal-200',
+      full: 'bg-teal-100 text-teal-800 border-teal-200',
+      icon: 'text-teal-600',
       label: 'Mis en paiement',
     },
     REJECTED: {

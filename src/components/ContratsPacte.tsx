@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, UserCheck, FileText, TrendingUp, Edit2, X } from 'lucide-react';
+import { Search, UserCheck, UserX, FileText, TrendingUp, Edit2, X, CheckSquare, Square } from 'lucide-react';
 
 // Types
 export interface TeacherStats {
@@ -61,6 +61,18 @@ export function ContratsPacte({
   const [contratCompletedRCD, setContratCompletedRCD] = useState(0);
   const [showPreviousHours, setShowPreviousHours] = useState(false);
 
+  // Batch selection state
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<number>>(new Set());
+  const [batchPacteLoading, setBatchPacteLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmData, setConfirmData] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmColor: 'green' | 'red';
+    onConfirm: () => void;
+  } | null>(null);
+
   // Filtered teachers
   const filteredTeachers = useMemo(() => {
     let filtered = teachers;
@@ -79,6 +91,72 @@ export function ContratsPacte({
 
     return filtered;
   }, [teachers, searchTerm, pacteFilter]);
+
+  // Toggle teacher selection
+  const toggleTeacherSelection = (teacherId: number) => {
+    setSelectedTeacherIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(teacherId)) {
+        newSet.delete(teacherId);
+      } else {
+        newSet.add(teacherId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all visible teachers
+  const selectAllTeachers = () => {
+    if (selectedTeacherIds.size === filteredTeachers.length) {
+      setSelectedTeacherIds(new Set());
+    } else {
+      setSelectedTeacherIds(new Set(filteredTeachers.map(t => t.id)));
+    }
+  };
+
+  // Batch update PACTE
+  const batchUpdatePacte = async (inPacte: boolean) => {
+    if (selectedTeacherIds.size === 0) return;
+
+    const action = inPacte ? 'activer le PACTE pour' : 'désactiver le PACTE pour';
+    const count = selectedTeacherIds.size;
+
+    setConfirmData({
+      title: inPacte ? 'Activer le PACTE en lot' : 'Désactiver le PACTE en lot',
+      message: `Voulez-vous ${action} ${count} enseignant${count > 1 ? 's' : ''} ?`,
+      confirmLabel: inPacte ? 'Activer tous' : 'Désactiver tous',
+      confirmColor: inPacte ? 'green' : 'red',
+      onConfirm: async () => {
+        setBatchPacteLoading(true);
+        try {
+          const promises = Array.from(selectedTeacherIds).map(teacherId =>
+            fetch(`${apiBaseUrl}/api/pacte/teachers/${teacherId}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ inPacte, pacteHoursTarget: inPacte ? 18 : 0 }),
+            })
+          );
+          await Promise.all(promises);
+
+          onTeachersUpdate(teachers.map(t =>
+            selectedTeacherIds.has(t.id)
+              ? { ...t, inPacte, pacteHoursTarget: inPacte ? 18 : 0 }
+              : t
+          ));
+          setSelectedTeacherIds(new Set());
+          onStatsRefresh();
+        } catch (error) {
+          console.error('Erreur mise a jour PACTE en lot:', error);
+        } finally {
+          setBatchPacteLoading(false);
+          setShowConfirmModal(false);
+          setConfirmData(null);
+        }
+      },
+    });
+    setShowConfirmModal(true);
+  };
 
   // Save contract
   const saveContrat = async () => {
@@ -134,7 +212,8 @@ export function ContratsPacte({
     setContratHoursRCD(teacher.pacteHoursRCD || 0);
     setContratCompletedDF(teacher.pacteHoursCompletedDF || 0);
     setContratCompletedRCD(teacher.pacteHoursCompletedRCD || 0);
-    setShowPreviousHours((teacher.pacteHoursCompletedDF || 0) > 0 || (teacher.pacteHoursCompletedRCD || 0) > 0);
+    // Activer par defaut pour cette annee scolaire (reprise en cours d'annee)
+    setShowPreviousHours(true);
     setShowContratModal(true);
   };
 
@@ -202,6 +281,41 @@ export function ContratsPacte({
         </button>
       </div>
 
+      {/* Batch action bar */}
+      {selectedTeacherIds.size > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-amber-800 font-medium">
+              {selectedTeacherIds.size} enseignant{selectedTeacherIds.size > 1 ? 's' : ''} sélectionné{selectedTeacherIds.size > 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={() => setSelectedTeacherIds(new Set())}
+              className="text-amber-600 hover:text-amber-800 text-sm underline"
+            >
+              Tout désélectionner
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => batchUpdatePacte(true)}
+              disabled={batchPacteLoading}
+              className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <UserCheck className="w-4 h-4" />
+              Activer PACTE
+            </button>
+            <button
+              onClick={() => batchUpdatePacte(false)}
+              disabled={batchPacteLoading}
+              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <UserX className="w-4 h-4" />
+              Désactiver PACTE
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="bg-white rounded-xl p-12 text-center">
@@ -214,6 +328,15 @@ export function ContratsPacte({
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="text-center px-2 py-3 w-10">
+                    <button onClick={selectAllTeachers} className="p-1 hover:bg-gray-200 rounded">
+                      {selectedTeacherIds.size === filteredTeachers.length && filteredTeachers.length > 0 ? (
+                        <CheckSquare className="w-4 h-4 text-amber-500" />
+                      ) : (
+                        <Square className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
+                  </th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Enseignant</th>
                   <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Statut</th>
                   <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Heures DF</th>
@@ -232,7 +355,19 @@ export function ContratsPacte({
                   const progressPercent = totalContrat > 0 ? Math.min(100, Math.round((realise / totalContrat) * 100)) : 0;
 
                   return (
-                    <tr key={teacher.id} className={`hover:bg-gray-50 ${!teacher.inPacte ? 'opacity-50' : ''}`}>
+                    <tr key={teacher.id} className={`hover:bg-gray-50 ${!teacher.inPacte ? 'opacity-50' : ''} ${selectedTeacherIds.has(teacher.id) ? 'bg-amber-50' : ''}`}>
+                      <td className="px-2 py-3 text-center">
+                        <button
+                          onClick={() => toggleTeacherSelection(teacher.id)}
+                          className="p-1 hover:bg-gray-200 rounded"
+                        >
+                          {selectedTeacherIds.has(teacher.id) ? (
+                            <CheckSquare className="w-4 h-4 text-amber-500" />
+                          ) : (
+                            <Square className="w-4 h-4 text-gray-400" />
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-sm font-medium text-white">
@@ -488,6 +623,38 @@ export function ContratsPacte({
                 className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
               >
                 Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && confirmData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">{confirmData.title}</h3>
+            <p className="text-gray-600 mb-6">{confirmData.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setConfirmData(null);
+                }}
+                className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmData.onConfirm}
+                disabled={batchPacteLoading}
+                className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 ${
+                  confirmData.confirmColor === 'green'
+                    ? 'bg-green-500 hover:bg-green-600'
+                    : 'bg-red-500 hover:bg-red-600'
+                }`}
+              >
+                {batchPacteLoading ? 'Traitement...' : confirmData.confirmLabel}
               </button>
             </div>
           </div>

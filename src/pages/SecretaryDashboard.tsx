@@ -192,9 +192,13 @@ export default function SecretaryDashboard() {
   const [pendingComment, setPendingComment] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Selection en lot
+  // Selection en lot (sessions)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchActionLoading, setBatchActionLoading] = useState(false);
+
+  // Selection en lot (teachers PACTE)
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<number>>(new Set());
+  const [batchPacteLoading, setBatchPacteLoading] = useState(false);
 
   // Modale de confirmation personnalisée
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -339,6 +343,72 @@ export default function SecretaryDashboard() {
       }
     } catch (error) {
       console.error('Erreur mise a jour PACTE:', error);
+    }
+  };
+
+  // Batch update PACTE for multiple teachers
+  const batchUpdatePacte = async (inPacte: boolean) => {
+    if (selectedTeacherIds.size === 0) return;
+
+    const action = inPacte ? 'activer le PACTE pour' : 'désactiver le PACTE pour';
+    const count = selectedTeacherIds.size;
+
+    setConfirmData({
+      title: inPacte ? 'Activer le PACTE en lot' : 'Désactiver le PACTE en lot',
+      message: `Voulez-vous ${action} ${count} enseignant${count > 1 ? 's' : ''} ?`,
+      confirmLabel: inPacte ? 'Activer tous' : 'Désactiver tous',
+      confirmColor: inPacte ? 'green' : 'red',
+      onConfirm: async () => {
+        setBatchPacteLoading(true);
+        try {
+          const promises = Array.from(selectedTeacherIds).map(teacherId =>
+            fetch(`${API_BASE_URL}/api/pacte/teachers/${teacherId}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ inPacte, pacteHoursTarget: inPacte ? 18 : 0 }),
+            })
+          );
+          await Promise.all(promises);
+
+          setTeachers(prev => prev.map(t =>
+            selectedTeacherIds.has(t.id)
+              ? { ...t, inPacte, pacteHoursTarget: inPacte ? 18 : 0 }
+              : t
+          ));
+          setSelectedTeacherIds(new Set());
+          fetchPacteStats();
+        } catch (error) {
+          console.error('Erreur mise a jour PACTE en lot:', error);
+        } finally {
+          setBatchPacteLoading(false);
+          setShowConfirmModal(false);
+          setConfirmData(null);
+        }
+      },
+    });
+    setShowConfirmModal(true);
+  };
+
+  // Toggle teacher selection
+  const toggleTeacherSelection = (teacherId: number) => {
+    setSelectedTeacherIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(teacherId)) {
+        newSet.delete(teacherId);
+      } else {
+        newSet.add(teacherId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all visible teachers
+  const selectAllTeachers = () => {
+    if (selectedTeacherIds.size === filteredTeachers.length) {
+      setSelectedTeacherIds(new Set());
+    } else {
+      setSelectedTeacherIds(new Set(filteredTeachers.map(t => t.id)));
     }
   };
 
@@ -846,7 +916,10 @@ export default function SecretaryDashboard() {
         {activeTab === 'dashboard' && (
           /* Dashboard */
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl p-6 text-white">
+            <button
+              onClick={() => { setActiveTab('sessions'); setSessionFilter('pending'); }}
+              className="bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-yellow-100 text-sm">A examiner</p>
@@ -854,8 +927,11 @@ export default function SecretaryDashboard() {
                 </div>
                 <ClipboardCheck className="w-12 h-12 text-yellow-200" />
               </div>
-            </div>
-            <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white">
+            </button>
+            <button
+              onClick={() => { setActiveTab('sessions'); setSessionFilter('to-pay'); }}
+              className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-green-100 text-sm">A mettre en paiement</p>
@@ -863,8 +939,11 @@ export default function SecretaryDashboard() {
                 </div>
                 <CreditCard className="w-12 h-12 text-green-200" />
               </div>
-            </div>
-            <div className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl p-6 text-white">
+            </button>
+            <button
+              onClick={() => { setActiveTab('sessions'); setSessionFilter('history'); }}
+              className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-200 text-sm">Mis en paiement</p>
@@ -872,7 +951,7 @@ export default function SecretaryDashboard() {
                 </div>
                 <CheckCircle className="w-12 h-12 text-gray-300" />
               </div>
-            </div>
+            </button>
           </div>
         )}
 
@@ -950,6 +1029,58 @@ export default function SecretaryDashboard() {
               </div>
             </div>
 
+            {/* Batch action bar */}
+            {selectedTeacherIds.size > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-amber-800 font-medium">
+                    {selectedTeacherIds.size} enseignant{selectedTeacherIds.size > 1 ? 's' : ''} sélectionné{selectedTeacherIds.size > 1 ? 's' : ''}
+                  </span>
+                  <button
+                    onClick={() => setSelectedTeacherIds(new Set())}
+                    className="text-amber-600 hover:text-amber-800 text-sm underline"
+                  >
+                    Tout désélectionner
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => batchUpdatePacte(true)}
+                    disabled={batchPacteLoading}
+                    className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    Activer PACTE
+                  </button>
+                  <button
+                    onClick={() => batchUpdatePacte(false)}
+                    disabled={batchPacteLoading}
+                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <UserX className="w-4 h-4" />
+                    Désactiver PACTE
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Select all checkbox */}
+            {!teachersLoading && filteredTeachers.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={selectAllTeachers}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  {selectedTeacherIds.size === filteredTeachers.length ? (
+                    <CheckSquare className="w-4 h-4 text-amber-500" />
+                  ) : (
+                    <Square className="w-4 h-4" />
+                  )}
+                  {selectedTeacherIds.size === filteredTeachers.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                </button>
+              </div>
+            )}
+
             {/* Teachers cards */}
             {teachersLoading ? (
               <div className="bg-white rounded-xl p-12 text-center">
@@ -975,14 +1106,32 @@ export default function SecretaryDashboard() {
                     <div
                       key={teacher.id}
                       className={`rounded-xl border-2 p-4 hover:shadow-lg transition-all duration-200 ${
-                        teacher.inPacte
-                          ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 hover:border-green-300'
-                          : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200 hover:border-gray-300'
+                        selectedTeacherIds.has(teacher.id)
+                          ? 'ring-2 ring-amber-400 border-amber-300'
+                          : teacher.inPacte
+                            ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 hover:border-green-300'
+                            : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200 hover:border-gray-300'
+                      } ${
+                        teacher.inPacte && !selectedTeacherIds.has(teacher.id)
+                          ? 'bg-gradient-to-br from-green-50 to-emerald-50'
+                          : !selectedTeacherIds.has(teacher.id)
+                            ? 'bg-gradient-to-br from-gray-50 to-slate-50'
+                            : 'bg-amber-50'
                       }`}
                     >
-                      {/* Header: Avatar + Nom + Email */}
+                      {/* Header: Checkbox + Avatar + Nom + Email */}
                       <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                        <button
+                          onClick={() => toggleTeacherSelection(teacher.id)}
+                          className="flex-shrink-0"
+                        >
+                          {selectedTeacherIds.has(teacher.id) ? (
+                            <CheckSquare className="w-5 h-5 text-amber-500" />
+                          ) : (
+                            <Square className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                          )}
+                        </button>
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-md">
                           {teacher.initials}
                         </div>
                         <div className="flex-1 min-w-0">
