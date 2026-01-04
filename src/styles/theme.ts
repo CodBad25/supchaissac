@@ -130,6 +130,8 @@ export const colors = {
       icon: 'text-green-600',
       label: 'Validée',
     },
+    // Note: PAID = "Mis en paiement" (transmis pour paiement), PAS "Payé"
+    // Un futur statut PAYMENT_COMPLETED sera ajouté pour le vrai "Payé" (couleur teal/cyan)
     PAID: {
       bg: 'bg-green-300',
       text: 'text-green-900',

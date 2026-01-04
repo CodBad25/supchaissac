@@ -123,9 +123,10 @@ const classes = getStatusClasses('VALIDATED');
 **Statuts disponibles :**
 - `PENDING_REVIEW` - Orange
 - `PENDING_VALIDATION` - Ambre
-- `VALIDATED` - Vert
-- `PAID` - Vert émeraude
+- `VALIDATED` - Vert clair (green-50)
+- `PAID` - Vert intense (green-300) - Note: signifie "Mis en paiement", pas "Payé"
 - `REJECTED` - Rouge
+- `PAYMENT_COMPLETED` - (futur) Vert-bleu pour "Payé" effectif
 
 ### Par Niveau de Classe
 

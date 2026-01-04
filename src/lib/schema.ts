@@ -46,12 +46,14 @@ export const timeSlotEnum = pgEnum('time_slot', [
 export const sessionTypeEnum = pgEnum('session_type', ['RCD', 'DEVOIRS_FAITS', 'AUTRE', 'HSE']);
 
 // Session status enum
+// Note: 'PAID' signifie "Mis en paiement" (transmis pour paiement), PAS "Payé"
+// Un futur statut 'PAYMENT_COMPLETED' sera ajouté pour le vrai "Payé"
 export const sessionStatusEnum = pgEnum('session_status', [
   'PENDING_REVIEW',      // Créée par enseignant, à vérifier par secrétaire
   'PENDING_VALIDATION',  // Vérifiée par secrétaire, à valider par principal
   'VALIDATED',           // Validée par principal
   'REJECTED',            // Refusée (avec motif)
-  'PAID'                 // Mise en paiement (marquée par secrétaire)
+  'PAID'                 // Mis en paiement (transmis pour paiement par secrétaire) - PAS "Payé"
 ]);
 
 // Sessions model - SCHÉMA UNIFIÉ

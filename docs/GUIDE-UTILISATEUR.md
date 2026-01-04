@@ -141,9 +141,11 @@ Vous pouvez modifier une session tant qu'elle est en statut "En attente de véri
 
 Une fois les sessions validées par la Direction :
 
-1. Accédez à l'onglet "Paiement"
-2. Sélectionnez les sessions à payer
-3. Cliquez sur "Marquer en paiement"
+1. Accédez à l'onglet "À mettre en paiement"
+2. Sélectionnez les sessions validées
+3. Cliquez sur "Mettre en paiement"
+
+> **Note** : Le statut "Mis en paiement" signifie que la session a été transmise pour paiement. Un futur statut "Payé" sera ajouté pour confirmer le paiement effectif.
 
 ---
 

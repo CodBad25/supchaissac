@@ -536,7 +536,7 @@ export default function SecretaryDashboard() {
     }
   };
 
-  // Marquer comme payee (VALIDATED -> PAID)
+  // Marquer comme "Mis en paiement" (VALIDATED -> PAID)
   const handleMarkPaid = async (session: Session) => {
     setActionLoading(true);
     try {
@@ -550,7 +550,7 @@ export default function SecretaryDashboard() {
         ));
       }
     } catch (error) {
-      console.error('Erreur marquage paye:', error);
+      console.error('Erreur mise en paiement:', error);
     } finally {
       setActionLoading(false);
     }
@@ -822,11 +822,11 @@ export default function SecretaryDashboard() {
       case 'PENDING_VALIDATION':
         return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">A valider</span>;
       case 'VALIDATED':
-        return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Valide</span>;
+        return <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-100">Validee</span>;
       case 'REJECTED':
         return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Rejete</span>;
       case 'PAID':
-        return <span className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800">Mis en paiement</span>;
+        return <span className="px-2 py-1 text-xs rounded-full bg-green-300 text-green-900 border border-green-400">Mis en paiement</span>;
       default:
         return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">{status}</span>;
     }
@@ -1095,10 +1095,10 @@ export default function SecretaryDashboard() {
                           <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">A examiner</span>
                         )}
                         {session.status === 'VALIDATED' && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-100">A payer</span>
+                          <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-100">Validee</span>
                         )}
                         {session.status === 'PAID' && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-green-300 text-green-900 border border-green-400">Paye</span>
+                          <span className="px-2 py-1 text-xs rounded-full bg-green-300 text-green-900 border border-green-400">Mis en paiement</span>
                         )}
                         <Eye className="w-4 h-4 text-gray-400" />
                       </div>

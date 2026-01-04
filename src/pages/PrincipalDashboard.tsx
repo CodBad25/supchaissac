@@ -465,7 +465,7 @@ export default function PrincipalDashboard() {
     }
   };
 
-  // Annuler decision (VALIDATED/REJECTED -> PENDING_VALIDATION, PAID -> VALIDATED)
+  // Annuler decision (VALIDATED/REJECTED -> PENDING_VALIDATION, PAID "Mis en paiement" -> VALIDATED)
   const handleCancelDecision = async () => {
     if (!selectedSession) return;
     setActionLoading(true);

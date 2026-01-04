@@ -830,8 +830,8 @@ const SessionsSummary: React.FC<SessionsSummaryProps> = ({ sessions, onEditSessi
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'VALIDATED': return 'bg-green-100 text-green-700';
-      case 'PAID': return 'bg-emerald-100 text-emerald-700';
+      case 'VALIDATED': return 'bg-green-50 text-green-700';
+      case 'PAID': return 'bg-green-300 text-green-900'; // "Mis en paiement"
       case 'REJECTED': return 'bg-red-100 text-red-700';
       default: return 'bg-yellow-100 text-yellow-700';
     }

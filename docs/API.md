@@ -173,7 +173,9 @@ ou
 
 ### PUT /sessions/:id/mark-paid
 
-Marque une session comme payée.
+Marque une session comme "Mise en paiement" (transmise pour paiement).
+
+> **Note** : Le statut interne `PAID` signifie "Mis en paiement", pas "Payé". Un futur statut `PAYMENT_COMPLETED` sera ajouté pour le paiement effectif.
 
 **Permissions** : SECRETARY
 

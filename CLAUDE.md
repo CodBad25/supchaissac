@@ -75,10 +75,15 @@ PRINCIPAL valide OU rejette :
         ↓
 SECRETARY met en paiement
         ↓
-      PAID
+      PAID (= "Mis en paiement", PAS "Payé")
+        ↓
+   (FUTUR) PAYMENT_COMPLETED (= "Payé" effectif)
 ```
 
-**Note:** Le Principal peut AUSSI vérifier (comme la secrétaire) pour flexibilité.
+**Notes:**
+- Le Principal peut AUSSI vérifier (comme la secrétaire) pour flexibilité.
+- Le statut `PAID` signifie "Mis en paiement" (transmis pour paiement), pas "Payé".
+- Un futur statut `PAYMENT_COMPLETED` sera ajouté pour confirmer le paiement effectif.
 
 ---
 

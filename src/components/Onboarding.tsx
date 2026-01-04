@@ -51,7 +51,7 @@ const introSlides: Slide[] = [
     icon: <TrendingUp className="w-16 h-16" />,
     title: "Workflow",
     subtitle: "transparent",
-    description: "Déclaration → Vérification → Validation → Paiement. Chaque étape est tracée et visible.",
+    description: "Déclaration → Vérification → Validation → Mise en paiement. Chaque étape est tracée et visible.",
     color: "text-green-500",
     bgGradient: "from-green-400 to-emerald-500",
   },
