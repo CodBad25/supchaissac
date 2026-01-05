@@ -176,7 +176,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
   }, [searchStudents]);
 
   // Search teachers for autocomplete (RCD)
-  const searchTeachers = useCallback(async (query: string) => {
+  const searchTeachers = useCallback(async (query: string, retryCount = 0) => {
     if (query.length < 2) {
       setTeacherSearchResults([]);
       setShowTeacherResults(false);
@@ -191,9 +191,16 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
         const data = await response.json();
         setTeacherSearchResults(data || []);
         setShowTeacherResults(data.length > 0);
+      } else if (response.status === 401 && retryCount < 2) {
+        // Session pas encore établie, retry après délai
+        setTimeout(() => searchTeachers(query, retryCount + 1), 500);
       }
     } catch (error) {
       console.error('Erreur recherche enseignants:', error);
+      // Retry en cas d'erreur réseau
+      if (retryCount < 2) {
+        setTimeout(() => searchTeachers(query, retryCount + 1), 500);
+      }
     }
   }, []);
 
@@ -733,14 +740,6 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                   }}
                   onFocus={() => {
                     if (teacherSearchResults.length > 0) setShowTeacherResults(true);
-                  }}
-                  onBlur={(e) => {
-                    // Délai pour permettre le clic sur un résultat avant de fermer
-                    setTimeout(() => {
-                      if (!e.currentTarget.contains(document.activeElement)) {
-                        setShowTeacherResults(false);
-                      }
-                    }, 200);
                   }}
                   placeholder="Rechercher par nom ou prénom..."
                   className="w-full min-h-[44px] pl-10 pr-10 border border-purple-200 rounded-xl text-base bg-purple-50 focus:border-purple-400 focus:ring-2 focus:ring-purple-200 outline-none"
