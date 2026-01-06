@@ -152,6 +152,25 @@ npm run build
 
 ---
 
+## Optimisations de performance
+
+### Images
+- **Logo** : Doit rester < 300 Ko. Le logo original (2048x2048, 5 Mo) a été compressé en 512x512 (291 Ko). Une copie de l'original est dans `public/logo-original.png`.
+- **Règle** : Toute image dans `public/` doit être optimisée avant commit (max 500 Ko pour les images, 100 Ko pour les icônes).
+
+### Bundle JS
+- Bundle actuel : ~750 Ko (acceptable)
+- Si le bundle dépasse 1.5 Mo, envisager du code-splitting avec `React.lazy()`
+
+### Diagnostic lenteur
+Pour diagnostiquer une lenteur de chargement :
+1. Ouvrir DevTools (F12) → onglet Network
+2. Recharger la page
+3. Vérifier la colonne "Taille" et "Durée"
+4. Les gros fichiers (> 500 Ko) ou requêtes lentes (> 500 ms) sont les coupables
+
+---
+
 ## CHECKLIST avant de coder
 
 1. [ ] Chercher le composant dans l'ancien code
