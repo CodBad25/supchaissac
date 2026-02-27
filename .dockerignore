@@ -12,6 +12,7 @@ dist
 # Git
 .git
 .gitignore
+.github
 
 # IDE
 .vscode
@@ -31,3 +32,9 @@ _a_supprimer
 # Tests
 *.test.ts
 *.spec.ts
+**/__tests__/
+vitest.config.ts
+
+# Scripts
+scripts/
+check-s3.*

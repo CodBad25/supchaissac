@@ -11,5 +11,8 @@ export function validatePassword(password: string): { valid: boolean; error?: st
   if (result.success) {
     return { valid: true };
   }
-  return { valid: false, error: result.error.errors[0]?.message || 'Mot de passe invalide' };
+  if (!result.success && result.error?.issues && result.error.issues.length > 0) {
+    return { valid: false, error: result.error.issues[0].message };
+  }
+  return { valid: false, error: 'Mot de passe invalide' };
 }
