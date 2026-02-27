@@ -106,40 +106,18 @@ const TeacherDashboard: React.FC = () => {
         const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
           credentials: 'include',
         });
-        
+
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
         } else {
-          // Fallback si l'API n'est pas disponible
-          setUser({
-            id: 1,
-            email: 'teacher1@example.com',
-            firstName: 'Sophie',
-            lastName: 'MARTIN',
-            civilite: 'Mme',
-            subject: 'Mathématiques',
-            role: 'TEACHER',
-            inPacte: false,
-            pacteHoursTarget: 0,
-            pacteHoursCompleted: 0
-          });
+          // Redirection vers login si authentification échouée
+          navigate('/login');
         }
       } catch (error) {
         console.error('Erreur lors du chargement des données utilisateur:', error);
-        // Fallback en cas d'erreur
-        setUser({
-          id: 1,
-          email: 'teacher1@example.com',
-          firstName: 'Sophie',
-          lastName: 'MARTIN',
-          civilite: 'Mme',
-          subject: 'Mathématiques',
-          role: 'TEACHER',
-          inPacte: false,
-          pacteHoursTarget: 0,
-          pacteHoursCompleted: 0
-        });
+        // Redirection vers login en cas d'erreur
+        navigate('/login');
       }
     };
 

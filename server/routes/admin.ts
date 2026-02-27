@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../../src/lib/db';
-import { users, sessions } from '../../src/lib/schema';
-import { eq, and, gte, lte, count, sql } from 'drizzle-orm';
+import { users, sessions, attachments } from '../../src/lib/schema';
+import { eq, and, gte, lte, count, sql, inArray } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { BCRYPT_ROUNDS } from '../utils/constants';
 import multer from 'multer';
@@ -260,7 +260,25 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Impossible de supprimer votre propre compte' });
     }
 
-    await db.delete(users).where(eq(users.id, parseInt(id)));
+    // Supprimer l'utilisateur avec ses sessions et pièces jointes dans une transaction
+    await db.transaction(async (tx) => {
+      // Récupérer les sessions de l'utilisateur
+      const userSessions = await tx
+        .select({ id: sessions.id })
+        .from(sessions)
+        .where(eq(sessions.teacherId, parseInt(id)));
+
+      // Supprimer les pièces jointes des sessions
+      if (userSessions.length > 0) {
+        const sessionIds = userSessions.map(s => s.id);
+        await tx.delete(attachments).where(inArray(attachments.sessionId, sessionIds));
+        // Supprimer les sessions
+        await tx.delete(sessions).where(eq(sessions.teacherId, parseInt(id)));
+      }
+
+      // Supprimer l'utilisateur
+      await tx.delete(users).where(eq(users.id, parseInt(id)));
+    });
 
     console.log(`[ADMIN] Utilisateur ${id} supprimé`);
     res.json({ success: true });
@@ -427,7 +445,7 @@ router.post('/import-teachers-csv', requireAdmin, upload.single('file'), async (
         // Creer le nouvel enseignant
         const fullName = `${prenom} ${nom}`.trim();
         const initials = `${prenom?.[0] || ''}${nom?.[0] || ''}`.toUpperCase();
-        const hashedPassword = await bcrypt.hash('password123', 10);
+        const hashedPassword = await bcrypt.hash('password123', BCRYPT_ROUNDS);
 
         await db.insert(users).values({
           username: email,

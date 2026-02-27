@@ -25,6 +25,8 @@ RUN npm run build
 # ============================================
 FROM node:20-alpine AS production
 
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+
 WORKDIR /app
 
 # Copier package files pour production
@@ -41,6 +43,9 @@ COPY src/lib ./src/lib
 # Copier le frontend build depuis le stage precedent
 COPY --from=frontend-builder /app/dist ./dist
 
+# Définir les permissions pour l'utilisateur nodejs
+RUN chown -R nodejs:nodejs /app
+
 # Variables d'environnement par defaut
 ENV NODE_ENV=production
 ENV PORT=8080
@@ -51,6 +56,9 @@ EXPOSE 8080
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
+
+# Basculer vers l'utilisateur non-root
+USER nodejs
 
 # Demarrer le serveur
 CMD ["node", "--import", "tsx", "server/index.ts"]

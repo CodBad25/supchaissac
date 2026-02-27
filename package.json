@@ -11,12 +11,14 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "npx tsx src/scripts/seed-data.ts",
     "db:reset": "npm run db:push && npm run db:seed",
     "demo:seed": "npx tsx scripts/seed-demo.ts",
     "demo:clean": "npx tsx scripts/clean-demo.ts",
-    "start": "npm run dev:full"
+    "start": "npm run dev:full",
+    "start:prod": "NODE_ENV=production node --import tsx server/index.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
@@ -24,6 +26,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@supabase/supabase-js": "^2.89.0",
     "@types/bcrypt": "^5.0.2",
+    "@types/compression": "^1.8.1",
     "@types/express": "^5.0.0",
     "@types/express-session": "^1.18.1",
     "@types/multer": "^2.0.0",
@@ -31,6 +34,7 @@
     "@types/passport-local": "^1.0.38",
     "bcrypt": "^5.1.1",
     "clsx": "^2.1.1",
+    "compression": "^1.8.1",
     "concurrently": "^9.1.2",
     "connect-pg-simple": "^10.0.0",
     "date-fns": "^4.1.0",

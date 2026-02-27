@@ -58,7 +58,10 @@ export async function uploadFile(
 ): Promise<UploadResult> {
   // Generer un nom unique
   const timestamp = Date.now();
-  const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const sanitizedFilename = filename
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Supprimer les diacritiques
+    .replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `sessions/${sessionId}/${timestamp}_${sanitizedFilename}`;
 
   // Upload vers S3 (bucket public, pas besoin d'ACL)

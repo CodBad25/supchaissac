@@ -332,15 +332,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à supprimer cette session' });
     }
 
-    // Supprimer les pièces jointes associées
-    await db
-      .delete(attachments)
-      .where(eq(attachments.sessionId, sessionId));
-
-    // Supprimer la session
-    await db
-      .delete(sessions)
-      .where(eq(sessions.id, sessionId));
+    // Supprimer les pièces jointes et la session dans une transaction
+    await db.transaction(async (tx) => {
+      await tx.delete(attachments).where(eq(attachments.sessionId, sessionId));
+      await tx.delete(sessions).where(eq(sessions.id, sessionId));
+    });
 
     console.log(`✅ [API] Session ${sessionId} supprimée par ${req.user.name} (${req.user.role})`);
 
@@ -391,7 +387,7 @@ router.put('/:id/review', requireSecretary, async (req, res) => {
       });
     }
 
-    // Mettre à jour le statut
+    // Mettre à jour le statut avec verrou optimiste
     const [updatedSession] = await db
       .update(sessions)
       .set({
@@ -400,8 +396,14 @@ router.put('/:id/review', requireSecretary, async (req, res) => {
         updatedAt: new Date(),
         updatedBy: req.user.name,
       })
-      .where(eq(sessions.id, sessionId))
+      .where(and(eq(sessions.id, sessionId), eq(sessions.status, 'PENDING_REVIEW')))
       .returning();
+
+    if (!updatedSession) {
+      return res.status(409).json({
+        error: 'La session a été modifiée par un autre utilisateur. Veuillez rafraîchir.'
+      });
+    }
 
     console.log(`✅ [API] Session ${sessionId} vérifiée par ${req.user.name} → PENDING_VALIDATION`);
 
@@ -523,11 +525,30 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
       };
     }
 
+    // Déterminer le statut attendu pour le verrou optimiste
+    let expectedStatus = 'PENDING_VALIDATION';
+    if (action === 'cancel') {
+      expectedStatus = session.status; // VALIDATED ou REJECTED
+    } else if (action === 'unpay') {
+      expectedStatus = 'PAID';
+    } else if (action === 'validate' || action === 'reject') {
+      expectedStatus = 'PENDING_VALIDATION'; // Principal peut court-circuiter PENDING_REVIEW
+    }
+
     const [updatedSession] = await db
       .update(sessions)
       .set(updateData)
-      .where(eq(sessions.id, sessionId))
+      .where(and(
+        eq(sessions.id, sessionId),
+        eq(sessions.status, expectedStatus as any)
+      ))
       .returning();
+
+    if (!updatedSession) {
+      return res.status(409).json({
+        error: 'La session a été modifiée par un autre utilisateur. Veuillez rafraîchir.'
+      });
+    }
 
     const actionLabels: Record<string, string> = {
       validate: 'validée',
@@ -576,7 +597,7 @@ router.put('/:id/mark-paid', requireSecretary, async (req, res) => {
       });
     }
 
-    // Mettre à jour le statut
+    // Mettre à jour le statut avec verrou optimiste
     const [updatedSession] = await db
       .update(sessions)
       .set({
@@ -584,8 +605,14 @@ router.put('/:id/mark-paid', requireSecretary, async (req, res) => {
         updatedAt: new Date(),
         updatedBy: req.user.name,
       })
-      .where(eq(sessions.id, sessionId))
+      .where(and(eq(sessions.id, sessionId), eq(sessions.status, 'VALIDATED')))
       .returning();
+
+    if (!updatedSession) {
+      return res.status(409).json({
+        error: 'La session a été modifiée par un autre utilisateur. Veuillez rafraîchir.'
+      });
+    }
 
     console.log(`✅ [API] Session ${sessionId} mise en paiement par ${req.user.name}`);
 

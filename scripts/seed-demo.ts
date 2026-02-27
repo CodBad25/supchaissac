@@ -6,6 +6,12 @@ import { eq } from 'drizzle-orm';
 const DEMO_MARKER = '[DEMO]';
 
 async function seedDemoData() {
+  // Protection production : interdire d'exécuter en prod
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ Interdit en production');
+    process.exit(1);
+  }
+
   console.log('🎭 Génération des données de démonstration...\n');
 
   // Récupérer TOUS les enseignants

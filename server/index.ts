@@ -2,6 +2,9 @@ import 'dotenv/config'
 import express from 'express'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import compression from 'compression'
+import rateLimit from 'express-rate-limit'
+import { sql } from 'drizzle-orm'
 import { setupAuth } from './services/auth'
 import authRoutes from './routes/auth'
 import sessionsRoutes from './routes/sessions'
@@ -11,7 +14,10 @@ import quotasRoutes from './routes/quotas'
 import adminRoutes from './routes/admin'
 import studentsRoutes from './routes/students'
 import teachersRoutes from './routes/teachers'
-import { testConnection } from '../src/lib/db'
+import { testConnection, db, closeDb } from '../src/lib/db'
+
+// Définir le fuseau horaire
+process.env.TZ = 'Europe/Paris'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -63,8 +69,19 @@ app.use((req, res, next) => {
 })
 
 // Middleware de base
+app.use(compression())
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
+
+// Limiteur de débit global
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // max 300 requêtes par fenêtre
+  message: { error: 'Trop de requêtes. Réessayez dans quelques minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+app.use('/api', globalLimiter)
 
 // Headers de sécurité renforcés
 app.use((req, res, next) => {
@@ -125,14 +142,24 @@ async function startServer() {
     app.use('/api/students', studentsRoutes)
     app.use('/api/teachers', teachersRoutes)
 
-    // Route de santé
-    app.get('/api/health', (req, res) => {
-      res.json({ 
-        status: 'ok', 
-        timestamp: new Date().toISOString(),
-        database: 'PostgreSQL Neon',
-        version: '2.0.0'
-      })
+    // Route de santé avec vérification BDD
+    app.get('/api/health', async (req, res) => {
+      try {
+        await db.execute(sql`SELECT 1`)
+        res.json({
+          status: 'ok',
+          timestamp: new Date().toISOString(),
+          database: 'connected',
+          version: '2.0.0'
+        })
+      } catch (error) {
+        res.status(503).json({
+          status: 'error',
+          timestamp: new Date().toISOString(),
+          database: 'disconnected',
+          version: '2.0.0'
+        })
+      }
     })
 
     // En production: servir le frontend React
@@ -193,7 +220,7 @@ async function startServer() {
     }
 
     // Démarrage du serveur sur toutes les interfaces (0.0.0.0)
-    app.listen(Number(PORT), '0.0.0.0', () => {
+    const server = app.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`🚀 [SERVER] SupChaissac v2.0 démarré sur le port ${PORT}`)
       console.log(`🌐 [SERVER] Mode: ${isProduction ? 'PRODUCTION' : 'DEVELOPPEMENT'}`)
       console.log(`🌐 [SERVER] API disponible sur:`)
@@ -207,6 +234,28 @@ async function startServer() {
         console.log(`   ⚙️ admin@example.com / password123`)
       }
     })
+
+    // Gestion de l'arrêt gracieux
+    function gracefulShutdown(signal: string) {
+      console.log(`\n📴 [SERVER] Signal ${signal} reçu. Arrêt gracieux...`)
+      server.close(async () => {
+        try {
+          await closeDb()
+          console.log('✅ [SERVER] Connexion BDD fermée')
+        } catch (e) {
+          console.error('❌ [SERVER] Erreur fermeture BDD:', e)
+        }
+        process.exit(0)
+      })
+      // Timeout de sécurité
+      setTimeout(() => {
+        console.error('❌ [SERVER] Timeout arrêt gracieux, forçage...')
+        process.exit(1)
+      }, 10000)
+    }
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'))
     
   } catch (error) {
     console.error('💥 [SERVER] Erreur fatale au démarrage:', error)
@@ -222,7 +271,7 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('💥 [SERVER] Promesse rejetée non gérée:', reason)
-  process.exit(1)
+  // Ne pas exit brutalement, logger et laisser le graceful shutdown gérer
 })
 
 // Démarrage

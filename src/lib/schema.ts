@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, pgEnum, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, pgEnum, jsonb, index, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -62,28 +62,28 @@ export const sessions = pgTable("sessions", {
   date: text("date").notNull(), // Format YYYY-MM-DD
   timeSlot: timeSlotEnum("time_slot").notNull(),
   type: sessionTypeEnum("type").notNull(),
-  teacherId: integer("teacher_id").notNull(),
+  teacherId: integer("teacher_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   teacherName: text("teacher_name").notNull(),
   status: sessionStatusEnum("status").notNull().default('PENDING_REVIEW'),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at"),
   updatedBy: text("updated_by"),
-  
+
   // Champs RCD (Remplacement Courte Durée)
   className: text("class_name"), // Ex: "6A", "5B"
   replacedTeacherPrefix: text("replaced_teacher_prefix"), // "M." ou "Mme"
   replacedTeacherLastName: text("replaced_teacher_last_name"), // "DUPONT"
   replacedTeacherFirstName: text("replaced_teacher_first_name"), // "Jean"
   subject: text("subject"), // Matière enseignée
-  
+
   // Champs DEVOIRS_FAITS
   gradeLevel: text("grade_level"), // "6e", "5e", "4e", "3e", "mixte"
   studentCount: integer("student_count"), // Nombre d'élèves
   studentsList: jsonb("students_list"), // Liste des élèves [{lastName, firstName, className}]
-  
+
   // Champs AUTRE
   description: text("description"), // Description libre
-  
+
   // Commentaires et feedback
   comment: text("comment"), // Commentaire enseignant
   reviewComments: text("review_comments"), // Commentaires secrétaire
@@ -92,7 +92,12 @@ export const sessions = pgTable("sessions", {
 
   // Traçabilité des conversions
   originalType: sessionTypeEnum("original_type"), // Type original avant conversion (null si pas de conversion)
-});
+}, (table) => [
+  index("sessions_teacher_id_idx").on(table.teacherId),
+  index("sessions_date_idx").on(table.date),
+  index("sessions_status_idx").on(table.status),
+  uniqueIndex("sessions_unique_teacher_date_slot").on(table.teacherId, table.date, table.timeSlot),
+]);
 
 // System settings model
 export const systemSettings = pgTable("system_settings", {
@@ -107,7 +112,7 @@ export const systemSettings = pgTable("system_settings", {
 // Attachments model
 export const attachments = pgTable("attachments", {
   id: serial("id").primaryKey(),
-  sessionId: integer("session_id").notNull(),
+  sessionId: integer("session_id").notNull().references(() => sessions.id, { onDelete: 'cascade' }),
   filename: text("filename").notNull(),
   originalName: text("original_name").notNull(),
   mimeType: text("mime_type").notNull(),
@@ -116,7 +121,9 @@ export const attachments = pgTable("attachments", {
   uploadedBy: text("uploaded_by").notNull(),
   uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
   isVerified: boolean("is_verified").default(false),
-});
+}, (table) => [
+  index("attachments_session_id_idx").on(table.sessionId),
+]);
 
 // Hour quotas model - Budgets annuels de l'établissement
 export const hourQuotas = pgTable("hour_quotas", {
@@ -142,7 +149,9 @@ export const students = pgTable("students", {
   schoolYear: text("school_year").notNull(), // Année scolaire "2024-2025"
   createdAt: timestamp("created_at").notNull().defaultNow(),
   importedBy: text("imported_by"), // Qui a fait l'import
-});
+}, (table) => [
+  index("students_school_year_class_name_idx").on(table.schoolYear, table.className),
+]);
 
 // Types TypeScript
 export type User = typeof users.$inferSelect;
