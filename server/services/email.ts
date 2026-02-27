@@ -104,8 +104,20 @@ export async function sendActivationEmail(
   }
 }
 
+// Échapper les caractères HTML pour prévenir les XSS
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Template HTML pour l'email d'activation
 export function getActivationEmailHtml(name: string, activationLink: string): string {
+  const safeName = escapeHtml(name);
+  const safeLink = encodeURI(activationLink);
   return `
 <!DOCTYPE html>
 <html>
@@ -127,16 +139,16 @@ export function getActivationEmailHtml(name: string, activationLink: string): st
       <p>Gestion des heures supplémentaires</p>
     </div>
     <div class="content">
-      <h2>Bonjour ${name},</h2>
+      <h2>Bonjour ${safeName},</h2>
       <p>Votre compte SupChaissac a été créé. Pour l'activer et définir votre mot de passe, cliquez sur le bouton ci-dessous :</p>
       <p style="text-align: center;">
-        <a href="${activationLink}" class="button">Activer mon compte</a>
+        <a href="${safeLink}" class="button">Activer mon compte</a>
       </p>
       <p>Ce lien est valable pendant <strong>48 heures</strong>.</p>
       <p>Si vous n'avez pas demandé ce compte, ignorez simplement cet email.</p>
       <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">
         Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>
-        <a href="${activationLink}">${activationLink}</a>
+        <a href="${safeLink}">${safeLink}</a>
       </p>
     </div>
     <div class="footer">

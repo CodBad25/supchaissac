@@ -230,8 +230,12 @@ export async function seedDatabase() {
 
 // Fonction pour vider et recréer les données
 export async function resetDatabase() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('INTERDIT : resetDatabase() ne peut pas être exécuté en production')
+  }
+
   console.log('🗑️ Reset de la base de données...')
-  
+
   try {
     // Supprimer dans l'ordre (contraintes FK)
     await db.delete(sessions)

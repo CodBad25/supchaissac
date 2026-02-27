@@ -36,6 +36,25 @@ router.post('/upload/:sessionId', requireAuth, upload.single('file'), async (req
       return res.status(400).json({ error: 'ID de session invalide' });
     }
 
+    // Vérifier que la session existe et que l'utilisateur a le droit d'y uploader
+    const [session] = await db
+      .select({ teacherId: sessions.teacherId })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session non trouvée' });
+    }
+
+    const currentUser = req.user as Express.User;
+    const isOwner = session.teacherId === currentUser?.id;
+    const isStaff = ['SECRETARY', 'PRINCIPAL', 'ADMIN'].includes(currentUser?.role);
+
+    if (!isOwner && !isStaff) {
+      return res.status(403).json({ error: 'Vous ne pouvez pas ajouter de pièce jointe à cette session' });
+    }
+
     const file = req.file;
     if (!file) {
       return res.status(400).json({ error: 'Aucun fichier fourni' });
@@ -56,8 +75,7 @@ router.post('/upload/:sessionId', requireAuth, upload.single('file'), async (req
     );
 
     // Recuperer l'utilisateur connecte
-    const user = req.user as any;
-    const uploadedBy = user?.name || user?.username || 'Inconnu';
+    const uploadedBy = currentUser?.name || currentUser?.username || 'Inconnu';
 
     // Sauvegarder en base de donnees
     const [attachment] = await db.insert(attachments).values({
@@ -161,7 +179,7 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'ID invalide' });
     }
 
-    const user = req.user as any;
+    const user = req.user as Express.User;
 
     // Recuperer l'attachment avec sa session
     const [attachment] = await db
@@ -224,7 +242,7 @@ router.get('/session/:sessionId', requireAuth, async (req: Request, res: Respons
       return res.status(400).json({ error: 'ID de session invalide' });
     }
 
-    const user = req.user as any;
+    const user = req.user as Express.User;
 
     // Verifier les permissions
     const [session] = await db
@@ -294,7 +312,7 @@ router.get('/:id/download-url', requireAuth, async (req: Request, res: Response)
       return res.status(400).json({ error: 'ID invalide' });
     }
 
-    const user = req.user as any;
+    const user = req.user as Express.User;
 
     // Recuperer l'attachment avec sa session
     const [attachment] = await db

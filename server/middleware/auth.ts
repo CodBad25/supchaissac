@@ -21,11 +21,7 @@ export function requireRole(...allowedRoles: string[]) {
     const userRole = req.user?.role
     if (!userRole || !allowedRoles.includes(userRole)) {
       console.log(`🚫 [AUTH] Accès refusé - rôle ${userRole} non autorisé pour ${allowedRoles.join(', ')}`)
-      return res.status(403).json({ 
-        error: 'Permissions insuffisantes',
-        required: allowedRoles,
-        current: userRole
-      })
+      return res.status(403).json({ error: 'Permissions insuffisantes' })
     }
 
     console.log(`✅ [AUTH] Accès autorisé - ${req.user?.name} (${userRole})`)

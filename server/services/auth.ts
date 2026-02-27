@@ -5,6 +5,7 @@ import { Express } from 'express'
 import session from 'express-session'
 import connectPgSimple from 'connect-pg-simple'
 import bcrypt from 'bcrypt'
+import crypto from 'crypto'
 import { db } from '../../src/lib/db'
 import { users } from '../../src/lib/schema'
 import { eq } from 'drizzle-orm'
@@ -19,9 +20,14 @@ declare global {
       id: number
       username: string
       name: string
+      firstName: string | null
+      lastName: string | null
+      civilite: 'M.' | 'Mme' | null
+      subject: string | null
       role: 'TEACHER' | 'SECRETARY' | 'PRINCIPAL' | 'ADMIN'
       initials: string | null
       inPacte: boolean
+      isActivated: boolean | null
     }
   }
 }
@@ -49,7 +55,7 @@ export function setupAuth(app: Express) {
       createTableIfMissing: true, // Crée automatiquement la table
     }),
     name: 'supchaissac.sid', // Nom explicite du cookie
-    secret: sessionSecret || 'dev-only-secret-not-for-production-use',
+    secret: sessionSecret || crypto.randomBytes(32).toString('hex'),
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -95,12 +101,19 @@ export function setupAuth(app: Express) {
           const user = userResult[0]
           console.log(`👤 [AUTH] Utilisateur trouvé: ${user.name} (${user.role})`)
 
+          // Bloquer les comptes non activés en production (sauf comptes de test @example.com)
+          const isTestAccount = user.username.endsWith('@example.com')
+          if (!isTestAccount && user.isActivated === false) {
+            console.log(`🚫 [AUTH] Compte non activé: ${username}`)
+            return done(null, false, { message: 'Compte non activé. Vérifiez votre email ou contactez l\'administrateur.' })
+          }
+
           // Vérifier le mot de passe
           const isPasswordValid = await bcrypt.compare(password, user.password)
 
           if (isPasswordValid) {
             console.log(`✅ [AUTH] Connexion réussie: ${user.name} (${user.role})`)
-            
+
             // Retourner l'utilisateur sans le mot de passe
             const safeUser = {
               id: user.id,
@@ -112,7 +125,8 @@ export function setupAuth(app: Express) {
               subject: user.subject,
               role: user.role,
               initials: user.initials,
-              inPacte: user.inPacte
+              inPacte: user.inPacte,
+              isActivated: user.isActivated
             }
 
             return done(null, safeUser)
@@ -161,7 +175,8 @@ export function setupAuth(app: Express) {
         subject: user.subject,
         role: user.role,
         initials: user.initials,
-        inPacte: user.inPacte
+        inPacte: user.inPacte,
+        isActivated: user.isActivated
       }
 
       console.log(`✅ Utilisateur désérialisé: ${user.username}`)

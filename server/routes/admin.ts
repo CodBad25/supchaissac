@@ -3,12 +3,19 @@ import { db } from '../../src/lib/db';
 import { users, sessions } from '../../src/lib/schema';
 import { eq, and, gte, lte, count, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
+import { BCRYPT_ROUNDS } from '../utils/constants';
 import multer from 'multer';
 import iconv from 'iconv-lite';
 import { generateActivationToken, sendActivationEmail, isAcademicEmail, getActivationLink, isEmailEnabled } from '../services/email';
+import { updateUserSchema } from '../validators/user';
+import { validatePassword } from '../validators/password';
+import { requireAdmin as requireAdminMiddleware } from '../middleware/auth';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 1 * 1024 * 1024 }, // 1 MB max pour les CSV
+});
 
 // Decoder le buffer CSV (gere Windows-1252, UTF-8, etc.)
 function decodeCSVBuffer(buffer: Buffer): string {
@@ -60,16 +67,8 @@ function parseTeacherCSV(content: string): { headers: string[]; rows: Record<str
   return { headers, rows };
 }
 
-// Middleware pour vérifier le rôle admin
-const requireAdmin = (req: any, res: any, next: any) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Non authentifié' });
-  }
-  if (req.user.role !== 'ADMIN') {
-    return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
-  }
-  next();
-};
+// Utiliser le middleware importé depuis ../middleware/auth
+const requireAdmin = requireAdminMiddleware;
 
 // GET /api/admin/stats - Statistiques globales
 router.get('/stats', requireAdmin, async (req, res) => {
@@ -176,7 +175,7 @@ router.post('/users', requireAdmin, async (req, res) => {
     }
 
     // Hash du mot de passe
-    const hashedPassword = await bcrypt.hash(password || 'password123', 10);
+    const hashedPassword = await bcrypt.hash(password || 'password123', BCRYPT_ROUNDS);
 
     // Générer les initiales
     const initials = name
@@ -219,10 +218,21 @@ router.post('/users', requireAdmin, async (req, res) => {
 router.patch('/users/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
 
-    // Ne pas permettre de modifier le mot de passe ici
-    delete updates.password;
+    // Validation Zod avec whitelist stricte de champs
+    const parseResult = updateUserSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: 'Données invalides',
+        details: parseResult.error.errors.map(e => ({ field: e.path.join('.'), message: e.message })),
+      });
+    }
+
+    const updates = parseResult.data;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Aucune modification fournie' });
+    }
 
     await db
       .update(users)
@@ -266,7 +276,14 @@ router.post('/users/:id/reset-password', requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { newPassword } = req.body;
 
-    const hashedPassword = await bcrypt.hash(newPassword || 'password123', 10);
+    if (!newPassword) {
+      return res.status(400).json({ error: 'Nouveau mot de passe requis' });
+    }
+    const pwdCheck = validatePassword(newPassword);
+    if (!pwdCheck.valid) {
+      return res.status(400).json({ error: pwdCheck.error });
+    }
+    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
     await db
       .update(users)
@@ -324,7 +341,7 @@ router.post('/import', requireAdmin, async (req, res) => {
           updated++;
         } else {
           // Créer
-          const hashedPassword = await bcrypt.hash('password123', 10);
+          const hashedPassword = await bcrypt.hash('password123', BCRYPT_ROUNDS);
           await db
             .insert(users)
             .values({

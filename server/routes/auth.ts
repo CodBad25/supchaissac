@@ -5,6 +5,8 @@ import rateLimit from 'express-rate-limit'
 import { db } from '../../src/lib/db'
 import { users } from '../../src/lib/schema'
 import { eq, and, gt } from 'drizzle-orm'
+import { validatePassword } from '../validators/password'
+import { BCRYPT_ROUNDS } from '../utils/constants'
 
 const router = Router()
 
@@ -147,7 +149,7 @@ router.patch('/profile', async (req, res) => {
     }
 
     const user = userData[0];
-    const updateData: any = { updatedAt: new Date() };
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
 
     // Mise à jour du prénom d'usage
     if (firstName !== undefined) {
@@ -169,11 +171,12 @@ router.patch('/profile', async (req, res) => {
         return res.status(400).json({ error: 'Mot de passe actuel incorrect' });
       }
 
-      if (newPassword.length < 8) {
-        return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
+      const pwdCheck = validatePassword(newPassword);
+      if (!pwdCheck.valid) {
+        return res.status(400).json({ error: pwdCheck.error });
       }
 
-      updateData.password = await bcrypt.hash(newPassword, 10);
+      updateData.password = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     }
 
     // Appliquer les modifications
@@ -189,8 +192,12 @@ router.patch('/profile', async (req, res) => {
 });
 
 // Route pour récupérer la liste des utilisateurs de démo (page de connexion)
-// Sécurité: ne retourne que les comptes démo + staff, jamais les vrais enseignants
+// Désactivée en production pour ne pas exposer les données utilisateurs
 router.get('/users-list', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Route non disponible en production' });
+  }
+
   try {
     const allUsers = await db
       .select({
@@ -204,11 +211,9 @@ router.get('/users-list', async (req, res) => {
       .from(users)
       .orderBy(users.role, users.name);
 
-    // Filtrer: seulement comptes démo (@example.com) + secrétaire + principal
+    // Filtrer: seulement comptes démo (@example.com)
     const filteredUsers = allUsers.filter(u =>
-      u.username.endsWith('@example.com') ||
-      u.role === 'SECRETARY' ||
-      u.role === 'PRINCIPAL'
+      u.username.endsWith('@example.com')
     );
 
     res.json(filteredUsers);
@@ -231,8 +236,17 @@ router.get('/status', (req, res) => {
   })
 })
 
+// Rate limiting pour les routes d'activation
+const activationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 tentatives
+  message: { error: 'Trop de tentatives. Réessayez dans 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Vérifier un token d'activation
-router.get('/verify-token/:token', async (req, res) => {
+router.get('/verify-token/:token', activationLimiter, async (req, res) => {
   try {
     const { token } = req.params;
 
@@ -276,7 +290,7 @@ router.get('/verify-token/:token', async (req, res) => {
 });
 
 // Activer un compte avec le token
-router.post('/activate', async (req, res) => {
+router.post('/activate', activationLimiter, async (req, res) => {
   try {
     const { token, password } = req.body;
 
@@ -284,8 +298,9 @@ router.post('/activate', async (req, res) => {
       return res.status(400).json({ error: 'Token et mot de passe requis' });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+    const pwdCheck = validatePassword(password);
+    if (!pwdCheck.valid) {
+      return res.status(400).json({ error: pwdCheck.error });
     }
 
     // Trouver l'utilisateur avec ce token
@@ -312,7 +327,7 @@ router.post('/activate', async (req, res) => {
     }
 
     // Hasher le nouveau mot de passe
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // Activer le compte
     await db

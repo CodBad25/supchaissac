@@ -26,20 +26,25 @@ if (isProduction) {
   console.log('🔒 [SERVER] Trust proxy activé pour production')
 }
 
-// Configuration CORS - Support localhost, réseau local et production
+// Configuration CORS - Whitelist explicite d'origines autorisées
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [];
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  // En production, pas besoin de CORS (même domaine)
-  // En dev, accepte localhost et réseau local
+  // En dev, accepter localhost et réseau local
+  // En prod, uniquement les origines explicitement configurées via ALLOWED_ORIGINS
   const isAllowed = origin && (
     origin.startsWith('http://localhost:') ||
     origin.startsWith('http://127.0.0.1:') ||
-    origin.startsWith('http://192.168.') ||
-    origin.startsWith('http://10.') ||
-    origin.startsWith('http://172.') ||
-    origin.includes('supchaissac') ||
-    origin.includes('scw.cloud')
+    (!isProduction && (
+      origin.startsWith('http://192.168.') ||
+      origin.startsWith('http://10.') ||
+      origin.startsWith('http://172.')
+    )) ||
+    ALLOWED_ORIGINS.includes(origin)
   );
 
   if (isAllowed) {
