@@ -438,21 +438,10 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
     setStudentsList(newStudentsList);
   };
 
-  const updateStudentField = (index: number, field: keyof Student, value: string) => {
-    const updated = [...studentsList];
-    updated[index][field] = value;
-    setStudentsList(updated);
-  };
-
   const removeStudent = (index: number) => {
     const newList = studentsList.filter((_, i) => i !== index);
     setStudentsList(newList);
     setStudentCount(newList.length);
-  };
-
-  const addStudent = () => {
-    setStudentsList([...studentsList, { lastName: '', firstName: '', className: '' }]);
-    setStudentCount(studentsList.length + 1);
   };
 
   const formatFirstName = (name: string) => {

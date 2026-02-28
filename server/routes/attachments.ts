@@ -92,7 +92,7 @@ router.post('/upload/:sessionId', requireAuth, upload.single('file'), async (req
     let students = null;
     if (isValidExcelFile(file.mimetype, file.originalname)) {
       try {
-        const parseResult = parseStudentList(file.buffer);
+        const parseResult = await parseStudentList(file.buffer);
         students = parseResult.students;
         console.log(`[UPLOAD] Excel parse: ${parseResult.successCount} eleves extraits`);
       } catch (err) {
@@ -387,7 +387,7 @@ router.post('/parse-excel', requireAuth, upload.single('file'), async (req: Requ
       return res.status(400).json({ error: 'Le fichier doit etre un fichier Excel (.xlsx, .xls)' });
     }
 
-    const result = parseStudentList(file.buffer);
+    const result = await parseStudentList(file.buffer);
 
     res.json({
       success: true,

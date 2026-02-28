@@ -75,15 +75,15 @@ PRINCIPAL valide OU rejette :
         ↓
 SECRETARY met en paiement
         ↓
-      PAID (= "Mis en paiement", PAS "Payé")
+      SENT_FOR_PAYMENT (= "Mis en paiement")
         ↓
-   (FUTUR) PAYMENT_COMPLETED (= "Payé" effectif)
+   (FUTUR) PAID (= "Payé" effectif)
 ```
 
 **Notes:**
 - Le Principal peut AUSSI vérifier (comme la secrétaire) pour flexibilité.
-- Le statut `PAID` signifie "Mis en paiement" (transmis pour paiement), pas "Payé".
-- Un futur statut `PAYMENT_COMPLETED` sera ajouté pour confirmer le paiement effectif.
+- Le statut `SENT_FOR_PAYMENT` signifie "Mis en paiement" (transmis pour paiement).
+- Un futur statut `PAID` sera ajouté pour confirmer le paiement effectif.
 
 ---
 
@@ -137,9 +137,12 @@ npm run build
 
 | Role | Email | Password |
 |------|-------|----------|
-| Teacher | teacher1@example.com | password123 |
-| Secretary | secretary@example.com | password123 |
-| Principal | principal@example.com | password123 |
+| Teacher | sophie.martin@example.com | password123 |
+| Teacher | marie.petit@example.com | password123 |
+| Teacher | martin.dubois@example.com | password123 |
+| Teacher | philippe.garcia@example.com | password123 |
+| Secretary | laure.martin@example.com | password123 |
+| Principal | jean.dupont@example.com | password123 |
 | Admin | admin@example.com | password123 |
 
 ---

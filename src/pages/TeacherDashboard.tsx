@@ -2,18 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PieChart,
-  Clock,
   Calendar,
-  CheckCircle,
-  DollarSign,
+  Clock,
   BookOpen,
   Users,
   FileText,
   LogOut,
-  Hourglass,
   ArrowRight,
   HelpCircle,
-  User
+  User,
+  MessageCircle
 } from 'lucide-react';
 import SmartCalendar from '../components/SmartCalendar';
 import SessionModals from '../components/SessionModals';
@@ -21,6 +19,7 @@ import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
 import type { TourStep } from '../components/GuidedTour';
 import { components, cn, getStatusClasses } from '../styles/theme';
 import { API_BASE_URL } from '../config/api';
+import { useToast } from '../components/ToastProvider';
 
 // Steps du tour guidé pour les enseignants
 const teacherTourSteps: TourStep[] = [
@@ -57,7 +56,7 @@ interface Session {
   id: number;
   type: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | 'HSE';
   originalType?: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | 'HSE' | null; // Type avant conversion
-  status: 'PENDING_REVIEW' | 'PENDING_VALIDATION' | 'VALIDATED' | 'PAID' | 'REJECTED';
+  status: 'PENDING_REVIEW' | 'PENDING_VALIDATION' | 'VALIDATED' | 'SENT_FOR_PAYMENT' | 'REJECTED';
   date: string;
   timeSlot: string;
   className?: string;
@@ -65,6 +64,9 @@ interface Session {
   studentCount?: number;
   description?: string;
   createdAt: string;
+  validatedAt?: string;
+  paidAt?: string;
+  rejectionReason?: string;
 }
 
 interface User {
@@ -86,6 +88,7 @@ interface User {
 
 const TeacherDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { showError } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar'>('dashboard');
@@ -98,6 +101,7 @@ const TeacherDashboard: React.FC = () => {
   const [showTour, setShowTour] = useState(shouldShowTour('teacher'));
   const [timelineView, setTimelineView] = useState<'semaines' | 'mois'>('semaines');
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [expandedRejection, setExpandedRejection] = useState<number | null>(null);
 
   // Récupérer les vraies données utilisateur depuis l'API
   useEffect(() => {
@@ -158,13 +162,9 @@ const TeacherDashboard: React.FC = () => {
     otherHours: sessions.filter(s => s.type === 'AUTRE').length,
     pendingHours: sessions.filter(s => s.status === 'PENDING_REVIEW').length,
     validatedHours: sessions.filter(s => s.status === 'VALIDATED').length,
-    paidHours: sessions.filter(s => s.status === 'PAID').length
+    paidHours: sessions.filter(s => s.status === 'SENT_FOR_PAYMENT').length
   };
 
-  // Calculer le pourcentage de progression PACTE
-  const pactePercentage = user?.pacteHoursTarget
-    ? Math.min(100, Math.round(((user.pacteHoursCompleted || 0) / user.pacteHoursTarget) * 100))
-    : 0;
 
   // Calculer les stats par semaine (52 dernières semaines)
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -292,11 +292,11 @@ const TeacherDashboard: React.FC = () => {
       if (response.ok) {
         navigate('/login');
       } else {
-        alert('Erreur lors de la déconnexion');
+        showError('Erreur lors de la déconnexion');
       }
     } catch (error) {
       console.error('Erreur de déconnexion:', error);
-      alert('Erreur réseau lors de la déconnexion');
+      showError('Erreur réseau lors de la déconnexion');
     }
   };
 
@@ -1107,10 +1107,43 @@ const TeacherDashboard: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <span className={cn(components.badge.base, statusClasses.full, 'text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5')}>
-                          {statusClasses.label}
-                        </span>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex items-center gap-1">
+                            {session.status === 'REJECTED' && session.rejectionReason && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setExpandedRejection(expandedRejection === session.id ? null : session.id); }}
+                                className="text-red-400 hover:text-red-600 transition-colors"
+                                title="Voir le motif de rejet"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <span className={cn(components.badge.base, statusClasses.full, 'text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5')}>
+                              {statusClasses.label}
+                            </span>
+                          </div>
+                          {session.status === 'VALIDATED' && session.validatedAt && (
+                            <span className="text-[9px] text-gray-400">
+                              le {new Date(session.validatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                          {session.status === 'SENT_FOR_PAYMENT' && session.paidAt && (
+                            <span className="text-[9px] text-gray-400">
+                              le {new Date(session.paidAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                          {session.status === 'REJECTED' && session.validatedAt && (
+                            <span className="text-[9px] text-gray-400">
+                              le {new Date(session.validatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      {expandedRejection === session.id && session.rejectionReason && (
+                        <div className="mt-1.5 px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-xs text-red-700">
+                          <span className="font-medium">Motif :</span> {session.rejectionReason}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

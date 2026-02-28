@@ -2,64 +2,72 @@ import { Router } from 'express';
 import { db } from '../../src/lib/db';
 import { users, sessions } from '../../src/lib/schema';
 import { requireSecretary } from '../middleware/auth';
-import { eq, and, sql, count } from 'drizzle-orm';
+import { eq, and, sql, count, gte, isNull } from 'drizzle-orm';
+import { pacteStatusSchema, pacteContratSchema } from '../validators';
 
 const router = Router();
 
-// Recuperer tous les enseignants avec leurs stats
+// Récupérer tous les enseignants avec leurs stats (JOIN SQL, pas de N+1)
 router.get('/teachers', requireSecretary, async (req, res) => {
   try {
-    // Recuperer tous les enseignants
-    const allUsers = await db
-      .select()
-      .from(users)
-      .where(eq(users.role, 'TEACHER'));
+    // Calculer l'année scolaire en cours
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const schoolYearStart = month >= 8 ? `${year}-09-01` : `${year - 1}-09-01`;
 
-    // Pour chaque enseignant, calculer ses stats
-    const teachersWithStats = await Promise.all(
-      allUsers.map(async (user) => {
-        const userSessions = await db
-          .select()
-          .from(sessions)
-          .where(eq(sessions.teacherId, user.id));
-
-        const currentYear = new Date().getFullYear();
-        const schoolYearStart = new Date(currentYear, 8, 1); // 1er septembre
-        if (new Date().getMonth() < 8) {
-          schoolYearStart.setFullYear(currentYear - 1);
-        }
-
-        const currentYearSessions = userSessions.filter(
-          s => new Date(s.createdAt) >= schoolYearStart
-        );
-
-        return {
-          id: user.id,
-          name: `${user.firstName || ''} ${user.lastName || user.name}`.trim(),
-          username: user.email,
-          initials: `${(user.firstName || '')[0] || ''}${(user.lastName || user.name || '')[0] || ''}`.toUpperCase(),
-          inPacte: user.inPacte || false,
-          pacteHoursTarget: user.pacteHoursTarget || 0,
-          pacteHoursCompleted: user.pacteHoursCompleted || 0,
-          pacteHoursDF: user.pacteHoursDF || 0,
-          pacteHoursRCD: user.pacteHoursRCD || 0,
-          pacteHoursCompletedDF: user.pacteHoursCompletedDF || 0,
-          pacteHoursCompletedRCD: user.pacteHoursCompletedRCD || 0,
-          stats: {
-            totalSessions: userSessions.length,
-            currentYearSessions: currentYearSessions.length,
-            rcdSessions: currentYearSessions.filter(s => s.type === 'RCD').length,
-            devoirsFaitsSessions: currentYearSessions.filter(s => s.type === 'DEVOIRS_FAITS').length,
-            hseSessions: currentYearSessions.filter(s => s.type === 'HSE').length,
-            validatedSessions: currentYearSessions.filter(s => s.status === 'VALIDATED' || s.status === 'PAID').length,
-          }
-        };
+    // Une seule requête avec LEFT JOIN + agrégation
+    const teachersWithStats = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        name: users.name,
+        username: users.username,
+        inPacte: users.inPacte,
+        pacteHoursTarget: users.pacteHoursTarget,
+        pacteHoursCompleted: users.pacteHoursCompleted,
+        pacteHoursDF: users.pacteHoursDF,
+        pacteHoursRCD: users.pacteHoursRCD,
+        pacteHoursCompletedDF: users.pacteHoursCompletedDF,
+        pacteHoursCompletedRCD: users.pacteHoursCompletedRCD,
+        totalSessions: sql<number>`count(${sessions.id})::int`,
+        currentYearSessions: sql<number>`count(case when ${sessions.date} >= ${schoolYearStart} then 1 end)::int`,
+        rcdSessions: sql<number>`count(case when ${sessions.date} >= ${schoolYearStart} and ${sessions.type} = 'RCD' then 1 end)::int`,
+        devoirsFaitsSessions: sql<number>`count(case when ${sessions.date} >= ${schoolYearStart} and ${sessions.type} = 'DEVOIRS_FAITS' then 1 end)::int`,
+        hseSessions: sql<number>`count(case when ${sessions.date} >= ${schoolYearStart} and ${sessions.type} = 'HSE' then 1 end)::int`,
+        validatedSessions: sql<number>`count(case when ${sessions.date} >= ${schoolYearStart} and ${sessions.status} in ('VALIDATED', 'SENT_FOR_PAYMENT') then 1 end)::int`,
       })
-    );
+      .from(users)
+      .leftJoin(sessions, and(eq(sessions.teacherId, users.id), isNull(sessions.deletedAt)))
+      .where(eq(users.role, 'TEACHER'))
+      .groupBy(users.id);
 
-    res.json(teachersWithStats);
+    const result = teachersWithStats.map(t => ({
+      id: t.id,
+      name: `${t.firstName || ''} ${t.lastName || t.name}`.trim(),
+      username: t.username,
+      initials: `${(t.firstName || '')[0] || ''}${(t.lastName || t.name || '')[0] || ''}`.toUpperCase(),
+      inPacte: t.inPacte || false,
+      pacteHoursTarget: t.pacteHoursTarget || 0,
+      pacteHoursCompleted: t.pacteHoursCompleted || 0,
+      pacteHoursDF: t.pacteHoursDF || 0,
+      pacteHoursRCD: t.pacteHoursRCD || 0,
+      pacteHoursCompletedDF: t.pacteHoursCompletedDF || 0,
+      pacteHoursCompletedRCD: t.pacteHoursCompletedRCD || 0,
+      stats: {
+        totalSessions: t.totalSessions,
+        currentYearSessions: t.currentYearSessions,
+        rcdSessions: t.rcdSessions,
+        devoirsFaitsSessions: t.devoirsFaitsSessions,
+        hseSessions: t.hseSessions,
+        validatedSessions: t.validatedSessions,
+      }
+    }));
+
+    res.json(result);
   } catch (error) {
-    console.error('Erreur recuperation enseignants:', error);
+    console.error('Erreur récupération enseignants:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -111,16 +119,21 @@ router.get('/statistics', requireSecretary, async (req, res) => {
 router.patch('/teachers/:id/status', requireSecretary, async (req, res) => {
   try {
     const teacherId = parseInt(req.params.id);
-    const { inPacte, pacteHoursTarget } = req.body;
-
     if (isNaN(teacherId)) {
       return res.status(400).json({ error: 'ID invalide' });
     }
 
+    const parseResult = pacteStatusSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: 'Données invalides', details: parseResult.error.errors });
+    }
+
+    const { inPacte, pacteHoursTarget } = parseResult.data;
+
     const [updatedUser] = await db
       .update(users)
       .set({
-        inPacte: inPacte,
+        inPacte,
         pacteHoursTarget: pacteHoursTarget || 0,
       })
       .where(eq(users.id, teacherId))
@@ -147,30 +160,27 @@ router.patch('/teachers/:id/status', requireSecretary, async (req, res) => {
 router.patch('/teachers/:id/contrat', requireSecretary, async (req, res) => {
   try {
     const teacherId = parseInt(req.params.id);
-    const {
-      pacteHoursDF,
-      pacteHoursRCD,
-      pacteHoursCompletedDF,
-      pacteHoursCompletedRCD,
-      pacteHoursTarget,
-      pacteHoursCompleted,
-      inPacte
-    } = req.body;
-
     if (isNaN(teacherId)) {
       return res.status(400).json({ error: 'ID invalide' });
     }
 
+    const parseResult = pacteContratSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: 'Données invalides', details: parseResult.error.errors });
+    }
+
+    const data = parseResult.data;
+
     const [updatedUser] = await db
       .update(users)
       .set({
-        inPacte: inPacte,
-        pacteHoursTarget: pacteHoursTarget || 0,
-        pacteHoursCompleted: pacteHoursCompleted || 0,
-        pacteHoursDF: pacteHoursDF || 0,
-        pacteHoursRCD: pacteHoursRCD || 0,
-        pacteHoursCompletedDF: pacteHoursCompletedDF || 0,
-        pacteHoursCompletedRCD: pacteHoursCompletedRCD || 0,
+        inPacte: data.inPacte,
+        pacteHoursTarget: data.pacteHoursTarget || 0,
+        pacteHoursCompleted: data.pacteHoursCompleted || 0,
+        pacteHoursDF: data.pacteHoursDF || 0,
+        pacteHoursRCD: data.pacteHoursRCD || 0,
+        pacteHoursCompletedDF: data.pacteHoursCompletedDF || 0,
+        pacteHoursCompletedRCD: data.pacteHoursCompletedRCD || 0,
         updatedAt: new Date(),
       })
       .where(eq(users.id, teacherId))

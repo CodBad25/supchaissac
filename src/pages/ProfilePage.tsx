@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Mail, BookOpen, ArrowLeft, Save, Eye, EyeOff, CheckCircle, Loader2 } from 'lucide-react';
+import { User, Mail, BookOpen, ArrowLeft, Save, Eye, EyeOff, CheckCircle, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 
 interface UserProfile {

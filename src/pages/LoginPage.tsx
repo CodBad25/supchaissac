@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Shield, ArrowRight, Info, User, Lock, Plus, GraduationCap, ClipboardList, Building2, Settings } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, User, Lock, GraduationCap, ClipboardList, Building2, Settings } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import Onboarding, { shouldShowOnboarding } from '../components/Onboarding';
 
@@ -81,12 +81,12 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isTestMode, setIsTestMode] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const [showOnboarding, setShowOnboarding] = useState(shouldShowOnboarding());
 
   // Utilisateurs chargés depuis la base de données
   const [teacherAccounts, setTeacherAccounts] = useState<DisplayAccount[]>([]);
   const [adminAccounts, setAdminAccounts] = useState<DisplayAccount[]>([]);
-  const [usersLoading, setUsersLoading] = useState(true);
 
   // Charger les utilisateurs au montage (seulement les comptes de démo @example.com)
   useEffect(() => {
@@ -136,8 +136,6 @@ const LoginPage: React.FC = () => {
         }
       } catch (error) {
         console.error('Erreur chargement utilisateurs:', error);
-      } finally {
-        setUsersLoading(false);
       }
     };
 
@@ -147,6 +145,7 @@ const LoginPage: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setLoginError('');
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -158,10 +157,10 @@ const LoginPage: React.FC = () => {
         credentials: 'include',
       });
 
+      const data = await response.json();
       if (response.ok) {
-        const userData = await response.json();
         // Redirection selon le role
-        switch (userData.role) {
+        switch (data.role) {
           case 'SECRETARY':
             navigate('/secretary');
             break;
@@ -177,19 +176,46 @@ const LoginPage: React.FC = () => {
             break;
         }
       } else {
-        alert('Erreur de connexion');
+        setLoginError(data.error || 'Identifiants incorrects');
       }
     } catch (error) {
       console.error('Erreur:', error);
-      alert('Erreur de connexion');
+      setLoginError('Erreur de connexion au serveur');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleTestAccountClick = (account: DisplayAccount) => {
+  const handleTestAccountClick = async (account: DisplayAccount) => {
     setEmail(account.email);
     setPassword('password123');
+    setLoginError('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: account.email, password: 'password123' }),
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        switch (data.role) {
+          case 'SECRETARY': navigate('/secretary'); break;
+          case 'PRINCIPAL': navigate('/principal'); break;
+          case 'ADMIN': navigate('/admin'); break;
+          case 'TEACHER': default: navigate('/dashboard'); break;
+        }
+      } else {
+        setLoginError(data.error || 'Erreur de connexion');
+      }
+    } catch {
+      setLoginError('Erreur de connexion au serveur');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Show onboarding on first visit
@@ -301,6 +327,13 @@ const LoginPage: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Erreur de connexion */}
+            {loginError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                {loginError}
+              </div>
+            )}
 
             {/* Login Button */}
             <button

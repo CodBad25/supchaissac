@@ -3,6 +3,7 @@ import { db } from '../../src/lib/db';
 import { hourQuotas, sessions } from '../../src/lib/schema';
 import { requirePrincipal } from '../middleware/auth';
 import { eq, and, gte, lte } from 'drizzle-orm';
+import { quotaUpdateSchema } from '../validators';
 
 const router = Router();
 
@@ -47,7 +48,7 @@ router.get('/', requirePrincipal, async (req, res) => {
 
     // Filtrer les sessions validees ou payees
     const validatedSessions = allSessions.filter(s =>
-      s.status === 'VALIDATED' || s.status === 'PAID'
+      s.status === 'VALIDATED' || s.status === 'SENT_FOR_PAYMENT'
     );
 
     // Calculer la consommation par type
@@ -80,13 +81,14 @@ router.get('/', requirePrincipal, async (req, res) => {
 // PUT /api/quotas - Mettre a jour les quotas (upsert)
 router.put('/', requirePrincipal, async (req, res) => {
   try {
-    const { quotas: quotaUpdates } = req.body;
+    const parseResult = quotaUpdateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: 'Données invalides', details: parseResult.error.errors });
+    }
+
+    const { quotas: quotaUpdates } = parseResult.data;
     const schoolYear = getCurrentSchoolYear();
     const userName = req.user?.name || 'Unknown';
-
-    if (!Array.isArray(quotaUpdates)) {
-      return res.status(400).json({ error: 'Format invalide: quotas doit etre un tableau' });
-    }
 
     for (const update of quotaUpdates) {
       if (!update.type || typeof update.budgetHours !== 'number') {

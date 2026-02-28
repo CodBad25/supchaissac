@@ -11,7 +11,7 @@ async function hashPassword(password: string): Promise<string> {
 // Données de test - Utilisateurs
 export const TEST_USERS = [
   {
-    username: "teacher1@example.com",
+    username: "sophie.martin@example.com",
     password: "password123",
     name: "Sophie MARTIN",
     firstName: "Sophie",
@@ -25,7 +25,7 @@ export const TEST_USERS = [
     pacteHoursCompleted: 0
   },
   {
-    username: "teacher2@example.com",
+    username: "marie.petit@example.com",
     password: "password123",
     name: "Marie PETIT",
     firstName: "Marie",
@@ -39,7 +39,7 @@ export const TEST_USERS = [
     pacteHoursCompleted: 8
   },
   {
-    username: "teacher3@example.com",
+    username: "martin.dubois@example.com",
     password: "password123",
     name: "Martin DUBOIS",
     firstName: "Martin",
@@ -53,7 +53,7 @@ export const TEST_USERS = [
     pacteHoursCompleted: 0
   },
   {
-    username: "teacher4@example.com",
+    username: "philippe.garcia@example.com",
     password: "password123",
     name: "Philippe GARCIA",
     firstName: "Philippe",
@@ -67,7 +67,7 @@ export const TEST_USERS = [
     pacteHoursCompleted: 12
   },
   {
-    username: "secretary@example.com",
+    username: "laure.martin@example.com",
     password: "password123",
     name: "Laure MARTIN",
     firstName: "Laure",
@@ -77,7 +77,7 @@ export const TEST_USERS = [
     initials: "LM"
   },
   {
-    username: "principal@example.com",
+    username: "jean.dupont@example.com",
     password: "password123",
     name: "Jean DUPONT",
     firstName: "Jean",
@@ -212,7 +212,18 @@ export async function seedDatabase() {
 
     // 2. Créer les sessions de test
     console.log('📋 Création des sessions...')
-    await db.insert(sessions).values(TEST_SESSIONS).onConflictDoNothing()
+    // Ajouter validatedAt aux sessions VALIDATED avant insertion
+    const sessionsWithDates = TEST_SESSIONS.map(s => {
+      if (s.status === 'VALIDATED') {
+        // Date de validation = 3 jours après la date de la session
+        const sessionDate = new Date(s.date)
+        const validatedDate = new Date(sessionDate)
+        validatedDate.setDate(validatedDate.getDate() + 3)
+        return { ...s, validatedAt: validatedDate }
+      }
+      return s
+    })
+    await db.insert(sessions).values(sessionsWithDates).onConflictDoNothing()
     console.log(`✅ ${TEST_SESSIONS.length} sessions créées`)
 
     // 3. Créer les paramètres système

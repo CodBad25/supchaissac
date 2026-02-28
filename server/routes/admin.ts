@@ -9,6 +9,7 @@ import iconv from 'iconv-lite';
 import { generateActivationToken, sendActivationEmail, isAcademicEmail, getActivationLink, isEmailEnabled } from '../services/email';
 import { updateUserSchema } from '../validators/user';
 import { validatePassword } from '../validators/password';
+import { importUsersSchema } from '../validators';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/auth';
 
 const router = Router();
@@ -67,7 +68,6 @@ function parseTeacherCSV(content: string): { headers: string[]; rows: Record<str
   return { headers, rows };
 }
 
-// Utiliser le middleware importé depuis ../middleware/auth
 const requireAdmin = requireAdminMiddleware;
 
 // GET /api/admin/stats - Statistiques globales
@@ -100,7 +100,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
       s.status === 'PENDING_REVIEW' || s.status === 'PENDING_VALIDATION'
     );
     const validatedSessions = allSessions.filter(s =>
-      s.status === 'VALIDATED' || s.status === 'PAID'
+      s.status === 'VALIDATED' || s.status === 'SENT_FOR_PAYMENT'
     );
 
     // Heures par type
@@ -322,11 +322,11 @@ router.post('/users/:id/reset-password', requireAdmin, async (req, res) => {
 // POST /api/admin/import - Import CSV (Pronote)
 router.post('/import', requireAdmin, async (req, res) => {
   try {
-    const { users: importUsers } = req.body;
-
-    if (!Array.isArray(importUsers)) {
-      return res.status(400).json({ error: 'Format invalide' });
+    const parseResult = importUsersSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: 'Format invalide', details: parseResult.error.errors });
     }
+    const { users: importUsers } = parseResult.data;
 
     let created = 0;
     let updated = 0;

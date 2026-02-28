@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   LogOut, Search, Calendar, Clock, User, FileText,
   Download, CheckCircle, Eye, AlertCircle, XCircle,
-  Paperclip, Home, ClipboardCheck, X, CheckSquare, Square, HelpCircle,
-  Users, TrendingUp, Pencil, Trash2, AlertTriangle, BookOpen
+  Paperclip, Home, ClipboardCheck, X, CheckSquare, Square,
+  Users, TrendingUp, Trash2, AlertTriangle, BookOpen, HelpCircle
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { useToast } from '../components/ToastProvider';
 import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
 import { ContratsPacte } from '../components/ContratsPacte';
 import type { TourStep } from '../components/GuidedTour';
@@ -61,7 +62,8 @@ interface Session {
   replacedTeacherLastName?: string;
   teacherId: number;
   teacherName?: string;
-  teacherSubject?: string; // Matière de l'enseignant
+  teacherSubject?: string;
+  teacherInPacte?: boolean;
   comment?: string;
   reviewComments?: string;
   validationComments?: string;
@@ -129,6 +131,7 @@ type ActionState = null | 'VALIDATE_COMMENT_PROMPT' | 'REJECT_COMMENT_PROMPT' | 
 
 export default function PrincipalDashboard() {
   const navigate = useNavigate();
+  const { showError } = useToast();
 
   // User state
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -152,7 +155,7 @@ export default function PrincipalDashboard() {
 
   // Quotas state
   const [quotas, setQuotas] = useState<Quota[]>([]);
-  const [quotasLoading, setQuotasLoading] = useState(false);
+  const [_quotasLoading, setQuotasLoading] = useState(false);
   const [editingQuotas, setEditingQuotas] = useState(false);
   const [tempQuotas, setTempQuotas] = useState<{[key: string]: number}>({});
 
@@ -337,13 +340,6 @@ export default function PrincipalDashboard() {
     setActionState('VALIDATE_COMMENT_PROMPT');
   };
 
-  // Verifier si la validation est possible (pour AUTRE, conversion requise)
-  const canValidate = () => {
-    if (!selectedSession) return false;
-    if (selectedSession.type === 'AUTRE' && !conversionType) return false;
-    return true;
-  };
-
   // Initier rejet
   const handleReject = () => {
     setActionState('REJECT_COMMENT_PROMPT');
@@ -389,11 +385,11 @@ export default function PrincipalDashboard() {
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ Erreur API validation:', response.status, errorData);
-        alert(`Erreur: ${errorData.error || errorData.details || 'Erreur serveur'}`);
+        showError('Erreur', errorData.error || errorData.details || 'Erreur serveur');
       }
     } catch (error) {
       console.error('❌ Erreur validation:', error);
-      alert('Erreur de connexion au serveur');
+      showError('Erreur de connexion au serveur');
     } finally {
       setActionLoading(false);
     }
@@ -425,11 +421,11 @@ export default function PrincipalDashboard() {
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ Erreur API rejet:', response.status, errorData);
-        alert(`Erreur: ${errorData.error || errorData.details || 'Erreur serveur'}`);
+        showError('Erreur', errorData.error || errorData.details || 'Erreur serveur');
       }
     } catch (error) {
       console.error('❌ Erreur rejet:', error);
-      alert('Erreur de connexion au serveur');
+      showError('Erreur de connexion au serveur');
     } finally {
       setActionLoading(false);
     }
@@ -455,24 +451,24 @@ export default function PrincipalDashboard() {
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ Erreur API suppression:', response.status, errorData);
-        alert(`Erreur: ${errorData.error || errorData.details || 'Erreur serveur'}`);
+        showError('Erreur', errorData.error || errorData.details || 'Erreur serveur');
       }
     } catch (error) {
       console.error('❌ Erreur suppression:', error);
-      alert('Erreur de connexion au serveur');
+      showError('Erreur de connexion au serveur');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Annuler decision (VALIDATED/REJECTED -> PENDING_VALIDATION, PAID "Mis en paiement" -> VALIDATED)
+  // Annuler decision (VALIDATED/REJECTED -> PENDING_VALIDATION, SENT_FOR_PAYMENT "Mis en paiement" -> VALIDATED)
   const handleCancelDecision = async () => {
     if (!selectedSession) return;
     setActionLoading(true);
 
     // Determiner l'action selon le statut actuel
-    const action = selectedSession.status === 'PAID' ? 'unpay' : 'cancel';
-    const newStatus = selectedSession.status === 'PAID' ? 'VALIDATED' : 'PENDING_VALIDATION';
+    const action = selectedSession.status === 'SENT_FOR_PAYMENT' ? 'unpay' : 'cancel';
+    const newStatus = selectedSession.status === 'SENT_FOR_PAYMENT' ? 'VALIDATED' : 'PENDING_VALIDATION';
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/sessions/${selectedSession.id}/validate`, {
@@ -676,7 +672,7 @@ export default function PrincipalDashboard() {
       setShowBatchDeleteModal(false);
     } catch (error) {
       console.error('Erreur suppression en lot:', error);
-      alert('Erreur lors de la suppression');
+      showError('Erreur lors de la suppression');
     } finally {
       setBatchActionLoading(false);
     }
@@ -708,7 +704,7 @@ export default function PrincipalDashboard() {
     if (sessionFilter === 'pending') {
       filtered = filtered.filter(s => s.status === 'PENDING_VALIDATION' || s.status === 'PENDING_REVIEW');
     } else if (sessionFilter === 'validated') {
-      filtered = filtered.filter(s => s.status === 'VALIDATED' || s.status === 'PAID');
+      filtered = filtered.filter(s => s.status === 'VALIDATED' || s.status === 'SENT_FOR_PAYMENT');
     } else if (sessionFilter === 'rejected') {
       filtered = filtered.filter(s => s.status === 'REJECTED');
     }
@@ -739,7 +735,7 @@ export default function PrincipalDashboard() {
   // Stats
   const stats = {
     pending: sessions.filter(s => s.status === 'PENDING_VALIDATION' || s.status === 'PENDING_REVIEW').length,
-    validated: sessions.filter(s => s.status === 'VALIDATED' || s.status === 'PAID').length,
+    validated: sessions.filter(s => s.status === 'VALIDATED' || s.status === 'SENT_FOR_PAYMENT').length,
     rejected: sessions.filter(s => s.status === 'REJECTED').length,
   };
 
@@ -1355,7 +1351,7 @@ export default function PrincipalDashboard() {
         ) : activeTab === 'stats' ? (
           <div className="space-y-3">
             {(() => {
-              const validatedSessions = periodFilteredSessions.filter(s => s.status === 'VALIDATED' || s.status === 'PAID');
+              const validatedSessions = periodFilteredSessions.filter(s => s.status === 'VALIDATED' || s.status === 'SENT_FOR_PAYMENT');
               const hseCount = validatedSessions.filter(s => s.type === 'HSE').length;
               const dfCount = validatedSessions.filter(s => s.type === 'DEVOIRS_FAITS').length;
               const rcdCount = validatedSessions.filter(s => s.type === 'RCD').length;
@@ -1442,7 +1438,7 @@ export default function PrincipalDashboard() {
                 weekEnd.setDate(weekStart.getDate() + 6);
                 const weekSessions = sessions.filter(s => {
                   const d = new Date(s.date);
-                  return d >= weekStart && d <= weekEnd && (s.status === 'VALIDATED' || s.status === 'PAID');
+                  return d >= weekStart && d <= weekEnd && (s.status === 'VALIDATED' || s.status === 'SENT_FOR_PAYMENT');
                 });
                 weeks.push({
                   label: `${weekStart.getDate()}/${weekStart.getMonth() + 1}`,
@@ -1481,7 +1477,7 @@ export default function PrincipalDashboard() {
               for (const { month, year } of schoolMonths) {
                 const monthSessions = sessions.filter(s => {
                   const d = new Date(s.date);
-                  return d.getMonth() === month && d.getFullYear() === year && (s.status === 'VALIDATED' || s.status === 'PAID');
+                  return d.getMonth() === month && d.getFullYear() === year && (s.status === 'VALIDATED' || s.status === 'SENT_FOR_PAYMENT');
                 });
                 months.push({
                   label: monthNames[month],
@@ -2007,39 +2003,39 @@ export default function PrincipalDashboard() {
       {showDetailModal && selectedSession && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100">
+            <div className="px-5 py-4 border-b border-gray-100">
               <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Validation de seance</h2>
-                  <p className="text-sm text-gray-600">
-                    {formatDate(selectedSession.date)},{' '}
-                    <span className={selectedSession.timeSlot.includes('M') ? 'text-sky-600 font-medium' : 'text-amber-600 font-medium'}>
-                      {selectedSession.timeSlot}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h2 className="text-lg font-bold text-gray-900">{selectedSession.teacherName}</h2>
+                  {selectedSession.teacherInPacte ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 font-medium">
+                      <FileText className="w-3 h-3" />
+                      PACTE
                     </span>
-                  </p>
-                </div>
-                <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Infos principales */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase font-medium">Enseignant</p>
-                  <p className="font-semibold text-gray-900">{selectedSession.teacherName}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase font-medium">Type de seance</p>
-                  <span className={`inline-block mt-1 px-2 py-1 text-xs rounded-full ${getTypeColor(selectedSession.type)}`}>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-500">
+                      Sans PACTE
+                    </span>
+                  )}
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${getTypeColor(selectedSession.type)}`}>
                     {selectedSession.type === 'RCD' ? 'RCD' :
                      selectedSession.type === 'DEVOIRS_FAITS' ? 'Devoirs Faits' :
                      selectedSession.type === 'HSE' ? 'HSE' : 'Autre'}
                   </span>
                 </div>
+                <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
+              <p className="text-sm text-gray-500 mt-1">
+                {formatDate(selectedSession.date)},{' '}
+                <span className={selectedSession.timeSlot.includes('M') ? 'text-sky-600 font-medium' : 'text-amber-600 font-medium'}>
+                  {selectedSession.timeSlot}
+                </span>
+              </p>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
 
               {/* Details RCD */}
               {selectedSession.type === 'RCD' && (
@@ -2133,25 +2129,19 @@ export default function PrincipalDashboard() {
 
               {/* Details AUTRE avec conversion */}
               {selectedSession.type === 'AUTRE' && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {selectedSession.description && (
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase font-medium">Description</p>
-                      <div className="mt-1 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        {selectedSession.description}
-                      </div>
+                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-700">
+                      {selectedSession.description}
                     </div>
                   )}
 
                   {(selectedSession.status === 'PENDING_VALIDATION' || selectedSession.status === 'PENDING_REVIEW') &&
                    (actionState === 'VALIDATE_COMMENT_PROMPT' || actionState === 'VALIDATE') && (
-                    <div className="border-t pt-4">
-                      <p className="text-sm font-medium text-gray-900 mb-2">Conversion en heures</p>
-                      <p className="text-sm text-gray-500 mb-3">
-                        Convertir cette activite en :
-                      </p>
+                    <div className="border-t pt-3">
+                      <p className="text-xs text-gray-500 uppercase font-medium mb-2">Convertir en</p>
 
-                      <div className="flex flex-wrap gap-3 mb-4">
+                      <div className="flex flex-wrap gap-2 mb-3">
                         {[
                           { value: 'RCD', label: 'RCD', color: 'purple', icon: '📋' },
                           { value: 'DEVOIRS_FAITS', label: 'Devoirs Faits', color: 'blue', icon: '📚' },
@@ -2160,29 +2150,28 @@ export default function PrincipalDashboard() {
                           <button
                             key={option.value}
                             onClick={() => setConversionType(option.value)}
-                            className={`px-5 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
                               conversionType === option.value
                                 ? option.color === 'purple'
-                                  ? 'bg-purple-500 text-white shadow-lg shadow-purple-200 scale-105'
+                                  ? 'bg-purple-500 text-white shadow-md'
                                   : option.color === 'blue'
-                                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-200 scale-105'
-                                  : 'bg-rose-500 text-white shadow-lg shadow-rose-200 scale-105'
+                                  ? 'bg-blue-500 text-white shadow-md'
+                                  : 'bg-rose-500 text-white shadow-md'
                                 : option.color === 'purple'
-                                ? 'bg-purple-50 text-purple-700 border-2 border-purple-200 hover:border-purple-400 hover:bg-purple-100'
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200 hover:border-purple-400'
                                 : option.color === 'blue'
-                                ? 'bg-blue-50 text-blue-700 border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-100'
-                                : 'bg-rose-50 text-rose-700 border-2 border-rose-200 hover:border-rose-400 hover:bg-rose-100'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:border-blue-400'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200 hover:border-rose-400'
                             }`}
                           >
                             <span>{option.icon}</span>
                             <span>{option.label}</span>
-                            {conversionType === option.value && <CheckCircle className="w-4 h-4" />}
                           </button>
                         ))}
                       </div>
 
-                      <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
-                        <span className="text-sm font-medium text-gray-700">Nombre d'heures :</span>
+                      <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                        <span className="text-sm text-gray-600">Heures :</span>
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setConversionHours(Math.max(0.5, conversionHours - 0.5))}
@@ -2204,32 +2193,28 @@ export default function PrincipalDashboard() {
                 </div>
               )}
 
-              {/* Note secretariat */}
+              {/* Note secrétariat */}
               {selectedSession.reviewComments && (
-                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-                  <p className="text-xs text-amber-800 uppercase font-medium mb-1">Note du secretariat</p>
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                  <p className="text-xs text-amber-800 uppercase font-medium mb-1">Note du secrétariat</p>
                   <p className="text-sm text-amber-700">{selectedSession.reviewComments}</p>
                 </div>
               )}
 
-              {/* Pieces jointes */}
+              {/* Pièces jointes */}
               {(selectedSession.status === 'PENDING_VALIDATION' || selectedSession.status === 'PENDING_REVIEW') && (
                 <div>
-                  <p className="text-xs text-gray-500 uppercase font-medium mb-3 flex items-center gap-2">
-                    <Paperclip className="w-4 h-4" />
-                    Pieces justificatives ({attachments.length})
+                  <p className="text-xs text-gray-500 uppercase font-medium mb-2 flex items-center gap-2">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    Pièces justificatives ({attachments.length})
                   </p>
 
                   {attachmentsLoading ? (
-                    <div className="bg-gray-50 p-6 rounded-lg text-center">
-                      <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                      <p className="text-sm text-gray-500">Chargement...</p>
+                    <div className="bg-gray-50 p-4 rounded-lg text-center">
+                      <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
                     </div>
                   ) : attachments.length === 0 ? (
-                    <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg text-center">
-                      <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-500">Aucune piece jointe</p>
-                    </div>
+                    <p className="text-sm text-gray-400 italic">Aucune pièce jointe</p>
                   ) : (
                     <div className="space-y-2">
                       {attachments.map(attachment => (
@@ -2288,14 +2273,14 @@ export default function PrincipalDashboard() {
 
             {/* Footer avec actions */}
             {(selectedSession.status === 'PENDING_VALIDATION' || selectedSession.status === 'PENDING_REVIEW') && (
-              <div className="p-6 border-t border-gray-100">
+              <div className="px-5 py-4 border-t border-gray-100">
                 {/* Etat: choix validation avec/sans commentaire */}
                 {actionState === 'VALIDATE_COMMENT_PROMPT' && (
                   <div className="space-y-3">
                     {/* Message si conversion requise pour AUTRE */}
                     {selectedSession.type === 'AUTRE' && !conversionType && (
                       <p className="text-sm text-amber-600 text-center">
-                        Selectionnez un type de conversion ci-dessus pour pouvoir valider
+                        Sélectionnez un type de conversion ci-dessus pour pouvoir valider
                       </p>
                     )}
                     <div className="flex flex-col sm:flex-row gap-3">
@@ -2425,8 +2410,8 @@ export default function PrincipalDashboard() {
               </div>
             )}
 
-            {/* Footer pour sessions deja traitees (VALIDATED, REJECTED ou PAID) */}
-            {(selectedSession.status === 'VALIDATED' || selectedSession.status === 'REJECTED' || selectedSession.status === 'PAID') && (
+            {/* Footer pour sessions deja traitees (VALIDATED, REJECTED ou SENT_FOR_PAYMENT) */}
+            {(selectedSession.status === 'VALIDATED' || selectedSession.status === 'REJECTED' || selectedSession.status === 'SENT_FOR_PAYMENT') && (
               <div className="p-6 border-t border-gray-100 space-y-3">
                 <div className="flex gap-3">
                   <button
@@ -2441,7 +2426,7 @@ export default function PrincipalDashboard() {
                     disabled={actionLoading}
                     className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
                   >
-                    {actionLoading ? 'Annulation...' : selectedSession.status === 'PAID' ? 'Retirer de la mise en paiement' : 'Annuler la decision'}
+                    {actionLoading ? 'Annulation...' : selectedSession.status === 'SENT_FOR_PAYMENT' ? 'Retirer de la mise en paiement' : 'Annuler la decision'}
                   </button>
                 </div>
                 <button

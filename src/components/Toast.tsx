@@ -10,17 +10,18 @@ export interface ToastProps {
   onClose: (id: string) => void;
 }
 
-const Toast: React.FC<ToastProps> = ({ id, type, title, message, duration = 5000, onClose }) => {
+const Toast: React.FC<ToastProps> = ({ id, type, title, message, duration, onClose }) => {
+  const effectiveDuration = duration ?? (type === 'error' ? 8000 : 5000);
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false);
       setTimeout(() => onClose(id), 300); // Attendre la fin de l'animation
-    }, duration);
+    }, effectiveDuration);
 
     return () => clearTimeout(timer);
-  }, [id, duration, onClose]);
+  }, [id, effectiveDuration, onClose]);
 
   const getIcon = () => {
     switch (type) {
@@ -51,15 +52,15 @@ const Toast: React.FC<ToastProps> = ({ id, type, title, message, duration = 5000
   return (
     <div
       className={`transform transition-all duration-300 ease-in-out ${
-        isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
+        isVisible ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'
       }`}
     >
-      <div className={`max-w-sm w-full ${getColors()} border rounded-lg shadow-lg p-4 pointer-events-auto`}>
+      <div className={`w-full ${getColors()} border rounded-lg shadow-lg p-4 pointer-events-auto`}>
         <div className="flex items-start">
           <div className="flex-shrink-0">
             {getIcon()}
           </div>
-          <div className="ml-3 w-0 flex-1">
+          <div className="ml-3 flex-1 min-w-0">
             <p className="text-sm font-medium">{title}</p>
             {message && (
               <p className="mt-1 text-sm opacity-90">{message}</p>

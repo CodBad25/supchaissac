@@ -4,8 +4,8 @@ import {
   LogOut, Search, Users, UserCheck, UserX, User as UserIcon,
   Upload, Key, Home, Edit2, Trash2, Plus,
   X, AlertCircle, Mail, Link2, CheckCircle,
-  Copy, ExternalLink, Settings, RefreshCcw,
-  GraduationCap, FileText, Eye, Check, HelpCircle, BookOpen
+  Copy, ExternalLink, Settings,
+  GraduationCap, FileText, Check, BookOpen
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 
@@ -66,7 +66,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'import' | 'students' | 'maintenance'>('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'TEACHER' | 'SECRETARY' | 'PRINCIPAL' | 'ADMIN'>('all');
-  const [pacteFilter, setPacteFilter] = useState<'all' | 'pacte' | 'non-pacte'>('all');
+  const [pacteFilter, _setPacteFilter] = useState<'all' | 'pacte' | 'non-pacte'>('all');
 
   // Modal state
   const [showUserModal, setShowUserModal] = useState(false);
@@ -74,7 +74,7 @@ export default function AdminDashboard() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<User | null>(null);
   const [showResetPassword, setShowResetPassword] = useState<User | null>(null);
   const [showActivationModal, setShowActivationModal] = useState<{ user: User; link?: string } | null>(null);
-  const [activationFilter, setActivationFilter] = useState<'all' | 'activated' | 'pending'>('all');
+  const [activationFilter, _setActivationFilter] = useState<'all' | 'activated' | 'pending'>('all');
   const [sendingActivation, setSendingActivation] = useState(false);
 
   // Selection state for bulk actions
@@ -94,10 +94,6 @@ export default function AdminDashboard() {
     inPacte: false,
   });
   const [newPassword, setNewPassword] = useState('');
-
-  // Import state
-  const [csvData, setCsvData] = useState('');
-  const [importResult, setImportResult] = useState<{ created: number; updated: number; errors?: string[] } | null>(null);
 
   // Teacher CSV import state
   const [teacherFile, setTeacherFile] = useState<File | null>(null);
@@ -493,39 +489,6 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Error resetting password:', error);
-    }
-  };
-
-  // Import CSV
-  const handleImport = async () => {
-    try {
-      // Parse CSV
-      const lines = csvData.trim().split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-
-      const importUsers = lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim());
-        const user: any = {};
-        headers.forEach((h, i) => {
-          user[h] = values[i];
-        });
-        return user;
-      });
-
-      const response = await fetch(`${API_BASE_URL}/api/admin/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ users: importUsers }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setImportResult(result);
-        setCsvData('');
-      }
-    } catch (error) {
-      console.error('Error importing:', error);
     }
   };
 

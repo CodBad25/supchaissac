@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Clock, CheckCircle, Calendar, ArrowRight,
+  CheckCircle, Calendar, ArrowRight,
   ChevronLeft, ChevronRight, Sparkles,
   GraduationCap, ClipboardList, Building2,
   FileText, Users, TrendingUp, MousePointer,
-  Plus, Eye, Send, CreditCard, BarChart3
+  CreditCard, BarChart3, Eye
 } from 'lucide-react';
 
 interface OnboardingProps {

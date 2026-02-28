@@ -1,6 +1,5 @@
-import { pgTable, text, serial, integer, boolean, timestamp, pgEnum, jsonb, index, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, pgEnum, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
 
 // User roles enum
 export const userRoleEnum = pgEnum('user_role', ['TEACHER', 'SECRETARY', 'PRINCIPAL', 'ADMIN']);
@@ -46,14 +45,14 @@ export const timeSlotEnum = pgEnum('time_slot', [
 export const sessionTypeEnum = pgEnum('session_type', ['RCD', 'DEVOIRS_FAITS', 'AUTRE', 'HSE']);
 
 // Session status enum
-// Note: 'PAID' signifie "Mis en paiement" (transmis pour paiement), PAS "Payé"
+// SENT_FOR_PAYMENT = "Mis en paiement" (transmis pour paiement). PAID sera réservé au futur statut "Payé"
 // Un futur statut 'PAYMENT_COMPLETED' sera ajouté pour le vrai "Payé"
 export const sessionStatusEnum = pgEnum('session_status', [
   'PENDING_REVIEW',      // Créée par enseignant, à vérifier par secrétaire
   'PENDING_VALIDATION',  // Vérifiée par secrétaire, à valider par principal
   'VALIDATED',           // Validée par principal
   'REJECTED',            // Refusée (avec motif)
-  'PAID'                 // Mis en paiement (transmis pour paiement par secrétaire) - PAS "Payé"
+  'SENT_FOR_PAYMENT'     // Mis en paiement (transmis pour paiement par secrétaire)
 ]);
 
 // Sessions model - SCHÉMA UNIFIÉ
@@ -90,8 +89,15 @@ export const sessions = pgTable("sessions", {
   validationComments: text("validation_comments"), // Commentaires principal
   rejectionReason: text("rejection_reason"), // Motif de rejet
 
+  // Traçabilité validation et paiement
+  validatedAt: timestamp("validated_at"), // Date de validation par le principal
+  paidAt: timestamp("paid_at"), // Date de mise en paiement
+
   // Traçabilité des conversions
   originalType: sessionTypeEnum("original_type"), // Type original avant conversion (null si pas de conversion)
+
+  // Soft delete
+  deletedAt: timestamp("deleted_at"), // null = actif, date = supprimé
 }, (table) => [
   index("sessions_teacher_id_idx").on(table.teacherId),
   index("sessions_date_idx").on(table.date),

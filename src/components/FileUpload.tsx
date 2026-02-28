@@ -40,7 +40,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, _setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -123,104 +123,26 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
   };
 
-  // Detecte les colonnes par leurs noms dans le header
-  const detectColumns = (headerRow: any[]): { lastName: number; firstName: number; className: number } => {
-    const result = { lastName: -1, firstName: -1, className: -1 };
-
-    const patterns = {
-      lastName: ['nom', 'name', 'last_name', 'lastname', 'nom de famille', 'nom_eleve', 'nom eleve'],
-      firstName: ['prenom', 'prénom', 'firstname', 'first_name', 'prenom_eleve', 'prénom élève'],
-      className: ['classe', 'class', 'niveau', 'division', 'groupe', 'classe_eleve']
-    };
-
-    headerRow.forEach((cell, index) => {
-      const cellText = String(cell || '').toLowerCase().trim();
-
-      if (result.lastName === -1 && patterns.lastName.some(p => cellText.includes(p))) {
-        result.lastName = index;
-      }
-      if (result.firstName === -1 && patterns.firstName.some(p => cellText.includes(p))) {
-        result.firstName = index;
-      }
-      if (result.className === -1 && patterns.className.some(p => cellText.includes(p))) {
-        result.className = index;
-      }
-    });
-
-    // Fallback: si pas de header detecte, utiliser les positions par defaut
-    if (result.lastName === -1) result.lastName = 0;
-    if (result.firstName === -1) result.firstName = 1;
-    if (result.className === -1) result.className = 2;
-
-    return result;
-  };
-
   const parseExcelFile = async (file: File) => {
     try {
-      const XLSX = await import('xlsx');
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json<any>(firstSheet, { header: 1 });
+      const data = new Uint8Array(buffer);
 
-      if (data.length < 2) {
-        setError('Fichier Excel vide ou invalide');
+      let isExcel = false;
+      if (data.length > 4) {
+        const header = data.subarray(0, 4);
+        isExcel = (header[0] === 0x50 && header[1] === 0x4B && header[2] === 0x03 && header[3] === 0x04) ||
+                  (header[0] === 0xD0 && header[1] === 0xCF && header[2] === 0x11 && header[3] === 0xE0);
+      }
+
+      if (!isExcel) {
+        setError('Format Excel invalide. Veuillez utiliser un fichier .xlsx ou .xls valide.');
         return;
       }
 
-      // Detecter les colonnes depuis le header
-      const headerRow = data[0] as any[];
-      const columns = detectColumns(headerRow);
+      setError('Parsing côté serveur uniquement. Veuillez uploader le fichier.');
 
-      const students: Student[] = [];
-      const classesSet = new Set<string>();
-
-      // Parser les donnees (skip header)
-      for (let i = 1; i < data.length; i++) {
-        const row = data[i] as any[];
-        if (!row || row.every(cell => !cell)) continue;
-
-        const lastName = String(row[columns.lastName] || '').trim().toUpperCase();
-        const firstName = formatFirstName(String(row[columns.firstName] || '').trim());
-        const className = String(row[columns.className] || '').trim().toUpperCase();
-
-        if (lastName && lastName.length >= 2) {
-          students.push({ lastName, firstName, className });
-          if (className) {
-            classesSet.add(className);
-          }
-        }
-      }
-
-      if (students.length === 0) {
-        setError('Aucun eleve trouve dans le fichier');
-        return;
-      }
-
-      const result: ExcelParseResult = {
-        students,
-        detectedColumns: {
-          lastName: headerRow[columns.lastName] ? String(headerRow[columns.lastName]) : null,
-          firstName: headerRow[columns.firstName] ? String(headerRow[columns.firstName]) : null,
-          className: headerRow[columns.className] ? String(headerRow[columns.className]) : null,
-        },
-        availableClasses: Array.from(classesSet).sort(),
-        totalRows: students.length,
-      };
-
-      setParseResult(result);
-
-      // Si showStudentSelector actif et plusieurs classes, afficher le selecteur
-      if (showStudentSelector && result.availableClasses.length > 1) {
-        setSelectedClasses(new Set(result.availableClasses)); // Tout selectionne par defaut
-        setShowSelector(true);
-      } else {
-        // Sinon, envoyer directement les eleves
-        if (onStudentsParsed) {
-          onStudentsParsed(students);
-        }
-        setSuccess(true);
-      }
+      return;
     } catch (err) {
       console.error('Excel parsing error:', err);
       setError('Erreur lors de la lecture du fichier Excel');
@@ -268,13 +190,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
     } else {
       setSelectedClasses(new Set(parseResult?.availableClasses || []));
     }
-  };
-
-  const formatFirstName = (name: string): string => {
-    if (!name) return '';
-    return name.split(/[\s-]+/)
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-      .join(' ');
   };
 
   const clearFile = () => {

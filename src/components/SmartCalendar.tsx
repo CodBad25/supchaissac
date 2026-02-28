@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Sun, Moon, Calendar, AlertCircle, Pencil, Lock, Grid3X3, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Sun, Moon, Calendar, AlertCircle, Pencil, Lock, Grid3X3, CalendarDays, MessageCircle } from 'lucide-react';
 import { format, startOfWeek, addDays, addMonths, isSameDay, isSameMonth, isWeekend, getDay, compareAsc, startOfMonth, endOfMonth, eachDayOfInterval, isToday as dateFnsIsToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useIsMobile, useIsTouchDevice } from '../hooks/useMediaQuery';
+import { useIsMobile } from '../hooks/useMediaQuery';
 import { isBlockedDate } from '../lib/holidays';
 
 interface Session {
@@ -18,6 +18,9 @@ interface Session {
   replacedTeacherFirstName?: string;
   studentCount?: number;
   description?: string;
+  validatedAt?: string;
+  paidAt?: string;
+  rejectionReason?: string;
 }
 
 interface SmartCalendarProps {
@@ -31,7 +34,6 @@ const TIME_SLOTS_AFTERNOON = ['S1', 'S2', 'S3', 'S4'];
 
 const SmartCalendar: React.FC<SmartCalendarProps> = ({ sessions, onCreateSession, onEditSession }) => {
   const isMobile = useIsMobile();
-  const isTouch = useIsTouchDevice();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
@@ -103,25 +105,12 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({ sessions, onCreateSession
     setShowMiniCalendar(false);
   };
 
-  const getSessionsForDay = (date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    return sessions.filter(s => s.date === dateStr);
-  };
-
   const getSessionsForSlot = (date: Date, timeSlot: string) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     return sessions.filter(s => s.date === dateStr && s.timeSlot === timeSlot);
   };
 
   const isToday = (date: Date) => isSameDay(date, new Date());
-
-  const getSessionColor = (type: string) => {
-    switch (type) {
-      case 'RCD': return { bg: 'bg-purple-500', text: 'text-purple-700', light: 'bg-purple-100' };
-      case 'DEVOIRS_FAITS': return { bg: 'bg-blue-500', text: 'text-blue-700', light: 'bg-blue-100' };
-      default: return { bg: 'bg-amber-500', text: 'text-amber-700', light: 'bg-amber-100' };
-    }
-  };
 
   // ============================================================================
   // MOBILE VIEW - Single Day with Swipe
@@ -822,7 +811,7 @@ const SessionsSummary: React.FC<SessionsSummaryProps> = ({ sessions, onEditSessi
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'VALIDATED': return 'Validée';
-      case 'PAID': return 'Mis en paiement';
+      case 'SENT_FOR_PAYMENT': return 'Mis en paiement';
       case 'REJECTED': return 'Refusée';
       default: return 'En attente';
     }
@@ -831,7 +820,7 @@ const SessionsSummary: React.FC<SessionsSummaryProps> = ({ sessions, onEditSessi
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'VALIDATED': return 'bg-green-50 text-green-700';
-      case 'PAID': return 'bg-green-300 text-green-900'; // "Mis en paiement"
+      case 'SENT_FOR_PAYMENT': return 'bg-green-300 text-green-900'; // "Mis en paiement"
       case 'REJECTED': return 'bg-red-100 text-red-700';
       default: return 'bg-yellow-100 text-yellow-700';
     }
@@ -911,9 +900,33 @@ const SessionsSummary: React.FC<SessionsSummaryProps> = ({ sessions, onEditSessi
                     </div>
                   </div>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-lg ${getStatusColor(session.status)}`}>
-                  {getStatusLabel(session.status)}
-                </span>
+                <div className="flex flex-col items-end gap-0.5">
+                  <div className="flex items-center gap-1">
+                    {session.status === 'REJECTED' && session.rejectionReason && (
+                      <span className="text-red-400" title={session.rejectionReason}>
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      </span>
+                    )}
+                    <span className={`text-xs px-2 py-1 rounded-lg ${getStatusColor(session.status)}`}>
+                      {getStatusLabel(session.status)}
+                    </span>
+                  </div>
+                  {session.status === 'VALIDATED' && session.validatedAt && (
+                    <span className="text-[9px] text-gray-400">
+                      le {new Date(session.validatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                  )}
+                  {session.status === 'SENT_FOR_PAYMENT' && session.paidAt && (
+                    <span className="text-[9px] text-gray-400">
+                      le {new Date(session.paidAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                  )}
+                  {session.status === 'REJECTED' && session.validatedAt && (
+                    <span className="text-[9px] text-gray-400">
+                      le {new Date(session.validatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}

@@ -5,10 +5,9 @@ import {
   Download, CheckCircle, Eye, AlertCircle, AlertTriangle,
   Paperclip, Send, Clock3, Home, ClipboardCheck,
   CreditCard, History, X, CheckSquare, Square,
-  Users, UserCheck, UserX, Edit2, TrendingUp, HelpCircle,
+  Users, UserCheck, UserX, TrendingUp, HelpCircle,
   Image, FileSpreadsheet, File, BookOpen
 } from 'lucide-react';
-import { Switch } from '../components/ui/switch';
 import { API_BASE_URL } from '../config/api';
 import { ContratsPacte } from '../components/ContratsPacte';
 import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
@@ -162,14 +161,12 @@ export default function SecretaryDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  // Modal contrat PACTE
-  const [showContratModal, setShowContratModal] = useState(false);
-  const [editingContrat, setEditingContrat] = useState<Teacher | null>(null);
-  const [contratHoursDF, setContratHoursDF] = useState(0);
-  const [contratHoursRCD, setContratHoursRCD] = useState(0);
-  const [contratCompletedDF, setContratCompletedDF] = useState(0);
-  const [contratCompletedRCD, setContratCompletedRCD] = useState(0);
-  const [showPreviousHours, setShowPreviousHours] = useState(false); // Toggle reprise en cours d'année
+  // Modal contrat PACTE (réservé pour future implémentation)
+  const [_editingContrat, _setEditingContrat] = useState<Teacher | null>(null);
+  const [_contratHoursDF, _setContratHoursDF] = useState(0);
+  const [_contratHoursRCD, _setContratHoursRCD] = useState(0);
+  const [_contratCompletedDF, _setContratCompletedDF] = useState(0);
+  const [_contratCompletedRCD, _setContratCompletedRCD] = useState(0);
 
   // Teachers & PACTE state
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -536,7 +533,7 @@ export default function SecretaryDashboard() {
     }
   };
 
-  // Marquer comme "Mis en paiement" (VALIDATED -> PAID)
+  // Marquer comme "Mis en paiement" (VALIDATED -> SENT_FOR_PAYMENT)
   const handleMarkPaid = async (session: Session) => {
     setActionLoading(true);
     try {
@@ -546,7 +543,7 @@ export default function SecretaryDashboard() {
       });
       if (response.ok) {
         setSessions(prev => prev.map(s =>
-          s.id === session.id ? { ...s, status: 'PAID' } : s
+          s.id === session.id ? { ...s, status: 'SENT_FOR_PAYMENT' } : s
         ));
       }
     } catch (error) {
@@ -690,7 +687,7 @@ export default function SecretaryDashboard() {
 
       // Mise a jour du statut
       setSessions(prev => prev.map(s =>
-        selectedIds.has(s.id) ? { ...s, status: 'PAID' } : s
+        selectedIds.has(s.id) ? { ...s, status: 'SENT_FOR_PAYMENT' } : s
       ));
 
       // Apres 2 secondes, retirer les sessions de la transition
@@ -715,13 +712,16 @@ export default function SecretaryDashboard() {
       filtered = filtered.filter(s =>
         s.status === 'PENDING_REVIEW' ||
         s.status === 'PENDING_DOCUMENTS' ||
-        s.status === 'PENDING_VALIDATION' ||
         transitioningSessions.has(s.id) // Garder visible pendant la transition
       );
     } else if (sessionFilter === 'to-pay') {
       filtered = filtered.filter(s => s.status === 'VALIDATED');
     } else if (sessionFilter === 'history') {
-      filtered = filtered.filter(s => s.status === 'PAID' || s.status === 'REJECTED');
+      filtered = filtered.filter(s =>
+        s.status === 'SENT_FOR_PAYMENT' ||
+        s.status === 'REJECTED' ||
+        s.status === 'PENDING_VALIDATION' // Transmises au principal, en attente de décision
+      );
     }
 
     // Search
@@ -756,7 +756,8 @@ export default function SecretaryDashboard() {
   const stats = {
     pending: sessions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'PENDING_DOCUMENTS').length,
     toPay: sessions.filter(s => s.status === 'VALIDATED').length,
-    paid: sessions.filter(s => s.status === 'PAID').length,
+    paid: sessions.filter(s => s.status === 'SENT_FOR_PAYMENT').length,
+    history: sessions.filter(s => s.status === 'SENT_FOR_PAYMENT' || s.status === 'REJECTED' || s.status === 'PENDING_VALIDATION').length,
   };
 
   // Sessions recentes (5 dernieres)
@@ -816,16 +817,16 @@ export default function SecretaryDashboard() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING_REVIEW':
-        return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">A examiner</span>;
+        return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">À examiner</span>;
       case 'PENDING_DOCUMENTS':
         return <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">En attente PJ</span>;
       case 'PENDING_VALIDATION':
-        return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">A valider</span>;
+        return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">Transmise au principal</span>;
       case 'VALIDATED':
-        return <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-100">Validee</span>;
+        return <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-100">Validée</span>;
       case 'REJECTED':
-        return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Rejete</span>;
-      case 'PAID':
+        return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Rejetée</span>;
+      case 'SENT_FOR_PAYMENT':
         return <span className="px-2 py-1 text-xs rounded-full bg-green-300 text-green-900 border border-green-400">Mis en paiement</span>;
       default:
         return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">{status}</span>;
@@ -952,7 +953,7 @@ export default function SecretaryDashboard() {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-yellow-100 text-sm">A examiner</p>
+                    <p className="text-yellow-100 text-sm">À examiner</p>
                     <p className="text-4xl font-bold">{stats.pending}</p>
                   </div>
                   <ClipboardCheck className="w-12 h-12 text-yellow-200" />
@@ -964,7 +965,7 @@ export default function SecretaryDashboard() {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-green-100 text-sm">A mettre en paiement</p>
+                    <p className="text-green-100 text-sm">À mettre en paiement</p>
                     <p className="text-4xl font-bold">{stats.toPay}</p>
                   </div>
                   <CreditCard className="w-12 h-12 text-green-200" />
@@ -1091,15 +1092,7 @@ export default function SecretaryDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {session.status === 'PENDING_REVIEW' && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">A examiner</span>
-                        )}
-                        {session.status === 'VALIDATED' && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-100">Validee</span>
-                        )}
-                        {session.status === 'PAID' && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-green-300 text-green-900 border border-green-400">Mis en paiement</span>
-                        )}
+                        {getStatusBadge(session.status)}
                         <Eye className="w-4 h-4 text-gray-400" />
                       </div>
                     </button>
@@ -1422,9 +1415,9 @@ export default function SecretaryDashboard() {
             {/* Sous-filtres Sessions */}
             <div className="flex gap-2 mb-6">
               {[
-                { id: 'pending', label: 'A examiner', count: stats.pending, icon: ClipboardCheck },
-                { id: 'to-pay', label: 'A mettre en paiement', count: stats.toPay, icon: CreditCard },
-                { id: 'history', label: 'Historique', count: stats.paid, icon: History },
+                { id: 'pending', label: 'À examiner', count: stats.pending, icon: ClipboardCheck },
+                { id: 'to-pay', label: 'À mettre en paiement', count: stats.toPay, icon: CreditCard },
+                { id: 'history', label: 'Historique', count: stats.history, icon: History },
               ].map(filter => (
                 <button
                   key={filter.id}

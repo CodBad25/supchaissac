@@ -1,156 +1,131 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs'
 
 export interface Student {
-  lastName: string;
-  firstName: string;
-  className: string;
+  lastName: string
+  firstName: string
+  className: string
 }
 
 export interface ParseResult {
-  students: Student[];
-  errors: string[];
-  totalRows: number;
-  successCount: number;
+  students: Student[]
+  errors: string[]
+  totalRows: number
+  successCount: number
 }
 
 /**
- * Parse un fichier Excel et extrait la liste des eleves
- * Format attendu: NOM | Prenom | Classe
- * ou: NOM Prenom | Classe
+ * Parse un fichier Excel et extrait la liste des élèves
+ * Format attendu: NOM | Prénom | Classe
+ * ou: NOM Prénom | Classe
  */
-export function parseStudentList(buffer: Buffer): ParseResult {
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
-  const firstSheetName = workbook.SheetNames[0];
-  const firstSheet = workbook.Sheets[firstSheetName];
-  const data = XLSX.utils.sheet_to_json<any>(firstSheet, { header: 1 });
+export async function parseStudentList(buffer: Buffer): Promise<ParseResult> {
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(buffer)
+  const sheet = workbook.worksheets[0]
 
-  const students: Student[] = [];
-  const errors: string[] = [];
-  let totalRows = 0;
+  if (!sheet) {
+    return { students: [], errors: ['Aucune feuille trouvée'], totalRows: 0, successCount: 0 }
+  }
 
-  // Detecter si la premiere ligne est un header
-  const hasHeader = isHeaderRow(data[0]);
-  const startIndex = hasHeader ? 1 : 0;
+  const students: Student[] = []
+  const errors: string[] = []
+  let totalRows = 0
 
-  for (let i = startIndex; i < data.length; i++) {
-    const row = data[i];
-    if (!row || !Array.isArray(row) || row.every(cell => !cell)) continue;
+  // Détecter si la première ligne est un header
+  const firstRow = sheet.getRow(1)
+  const hasHeader = isHeaderRow(firstRow)
+  const startIndex = hasHeader ? 2 : 1
 
-    totalRows++;
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber < startIndex) return
+
+    const cells = row.values as unknown[]
+    // ExcelJS rows are 1-indexed, values[0] is undefined
+    const cleanCells = (Array.isArray(cells) ? cells.slice(1) : [])
+      .map(cell => String(cell ?? '').trim())
+      .filter(c => c)
+
+    if (cleanCells.length === 0) return
+
+    totalRows++
 
     try {
-      const student = parseRow(row, i + 1);
+      const student = parseRow(cleanCells, rowNumber)
       if (student) {
-        students.push(student);
+        students.push(student)
       } else {
-        errors.push(`Ligne ${i + 1}: donnees incompletes`);
+        errors.push(`Ligne ${rowNumber}: données incomplètes`)
       }
-    } catch (err) {
-      errors.push(`Ligne ${i + 1}: erreur de parsing`);
+    } catch {
+      errors.push(`Ligne ${rowNumber}: erreur de parsing`)
     }
-  }
+  })
 
-  return {
-    students,
-    errors,
-    totalRows,
-    successCount: students.length,
-  };
+  return { students, errors, totalRows, successCount: students.length }
 }
 
-/**
- * Verifie si une ligne ressemble a un header
- */
-function isHeaderRow(row: any[]): boolean {
-  if (!row || !Array.isArray(row)) return false;
+function isHeaderRow(row: ExcelJS.Row): boolean {
+  const headerKeywords = ['nom', 'prenom', 'prénom', 'classe', 'name', 'first', 'last', 'eleve', 'élève']
+  const rowText = (row.values as unknown[])
+    ?.slice(1)
+    ?.map(cell => String(cell ?? '').toLowerCase())
+    .join(' ') ?? ''
 
-  const headerKeywords = ['nom', 'prenom', 'prénom', 'classe', 'name', 'first', 'last', 'eleve', 'élève'];
-  const rowText = row.map(cell => String(cell || '').toLowerCase()).join(' ');
-
-  return headerKeywords.some(keyword => rowText.includes(keyword));
+  return headerKeywords.some(keyword => rowText.includes(keyword))
 }
 
-/**
- * Parse une ligne et extrait les informations de l'eleve
- */
-function parseRow(row: any[], lineNumber: number): Student | null {
-  let lastName = '';
-  let firstName = '';
-  let className = '';
+function parseRow(cells: string[], lineNumber: number): Student | null {
+  let lastName = ''
+  let firstName = ''
+  let className = ''
 
-  // Nettoyer les cellules
-  const cleanRow = row.map(cell => String(cell || '').trim());
-
-  if (cleanRow.length >= 3) {
-    // Format: NOM | Prenom | Classe
-    lastName = cleanRow[0].toUpperCase();
-    firstName = formatFirstName(cleanRow[1]);
-    className = cleanRow[2].toUpperCase();
-  } else if (cleanRow.length === 2) {
-    // Format: NOM Prenom | Classe
-    const firstCell = cleanRow[0];
-    const parts = firstCell.split(/\s+/);
-
+  if (cells.length >= 3) {
+    lastName = cells[0].toUpperCase()
+    firstName = formatFirstName(cells[1])
+    className = cells[2].toUpperCase()
+  } else if (cells.length === 2) {
+    const parts = cells[0].split(/\s+/)
     if (parts.length >= 2) {
-      lastName = parts[0].toUpperCase();
-      firstName = formatFirstName(parts.slice(1).join(' '));
+      lastName = parts[0].toUpperCase()
+      firstName = formatFirstName(parts.slice(1).join(' '))
     } else {
-      lastName = firstCell.toUpperCase();
+      lastName = cells[0].toUpperCase()
     }
-    className = cleanRow[1].toUpperCase();
-  } else if (cleanRow.length === 1) {
-    // Format: NOM Prenom Classe (tout dans une cellule)
-    const parts = cleanRow[0].split(/\s+/);
+    className = cells[1].toUpperCase()
+  } else if (cells.length === 1) {
+    const parts = cells[0].split(/\s+/)
     if (parts.length >= 3) {
-      lastName = parts[0].toUpperCase();
-      firstName = formatFirstName(parts.slice(1, -1).join(' '));
-      className = parts[parts.length - 1].toUpperCase();
+      lastName = parts[0].toUpperCase()
+      firstName = formatFirstName(parts.slice(1, -1).join(' '))
+      className = parts[parts.length - 1].toUpperCase()
     } else if (parts.length === 2) {
-      lastName = parts[0].toUpperCase();
-      className = parts[1].toUpperCase();
+      lastName = parts[0].toUpperCase()
+      className = parts[1].toUpperCase()
     } else {
-      return null;
+      return null
     }
   }
 
-  // Validation minimale
-  if (!lastName || lastName.length < 2) {
-    return null;
-  }
+  if (!lastName || lastName.length < 2) return null
 
-  return { lastName, firstName, className };
+  return { lastName, firstName, className }
 }
 
-/**
- * Formate un prenom avec majuscule initiale
- */
 function formatFirstName(name: string): string {
-  if (!name) return '';
+  if (!name) return ''
   return name
     .split(/[\s-]+/)
-    .map(part => {
-      if (part.length === 0) return '';
-      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-    })
+    .map(part => part.length === 0 ? '' : part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .filter(Boolean)
-    .join(' ');
+    .join(' ')
 }
 
-/**
- * Valide qu'un fichier est bien un Excel
- */
 export function isValidExcelFile(mimeType: string, filename: string): boolean {
   const validMimes = [
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  ];
+  ]
+  const validExtensions = ['.xlsx', '.xls']
 
-  const validExtensions = ['.xlsx', '.xls'];
-
-  const hasValidMime = validMimes.includes(mimeType);
-  const hasValidExt = validExtensions.some(ext =>
-    filename.toLowerCase().endsWith(ext)
-  );
-
-  return hasValidMime || hasValidExt;
+  return validMimes.includes(mimeType) || validExtensions.some(ext => filename.toLowerCase().endsWith(ext))
 }

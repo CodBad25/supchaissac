@@ -13,7 +13,7 @@ const router = Router()
 // Rate limiting pour protéger contre les attaques brute-force
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 tentatives maximum
+  max: process.env.NODE_ENV === 'production' ? 5 : 50, // 5 en prod, 50 en dev
   message: { error: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,

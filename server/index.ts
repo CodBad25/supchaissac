@@ -228,9 +228,9 @@ async function startServer() {
       if (!isProduction) {
         console.log(`   - http://192.168.1.6:${PORT}/api (réseau local)`)
         console.log(`🔐 [SERVER] Comptes de test disponibles:`)
-        console.log(`   👨‍🏫 teacher1@example.com / password123`)
-        console.log(`   📝 secretary@example.com / password123`)
-        console.log(`   🏛️ principal@example.com / password123`)
+        console.log(`   👨‍🏫 sophie.martin@example.com / password123`)
+        console.log(`   📝 laure.martin@example.com / password123`)
+        console.log(`   🏛️ jean.dupont@example.com / password123`)
         console.log(`   ⚙️ admin@example.com / password123`)
       }
     })

@@ -24,7 +24,7 @@ export interface SessionData {
   type: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | 'HSE';
   teacherId: number;
   teacherName: string;
-  status: 'PENDING_REVIEW' | 'PENDING_VALIDATION' | 'VALIDATED' | 'REJECTED' | 'PAID';
+  status: 'PENDING_REVIEW' | 'PENDING_VALIDATION' | 'VALIDATED' | 'REJECTED' | 'SENT_FOR_PAYMENT';
   createdAt: string;
   updatedAt: string | null;
   updatedBy: string | null;
@@ -42,6 +42,25 @@ export interface SessionData {
   validationComments: string | null;
   rejectionReason: string | null;
   originalType: string | null;
+  validatedAt: string | null;
+  paidAt: string | null;
+}
+
+// Type pour les données de formulaire de session (création/édition)
+export interface SessionFormData {
+  date: string;
+  timeSlot: string;
+  type: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | 'HSE';
+  className?: string;
+  replacedTeacherPrefix?: string;
+  replacedTeacherLastName?: string;
+  replacedTeacherFirstName?: string;
+  subject?: string;
+  gradeLevel?: string;
+  studentCount?: number;
+  studentsList?: unknown;
+  description?: string;
+  comment?: string;
 }
 
 export interface AttachmentData {

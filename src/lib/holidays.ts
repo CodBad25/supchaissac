@@ -61,10 +61,6 @@ export function getFrenchHolidays(year: number): Date[] {
 // ============================================================================
 
 export function getSchoolHolidays(schoolYear: string): HolidayPeriod[] {
-  // Format: "2024-2025"
-  const [startYear] = schoolYear.split('-').map(Number);
-  const endYear = startYear + 1;
-
   // Données officielles du Ministère de l'Éducation Nationale
   const holidays: Record<string, HolidayPeriod[]> = {
     '2024-2025': [

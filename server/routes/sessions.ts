@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from '../../src/lib/db';
 import { sessions, insertSessionSchema, users, attachments } from '../../src/lib/schema';
 import { requireAuth, requireSecretary, requirePrincipal } from '../middleware/auth';
-import { eq, and, desc, or, inArray } from 'drizzle-orm';
+import { eq, and, desc, or, inArray, isNull } from 'drizzle-orm';
 import { isBlockedDate } from '../services/holidays';
 
 const router = Router();
@@ -74,7 +74,7 @@ router.get('/', requireAuth, async (req, res) => {
     const userSessions = await db
       .select()
       .from(sessions)
-      .where(eq(sessions.teacherId, req.user.id))
+      .where(and(eq(sessions.teacherId, req.user.id), isNull(sessions.deletedAt)))
       .orderBy(desc(sessions.createdAt));
 
     console.log(`✅ [API] ${userSessions.length} session(s) trouvée(s)`);
@@ -116,6 +116,7 @@ router.get('/admin/all', requireSecretary, async (req, res) => {
         teacherId: sessions.teacherId,
         teacherName: sessions.teacherName,
         teacherSubject: users.subject,
+        teacherInPacte: users.inPacte,
         status: sessions.status,
         createdAt: sessions.createdAt,
         updatedAt: sessions.updatedAt,
@@ -134,14 +135,18 @@ router.get('/admin/all', requireSecretary, async (req, res) => {
         validationComments: sessions.validationComments,
         rejectionReason: sessions.rejectionReason,
         originalType: sessions.originalType,
+        validatedAt: sessions.validatedAt,
+        paidAt: sessions.paidAt,
       })
       .from(sessions)
       .leftJoin(users, eq(sessions.teacherId, users.id));
 
-    // Filtrer par statut si spécifié
+    // Filtrer : exclure les sessions supprimées + filtre statut optionnel
     if (status && typeof status === 'string') {
       const statuses = status.split(',') as any[];
-      query = query.where(inArray(sessions.status, statuses)) as any;
+      query = query.where(and(isNull(sessions.deletedAt), inArray(sessions.status, statuses))) as any;
+    } else {
+      query = query.where(isNull(sessions.deletedAt)) as any;
     }
 
     // Trier par date de création (plus récent en premier)
@@ -332,13 +337,13 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à supprimer cette session' });
     }
 
-    // Supprimer les pièces jointes et la session dans une transaction
-    await db.transaction(async (tx) => {
-      await tx.delete(attachments).where(eq(attachments.sessionId, sessionId));
-      await tx.delete(sessions).where(eq(sessions.id, sessionId));
-    });
+    // Soft delete : marquer comme supprimé au lieu de supprimer
+    await db
+      .update(sessions)
+      .set({ deletedAt: new Date() })
+      .where(eq(sessions.id, sessionId));
 
-    console.log(`✅ [API] Session ${sessionId} supprimée par ${req.user.name} (${req.user.role})`);
+    console.log(`✅ [API] Session ${sessionId} supprimée (soft) par ${req.user.name} (${req.user.role})`);
 
     res.json({
       success: true,
@@ -453,8 +458,8 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
         });
       }
     } else if (action === 'unpay') {
-      // Retirer de la mise en paiement : seulement pour PAID
-      if (session.status !== 'PAID') {
+      // Retirer de la mise en paiement : seulement pour SENT_FOR_PAYMENT
+      if (session.status !== 'SENT_FOR_PAYMENT') {
         return res.status(400).json({
           error: 'Cette session ne peut pas être retirée de la mise en paiement',
           details: `Statut actuel: ${session.status}. Seules les sessions en paiement peuvent être retirées.`
@@ -480,6 +485,7 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
         status: newStatus,
         validationComments: validationComments || null,
         rejectionReason: null,
+        validatedAt: new Date(),
         updatedAt: new Date(),
         updatedBy: req.user.name,
       };
@@ -502,6 +508,7 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
         status: newStatus,
         validationComments: null,
         rejectionReason: rejectionReason || null, // Motif optionnel
+        validatedAt: new Date(), // Date de la décision (rejet)
         updatedAt: new Date(),
         updatedBy: req.user.name,
       };
@@ -530,9 +537,10 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
     if (action === 'cancel') {
       expectedStatus = session.status; // VALIDATED ou REJECTED
     } else if (action === 'unpay') {
-      expectedStatus = 'PAID';
+      expectedStatus = 'SENT_FOR_PAYMENT';
     } else if (action === 'validate' || action === 'reject') {
-      expectedStatus = 'PENDING_VALIDATION'; // Principal peut court-circuiter PENDING_REVIEW
+      // Principal peut valider/rejeter depuis PENDING_REVIEW ou PENDING_VALIDATION
+      expectedStatus = session.status;
     }
 
     const [updatedSession] = await db
@@ -601,7 +609,8 @@ router.put('/:id/mark-paid', requireSecretary, async (req, res) => {
     const [updatedSession] = await db
       .update(sessions)
       .set({
-        status: 'PAID',
+        status: 'SENT_FOR_PAYMENT',
+        paidAt: new Date(),
         updatedAt: new Date(),
         updatedBy: req.user.name,
       })

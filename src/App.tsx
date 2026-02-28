@@ -1,6 +1,6 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ToastProvider } from './components/ToastProvider';
 import LoginPage from './pages/LoginPage';
 import ActivatePage from './pages/ActivatePage';
 import TeacherDashboard from './pages/TeacherDashboard';
@@ -15,20 +15,22 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <div className="App overflow-x-hidden w-full">
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/activate" element={<ActivatePage />} />
-            <Route path="/dashboard" element={<TeacherDashboard />} />
-            <Route path="/secretary" element={<SecretaryDashboard />} />
-            <Route path="/principal" element={<PrincipalDashboard />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/help" element={<HelpPage />} />
-            <Route path="/styleguide" element={<StyleguidePage />} />
-          </Routes>
-        </div>
+        <ToastProvider>
+          <div className="App overflow-x-hidden w-full">
+            <Routes>
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/activate" element={<ActivatePage />} />
+              <Route path="/dashboard" element={<TeacherDashboard />} />
+              <Route path="/secretary" element={<SecretaryDashboard />} />
+              <Route path="/principal" element={<PrincipalDashboard />} />
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/help" element={<HelpPage />} />
+              <Route path="/styleguide" element={<StyleguidePage />} />
+            </Routes>
+          </div>
+        </ToastProvider>
       </AuthProvider>
     </Router>
   );
