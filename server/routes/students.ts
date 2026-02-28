@@ -216,8 +216,10 @@ router.get('/search', requireAuth, async (req, res) => {
 
     console.log(`[STUDENTS] Recherche: "${q}" -> "${searchTerm}"`);
 
-    // Recuperer tous les eleves de l'annee
-    const allStudents = await db
+    // Recherche SQL directe avec ILIKE (bien plus rapide que charger tous les élèves)
+    const searchPattern = `%${searchTerm}%`;
+
+    const filtered = await db
       .select({
         id: students.id,
         lastName: students.lastName,
@@ -225,40 +227,41 @@ router.get('/search', requireAuth, async (req, res) => {
         className: students.className,
       })
       .from(students)
-      .where(eq(students.schoolYear, currentSchoolYear))
-      .orderBy(asc(students.lastName), asc(students.firstName));
+      .where(
+        and(
+          eq(students.schoolYear, currentSchoolYear),
+          sql`(
+            ${students.lastName} ILIKE ${searchPattern}
+            OR ${students.firstName} ILIKE ${searchPattern}
+          )`
+        )
+      )
+      .orderBy(asc(students.lastName), asc(students.firstName))
+      .limit(maxResults);
 
-    // Verifier si la recherche correspond a une classe existante
+    // Vérifier si la recherche correspond à une classe existante
     let matchingClass: { name: string; count: number } | null = null;
-    const classStudents = allStudents.filter(s => s.className === searchTermUpper);
-    if (classStudents.length > 0) {
+    const classCount = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(students)
+      .where(
+        and(
+          eq(students.schoolYear, currentSchoolYear),
+          eq(students.className, searchTermUpper)
+        )
+      );
+    if (classCount[0]?.count > 0) {
       matchingClass = {
         name: searchTermUpper,
-        count: classStudents.length,
+        count: classCount[0].count,
       };
-      console.log(`[STUDENTS] Classe detectee: ${searchTermUpper} (${classStudents.length} eleves)`);
+      console.log(`[STUDENTS] Classe detectee: ${searchTermUpper} (${classCount[0].count} eleves)`);
     }
 
-    // Filtrer par nom OU prenom (recherche globale)
-    const filtered = allStudents.filter(s => {
-      const normalizedLastName = normalizeForSearch(s.lastName);
-      const normalizedFirstName = normalizeForSearch(s.firstName);
-      return normalizedLastName.includes(searchTerm) || normalizedFirstName.includes(searchTerm);
-    }).slice(0, maxResults);
-
-    // Si on a une classe correspondante, inclure aussi les eleves de cette classe
-    let studentsToReturn = filtered;
-    if (matchingClass && classStudents.length > 0) {
-      // Combiner: eleves de la classe + eleves trouves par nom/prenom (sans doublons)
-      const classStudentIds = new Set(classStudents.map(s => s.id));
-      const additionalStudents = filtered.filter(s => !classStudentIds.has(s.id));
-      studentsToReturn = [...classStudents.slice(0, 10), ...additionalStudents].slice(0, maxResults);
-    }
-
-    console.log(`[STUDENTS] ${studentsToReturn.length} resultats pour "${q}"`);
+    console.log(`[STUDENTS] ${filtered.length} resultats pour "${q}"`);
 
     res.json({
-      students: studentsToReturn,
+      students: filtered,
       matchingClass,
     });
   } catch (error) {

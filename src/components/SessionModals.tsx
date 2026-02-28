@@ -254,8 +254,11 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
       }]);
     }
 
-    // Ne PAS fermer le menu - garder les resultats pour ajouts multiples
-    // Le menu se fermera quand l'utilisateur clique sur X ou tape autre chose
+    // Vider le champ de recherche et les résultats après ajout
+    setSearchQuery('');
+    setSearchResults([]);
+    // Remettre le focus sur le champ de recherche pour enchaîner
+    searchInputRef.current?.focus();
   };
 
   // Add manual student

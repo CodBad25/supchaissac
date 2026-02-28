@@ -70,55 +70,55 @@ export function getSchoolHolidays(schoolYear: string): HolidayPeriod[] {
     '2024-2025': [
       {
         name: 'Vacances de la Toussaint',
-        start: new Date(2024, 9, 19),  // 19 octobre 2024
-        end: new Date(2024, 10, 4),    // 4 novembre 2024
+        start: new Date(2024, 9, 19),  // Samedi 19 octobre
+        end: new Date(2024, 10, 3),    // Dimanche 3 novembre (reprise lundi 4)
       },
       {
         name: 'Vacances de Noël',
-        start: new Date(2024, 11, 21), // 21 décembre 2024
-        end: new Date(2025, 0, 5),     // 5 janvier 2025 (reprise le 6)
+        start: new Date(2024, 11, 21), // Samedi 21 décembre
+        end: new Date(2025, 0, 5),     // Dimanche 5 janvier (reprise lundi 6)
       },
       {
         name: 'Vacances d\'hiver',
-        start: new Date(2025, 1, 8),   // 8 février 2025
-        end: new Date(2025, 1, 24),    // 24 février 2025
+        start: new Date(2025, 1, 8),   // Samedi 8 février
+        end: new Date(2025, 1, 23),    // Dimanche 23 février (reprise lundi 24)
       },
       {
         name: 'Vacances de printemps',
-        start: new Date(2025, 3, 5),   // 5 avril 2025
-        end: new Date(2025, 3, 22),    // 22 avril 2025
+        start: new Date(2025, 3, 5),   // Samedi 5 avril
+        end: new Date(2025, 3, 20),    // Dimanche 20 avril (reprise lundi 21)
       },
       {
         name: 'Vacances d\'été',
-        start: new Date(2025, 6, 5),   // 5 juillet 2025
-        end: new Date(2025, 8, 1),     // 1 septembre 2025
+        start: new Date(2025, 6, 5),   // Samedi 5 juillet
+        end: new Date(2025, 8, 1),     // Lundi 1er septembre
       },
     ],
     '2025-2026': [
       {
         name: 'Vacances de la Toussaint',
-        start: new Date(2025, 9, 18),  // 18 octobre 2025
-        end: new Date(2025, 10, 3),    // 3 novembre 2025
+        start: new Date(2025, 9, 18),  // Samedi 18 octobre
+        end: new Date(2025, 10, 2),    // Dimanche 2 novembre (reprise lundi 3)
       },
       {
         name: 'Vacances de Noël',
-        start: new Date(2025, 11, 20), // 20 décembre 2025
-        end: new Date(2026, 0, 4),     // 4 janvier 2026 (reprise le 5)
+        start: new Date(2025, 11, 20), // Samedi 20 décembre
+        end: new Date(2026, 0, 4),     // Dimanche 4 janvier (reprise lundi 5)
       },
       {
         name: 'Vacances d\'hiver',
-        start: new Date(2026, 1, 14),  // 14 février 2026
-        end: new Date(2026, 2, 2),     // 2 mars 2026
+        start: new Date(2026, 1, 14),  // Samedi 14 février
+        end: new Date(2026, 2, 1),     // Dimanche 1er mars (reprise lundi 2)
       },
       {
         name: 'Vacances de printemps',
-        start: new Date(2026, 3, 11),  // 11 avril 2026
-        end: new Date(2026, 3, 27),    // 27 avril 2026
+        start: new Date(2026, 3, 11),  // Samedi 11 avril
+        end: new Date(2026, 3, 26),    // Dimanche 26 avril (reprise lundi 27)
       },
       {
         name: 'Vacances d\'été',
-        start: new Date(2026, 6, 4),   // 4 juillet 2026
-        end: new Date(2026, 8, 1),     // 1 septembre 2026
+        start: new Date(2026, 6, 4),   // Samedi 4 juillet
+        end: new Date(2026, 8, 1),     // Mardi 1er septembre
       },
     ],
   };

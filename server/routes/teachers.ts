@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from '../../src/lib/db';
 import { users } from '../../src/lib/schema';
 import { requireAuth } from '../middleware/auth';
-import { eq, and, or, ilike, asc } from 'drizzle-orm';
+import { eq, and, or, ilike, asc, sql } from 'drizzle-orm';
 
 const router = Router();
 
@@ -29,8 +29,10 @@ router.get('/search', requireAuth, async (req, res) => {
 
     console.log(`[TEACHERS] Recherche: "${q}" -> "${searchTerm}"`);
 
-    // Recuperer tous les enseignants
-    const allTeachers = await db
+    // Recherche SQL directe avec ILIKE (pas de chargement complet en mémoire)
+    const searchPattern = `%${q as string}%`;
+
+    const filtered = await db
       .select({
         id: users.id,
         firstName: users.firstName,
@@ -40,30 +42,18 @@ router.get('/search', requireAuth, async (req, res) => {
         subject: users.subject,
       })
       .from(users)
-      .where(eq(users.role, 'TEACHER'))
-      .orderBy(asc(users.lastName), asc(users.firstName));
-
-    // Filtrer par nom OU prenom (recherche globale)
-    const filtered = allTeachers.filter(t => {
-      // Utiliser lastName/firstName si disponibles, sinon parser 'name'
-      let lastName = t.lastName || '';
-      let firstName = t.firstName || '';
-
-      // Si lastName/firstName vides, parser le champ 'name'
-      if (!lastName && !firstName && t.name) {
-        const nameParts = t.name.split(' ');
-        firstName = nameParts[0] || '';
-        lastName = nameParts.slice(1).join(' ') || '';
-      }
-
-      const normalizedLastName = normalizeForSearch(lastName);
-      const normalizedFirstName = normalizeForSearch(firstName);
-      const normalizedFullName = normalizeForSearch(t.name || '');
-
-      return normalizedLastName.includes(searchTerm) ||
-             normalizedFirstName.includes(searchTerm) ||
-             normalizedFullName.includes(searchTerm);
-    }).slice(0, maxResults);
+      .where(
+        and(
+          eq(users.role, 'TEACHER'),
+          sql`(
+            ${users.lastName} ILIKE ${searchPattern}
+            OR ${users.firstName} ILIKE ${searchPattern}
+            OR ${users.name} ILIKE ${searchPattern}
+          )`
+        )
+      )
+      .orderBy(asc(users.lastName), asc(users.firstName))
+      .limit(maxResults);
 
     // Formater les resultats
     const results = filtered.map(t => {
