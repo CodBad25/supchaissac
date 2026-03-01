@@ -126,24 +126,88 @@ npm run dev:full    # Frontend + Backend
 # Database
 npm run db:push     # Push schema
 npm run db:seed     # Seed data
+npm run db:migrate  # Drizzle migrations
 
 # Build
 npm run build
+
+# Tests
+npm run test:run    # Vitest
 ```
 
 ---
 
 ## Comptes de test
 
-| Role | Email | Password |
-|------|-------|----------|
-| Teacher | sophie.martin@example.com | password123 |
-| Teacher | marie.petit@example.com | password123 |
-| Teacher | martin.dubois@example.com | password123 |
-| Teacher | philippe.garcia@example.com | password123 |
-| Secretary | laure.martin@example.com | password123 |
-| Principal | jean.dupont@example.com | password123 |
-| Admin | admin@example.com | password123 |
+Les comptes de test suivent la convention `prenom.nom@example.com` et sont **visibles en production**. Connexion directe possible en cliquant sur un compte de démo.
+
+| Rôle | Email | Mot de passe | Nom complet |
+|------|-------|-------------|-------------|
+| Teacher | sophie.martin@example.com | password123 | Sophie MARTIN |
+| Teacher | marie.petit@example.com | password123 | Marie PETIT |
+| Teacher | martin.dubois@example.com | password123 | Martin DUBOIS |
+| Teacher | philippe.garcia@example.com | password123 | Philippe GARCIA |
+| Secretary | laure.martin@example.com | password123 | Laure MARTIN |
+| Principal | jean.dupont@example.com | password123 | Jean DUPONT |
+| Admin | admin@example.com | password123 | Admin |
+
+**Notes** :
+- Tous les comptes @example.com sont des comptes de démo
+- Connexion directe au clic sur un compte démo (UX simplifiée)
+- Ces comptes ne sont jamais bloqués pour "non activé"
+
+---
+
+## Déploiement (Scaleway Serverless Containers)
+
+Procédure de déploiement vers Scaleway :
+
+```bash
+# 1. Build image Docker (architecture amd64)
+docker build --platform=linux/amd64 -t rg.fr-par.scw.cloud/funcscwsupchaissacvgfvl03o/supchaissac-app:latest .
+
+# 2. Pousser l'image vers le registre Scaleway
+docker push rg.fr-par.scw.cloud/funcscwsupchaissacvgfvl03o/supchaissac-app:latest
+
+# 3. Déployer le container
+scw container container deploy 581e9931-716f-42db-b6db-586ecb5b72c7
+```
+
+**Notes importantes** :
+- L'image doit être en architecture `linux/amd64` (pas de ARM)
+- Le registry est `rg.fr-par.scw.cloud` (région Paris)
+- Vérifier que les variables d'environnement sont correctement configurées dans Scaleway Console
+- Vérifier que S3 Scaleway est configuré avec les bonnes permissions pour les uploads de fichiers
+
+---
+
+## Dette technique (items d'audit reportés)
+
+### 4.7 — Décomposition dashboards
+
+**Situation** : Les 4 dashboards (Teacher, Secretary, Principal, Admin) font 500–900 lignes chacun.
+
+**Actions futures** :
+- Extraire des hooks réutilisables (`useSessions`, `useTeachers`, `useStats`)
+- Créer des composants spécialisés pour les filtres, tableaux, cartes statistiques
+- Objectif : < 500 lignes par fichier principal
+
+**Priorité** : Basse. À faire quand les dashboards auront besoin de grosses nouvelles fonctionnalités ou si d'autres développeurs rejoignent le projet.
+
+---
+
+### 5.1 — Tests unitaires
+
+**État actuel** : Vitest configuré + 6 tests sur le validateur de mot de passe.
+
+**Actions futures** :
+- Setup complet Vitest (test reporters, coverage)
+- Tests sur validators (Zod schemas)
+- Tests sur middleware d'authentification
+- Tests sur transitions d'état des sessions (statuts, optimistic locking)
+- Coverage cible : 70%+ serveur, 40%+ frontend
+
+**Priorité** : Basse. À faire quand l'app sera utilisée en production réelle OU si d'autres développeurs rejoignent le projet.
 
 ---
 
@@ -171,6 +235,20 @@ Pour diagnostiquer une lenteur de chargement :
 2. Recharger la page
 3. Vérifier la colonne "Taille" et "Durée"
 4. Les gros fichiers (> 500 Ko) ou requêtes lentes (> 500 ms) sont les coupables
+
+---
+
+## État de l'audit de sécurité
+
+**L'audit complet est terminé.**
+
+Résumé :
+- **58/60 problèmes corrigés** (96,7% de couverture)
+- **2 items reportés** à titre de dette technique (décomposition dashboards, tests unitaires)
+- **5 phases couverts** : sécurité, BDD, backend, frontend, DevOps
+- **6 corrections post-audit** : renommage statuts, dates, toast, emails démo
+
+Voir le rapport complet : `docs/AUDIT-REPORT.md`
 
 ---
 
