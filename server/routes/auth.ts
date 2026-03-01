@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt'
 import rateLimit from 'express-rate-limit'
 import { db } from '../../src/lib/db'
 import { users } from '../../src/lib/schema'
-import { eq, and, gt } from 'drizzle-orm'
+import { eq, and, gt, like } from 'drizzle-orm'
 import { validatePassword } from '../validators/password'
 import { BCRYPT_ROUNDS } from '../utils/constants'
 
@@ -194,12 +194,9 @@ router.patch('/profile', async (req, res) => {
 // Route pour récupérer la liste des utilisateurs de démo (page de connexion)
 // Désactivée en production pour ne pas exposer les données utilisateurs
 router.get('/users-list', async (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(404).json({ error: 'Route non disponible en production' });
-  }
-
   try {
-    const allUsers = await db
+    // Retourne uniquement les comptes de démo (@example.com)
+    const demoUsers = await db
       .select({
         id: users.id,
         name: users.name,
@@ -209,14 +206,10 @@ router.get('/users-list', async (req, res) => {
         civilite: users.civilite,
       })
       .from(users)
+      .where(like(users.username, '%@example.com'))
       .orderBy(users.role, users.name);
 
-    // Filtrer: seulement comptes démo (@example.com)
-    const filteredUsers = allUsers.filter(u =>
-      u.username.endsWith('@example.com')
-    );
-
-    res.json(filteredUsers);
+    res.json(demoUsers);
   } catch (error) {
     console.error('❌ [API] Erreur récupération users-list:', error);
     res.status(500).json({ error: 'Erreur serveur' });
