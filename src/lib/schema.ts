@@ -159,6 +159,30 @@ export const students = pgTable("students", {
   index("students_school_year_class_name_idx").on(table.schoolYear, table.className),
 ]);
 
+// Notifications model
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: text("type").notNull(), // 'session_validated', 'session_rejected', 'session_paid', 'new_session_to_review', 'session_ready_for_payment'
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  sessionId: integer("session_id").references(() => sessions.id, { onDelete: 'set null' }),
+  isRead: boolean("is_read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("notifications_user_read_idx").on(table.userId, table.isRead),
+  index("notifications_created_at_idx").on(table.createdAt),
+]);
+
+// Notification preferences model (email opt-in pour les enseignants)
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  emailOnValidated: boolean("email_on_validated").default(false).notNull(),
+  emailOnRejected: boolean("email_on_rejected").default(true).notNull(),
+  emailOnPaid: boolean("email_on_paid").default(false).notNull(),
+});
+
 // Types TypeScript
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -172,6 +196,10 @@ export type HourQuota = typeof hourQuotas.$inferSelect;
 export type InsertHourQuota = typeof hourQuotas.$inferInsert;
 export type Student = typeof students.$inferSelect;
 export type InsertStudent = typeof students.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreference = typeof notificationPreferences.$inferInsert;
 
 // Schémas de validation Zod
 export const insertUserSchema = createInsertSchema(users).omit({

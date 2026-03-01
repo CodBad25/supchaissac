@@ -5,6 +5,7 @@ import { requireAuth, requireSecretary, requirePrincipal } from '../middleware/a
 import { eq, and, desc, or, inArray, isNull } from 'drizzle-orm';
 import { isBlockedDate } from '../services/holidays';
 import { logger } from '../utils/logger';
+import { createNotification, notifyByRole } from '../services/notifications';
 
 const router = Router();
 
@@ -413,6 +414,15 @@ router.put('/:id/review', requireSecretary, async (req, res) => {
 
     logger.info(`✅ [API] Session ${sessionId} vérifiée par ${req.user.name} → PENDING_VALIDATION`);
 
+    // Notifier le principal qu'une session est prête à valider
+    notifyByRole(
+      'PRINCIPAL',
+      'new_session_to_review',
+      'Nouvelle session à valider',
+      `Session ${updatedSession.type} du ${updatedSession.date} de ${updatedSession.teacherName} est prête pour validation.`,
+      sessionId
+    );
+
     res.json(updatedSession);
 
   } catch (error) {
@@ -567,6 +577,36 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
     };
     logger.info(`✅ [API] Session ${sessionId} ${actionLabels[action]} par ${req.user.name}`);
 
+    // Notifications selon l'action
+    if (action === 'validate') {
+      // Notifier l'enseignant
+      createNotification(
+        session.teacherId,
+        'session_validated',
+        'Session validée',
+        `Votre session ${session.type} du ${session.date} a été validée par ${req.user.name}.`,
+        sessionId
+      );
+      // Notifier la secrétaire que la session est prête pour mise en paiement
+      notifyByRole(
+        'SECRETARY',
+        'session_ready_for_payment',
+        'Session prête pour paiement',
+        `Session ${session.type} du ${session.date} de ${session.teacherName} validée, prête pour mise en paiement.`,
+        sessionId
+      );
+    } else if (action === 'reject') {
+      // Notifier l'enseignant du rejet
+      const motif = rejectionReason ? ` Motif : ${rejectionReason}` : '';
+      createNotification(
+        session.teacherId,
+        'session_rejected',
+        'Session rejetée',
+        `Votre session ${session.type} du ${session.date} a été rejetée.${motif}`,
+        sessionId
+      );
+    }
+
     res.json(updatedSession);
 
   } catch (error) {
@@ -625,6 +665,15 @@ router.put('/:id/mark-paid', requireSecretary, async (req, res) => {
     }
 
     logger.info(`✅ [API] Session ${sessionId} mise en paiement par ${req.user.name}`);
+
+    // Notifier l'enseignant
+    createNotification(
+      session.teacherId,
+      'session_paid',
+      'Session mise en paiement',
+      `Votre session ${session.type} du ${session.date} a été mise en paiement.`,
+      sessionId
+    );
 
     res.json(updatedSession);
 

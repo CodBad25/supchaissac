@@ -8,6 +8,7 @@ import {
   GraduationCap, FileText, Check, BookOpen
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import NotificationBell from '../components/NotificationBell';
 
 // Types
 interface User {
@@ -652,6 +653,9 @@ export default function AdminDashboard() {
                 <BookOpen className="w-4 h-4" />
                 <span className="hidden sm:inline">Aide</span>
               </button>
+              {/* Notifications */}
+              <NotificationBell />
+
               <button
                 onClick={() => navigate('/profile')}
                 className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"

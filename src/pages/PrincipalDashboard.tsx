@@ -11,6 +11,7 @@ import { useToast } from '../components/ToastProvider';
 import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
 import { ContratsPacte } from '../components/ContratsPacte';
 import type { TourStep } from '../components/GuidedTour';
+import NotificationBell from '../components/NotificationBell';
 
 // Steps du tour guidé pour la direction
 const principalTourSteps: TourStep[] = [
@@ -871,6 +872,9 @@ export default function PrincipalDashboard() {
             >
               <BookOpen className="w-5 h-5" />
             </button>
+            {/* Notifications */}
+            <NotificationBell />
+
             <button
               onClick={() => navigate('/profile')}
               className="p-2 text-gray-400 hover:text-purple-500 transition-colors"

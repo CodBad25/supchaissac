@@ -14,6 +14,7 @@ import quotasRoutes from './routes/quotas'
 import adminRoutes from './routes/admin'
 import studentsRoutes from './routes/students'
 import teachersRoutes from './routes/teachers'
+import notificationsRoutes from './routes/notifications'
 import { testConnection, db, closeDb } from '../src/lib/db'
 import { logger } from './utils/logger'
 
@@ -142,6 +143,7 @@ async function startServer() {
     app.use('/api/admin', adminRoutes)
     app.use('/api/students', studentsRoutes)
     app.use('/api/teachers', teachersRoutes)
+    app.use('/api/notifications', notificationsRoutes)
 
     // Route de santé avec vérification BDD
     app.get('/api/health', async (req, res) => {

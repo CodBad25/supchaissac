@@ -20,6 +20,7 @@ import type { TourStep } from '../components/GuidedTour';
 import { components, cn, getStatusClasses } from '../styles/theme';
 import { API_BASE_URL } from '../config/api';
 import { useToast } from '../components/ToastProvider';
+import NotificationBell from '../components/NotificationBell';
 
 // Steps du tour guidé pour les enseignants
 const teacherTourSteps: TourStep[] = [
@@ -602,6 +603,9 @@ const TeacherDashboard: React.FC = () => {
                   <BookOpen className="w-4 h-4 text-blue-600" />
                 </button>
               </div>
+
+              {/* Notifications */}
+              <NotificationBell />
 
               {/* Profile */}
               <button

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, BookOpen, ArrowLeft, Save, Eye, EyeOff, CheckCircle, Loader2 } from 'lucide-react';
+import { User, Mail, BookOpen, ArrowLeft, Save, Eye, EyeOff, CheckCircle, Loader2, Bell } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 
 interface UserProfile {
@@ -31,6 +31,14 @@ export default function ProfilePage() {
   // Champs éditables
   const [firstName, setFirstName] = useState('');
 
+  // Préférences de notification (teachers uniquement)
+  const [notifPrefs, setNotifPrefs] = useState({
+    emailOnValidated: false,
+    emailOnRejected: true,
+    emailOnPaid: false,
+  });
+  const [notifPrefsSaving, setNotifPrefsSaving] = useState(false);
+
   // Changement de mot de passe
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -58,6 +66,25 @@ export default function ProfilePage() {
       const data = await response.json();
       setUser(data);
       setFirstName(data.firstName || '');
+
+      // Charger les préférences de notification pour les enseignants
+      if (data.role === 'TEACHER') {
+        try {
+          const prefsRes = await fetch(`${API_BASE_URL}/api/notifications/preferences`, {
+            credentials: 'include',
+          });
+          if (prefsRes.ok) {
+            const prefsData = await prefsRes.json();
+            setNotifPrefs({
+              emailOnValidated: prefsData.emailOnValidated ?? false,
+              emailOnRejected: prefsData.emailOnRejected ?? true,
+              emailOnPaid: prefsData.emailOnPaid ?? false,
+            });
+          }
+        } catch {
+          // Silencieux
+        }
+      }
     } catch (error) {
       console.error('Erreur:', error);
       navigate('/login');
@@ -355,6 +382,66 @@ export default function ProfilePage() {
               </p>
             )}
           </div>
+
+          {/* Préférences de notification - Teachers uniquement */}
+          {user.role === 'TEACHER' && (
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center gap-2 mb-4">
+                <Bell className="w-4 h-4 text-yellow-600" />
+                <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
+                  Notifications par email
+                </h2>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">
+                Recevez un email lorsqu'un changement de statut concerne vos sessions.
+              </p>
+              <div className="space-y-3">
+                {[
+                  { key: 'emailOnValidated' as const, label: 'Session validée', desc: 'Quand le principal valide votre session' },
+                  { key: 'emailOnRejected' as const, label: 'Session rejetée', desc: 'Quand le principal rejette votre session' },
+                  { key: 'emailOnPaid' as const, label: 'Mise en paiement', desc: 'Quand votre session est mise en paiement' },
+                ].map(({ key, label, desc }) => (
+                  <button
+                    key={key}
+                    onClick={async () => {
+                      const newPrefs = { ...notifPrefs, [key]: !notifPrefs[key] };
+                      setNotifPrefs(newPrefs);
+                      setNotifPrefsSaving(true);
+                      try {
+                        await fetch(`${API_BASE_URL}/api/notifications/preferences`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          body: JSON.stringify(newPrefs),
+                        });
+                      } catch {
+                        // Revert on error
+                        setNotifPrefs(notifPrefs);
+                      } finally {
+                        setNotifPrefsSaving(false);
+                      }
+                    }}
+                    disabled={notifPrefsSaving}
+                    className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
+                      notifPrefs[key]
+                        ? 'border-yellow-400 bg-yellow-50'
+                        : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="text-left">
+                      <p className="font-medium text-gray-800 text-sm">{label}</p>
+                      <p className="text-xs text-gray-500">{desc}</p>
+                    </div>
+                    <div className={`w-10 h-6 rounded-full transition-colors flex items-center ${
+                      notifPrefs[key] ? 'bg-yellow-500 justify-end' : 'bg-gray-300 justify-start'
+                    }`}>
+                      <div className="w-5 h-5 bg-white rounded-full shadow mx-0.5" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Messages d'erreur/succès */}
           {error && (
