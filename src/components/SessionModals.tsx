@@ -1053,20 +1053,27 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                 <label className="text-sm font-medium text-gray-700">Nombre d'eleves <span className="text-red-500">*</span></label>
                 {!formTimeSlot && <span className="text-xs text-gray-400 ml-auto">Selectionnez un creneau</span>}
               </div>
-              <input
-                type="number"
-                min="1"
-                value={studentCount}
-                onChange={e => {
-                  const count = parseInt(e.target.value) || 1;
-                  setStudentCount(count);
-                  // Si mode manuel actif, regenerer les champs
-                  if (justificationMode === 'manual') {
-                    generateStudentFields(count);
-                  }
-                }}
-                className="w-full min-h-[44px] px-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="flex flex-col items-center gap-2 py-2">
+                <span className="text-3xl font-bold text-blue-600">{studentCount} <span className="text-base font-normal text-gray-500">élève{studentCount > 1 ? 's' : ''}</span></span>
+                <div className="w-full flex items-center gap-3">
+                  <span className="text-xs text-gray-400 w-4 text-right">1</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="30"
+                    value={studentCount}
+                    onChange={e => {
+                      const count = parseInt(e.target.value);
+                      setStudentCount(count);
+                      if (justificationMode === 'manual') {
+                        generateStudentFields(count);
+                      }
+                    }}
+                    className="flex-1 h-3 rounded-full appearance-none cursor-pointer accent-blue-500 bg-gray-200 [&::-webkit-slider-thumb]:w-7 [&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:shadow-lg"
+                  />
+                  <span className="text-xs text-gray-400 w-4">30</span>
+                </div>
+              </div>
             </div>
 
             {/* Etape 3: Justification (OPTIONNELLE) */}

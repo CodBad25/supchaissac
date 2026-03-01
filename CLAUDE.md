@@ -179,6 +179,16 @@ scw container container deploy 581e9931-716f-42db-b6db-586ecb5b72c7
 - Vérifier que les variables d'environnement sont correctement configurées dans Scaleway Console
 - Vérifier que S3 Scaleway est configuré avec les bonnes permissions pour les uploads de fichiers
 
+### Domaine custom
+
+- **URL publique** : https://supchaissac.beltools.fr
+- **DNS** : CNAME `supchaissac.beltools.fr` → `supchaissacvgfvl03o-supchaissac-app.functions.fnc.fr-par.scw.cloud.` (OVH)
+- **SSL** : certificat automatique par Scaleway
+- **Variables d'environnement Scaleway** :
+  - `APP_URL` = `https://supchaissac.beltools.fr`
+  - `ALLOWED_ORIGINS` = `https://supchaissac.beltools.fr,https://supchaissacvgfvl03o-supchaissac-app.functions.fnc.fr-par.scw.cloud`
+- **Icône pour portail BelTools** : `https://supchaissac.beltools.fr/logo.png`
+
 ---
 
 ## Dette technique (items d'audit reportés)
