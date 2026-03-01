@@ -1,18 +1,8 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { promises as fs } from 'fs';
+import path from 'path';
 
-// Configuration Scaleway Object Storage (compatible S3)
-const s3Client = new S3Client({
-  endpoint: process.env.S3_ENDPOINT || 'https://s3.fr-par.scw.cloud',
-  region: process.env.S3_REGION || 'fr-par',
-  credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
-  },
-  forcePathStyle: true, // Requis pour Scaleway
-});
-
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'supchaissac';
+// Dossier de stockage local
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 // Types MIME autorises
@@ -48,7 +38,7 @@ export function validateFile(mimeType: string, size: number, filename: string): 
 }
 
 /**
- * Upload un fichier vers Scaleway Object Storage
+ * Upload un fichier en local
  */
 export async function uploadFile(
   buffer: Buffer,
@@ -56,30 +46,27 @@ export async function uploadFile(
   mimeType: string,
   sessionId: number
 ): Promise<UploadResult> {
-  // Generer un nom unique
   const timestamp = Date.now();
   const sanitizedFilename = filename
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Supprimer les diacritiques
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path = `sessions/${sessionId}/${timestamp}_${sanitizedFilename}`;
+  const relativePath = `sessions/${sessionId}/${timestamp}_${sanitizedFilename}`;
+  const fullPath = path.join(UPLOAD_DIR, relativePath);
 
-  // Upload vers S3 (bucket public, pas besoin d'ACL)
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: path,
-    Body: buffer,
-    ContentType: mimeType,
-  });
+  // Creer le dossier si necessaire
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
 
-  await s3Client.send(command);
+  // Ecrire le fichier
+  await fs.writeFile(fullPath, buffer);
 
-  // Construire l'URL publique
-  const url = `${process.env.S3_ENDPOINT}/${BUCKET_NAME}/${path}`;
+  // URL relative servie par Express
+  const appUrl = process.env.APP_URL || 'http://localhost:3003';
+  const url = `${appUrl}/uploads/${relativePath}`;
 
   return {
     url,
-    path,
+    path: relativePath,
     filename: sanitizedFilename,
     size: buffer.length,
     mimeType,
@@ -87,48 +74,42 @@ export async function uploadFile(
 }
 
 /**
- * Supprime un fichier du storage
+ * Supprime un fichier local
  */
-export async function deleteFile(path: string): Promise<void> {
-  const command = new DeleteObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: path,
-  });
-
-  await s3Client.send(command);
+export async function deleteFile(filePath: string): Promise<void> {
+  const fullPath = path.join(UPLOAD_DIR, filePath);
+  try {
+    await fs.unlink(fullPath);
+  } catch (err: any) {
+    if (err.code !== 'ENOENT') throw err;
+    // Fichier deja supprime, on ignore
+  }
 }
 
 /**
- * Genere une URL signee pour acces temporaire
- * @param path - Chemin du fichier dans S3
- * @param expiresIn - Duree de validite en secondes (defaut: 1h)
- * @param originalFilename - Nom original du fichier pour forcer le telechargement
+ * Retourne l'URL de telechargement d'un fichier
+ * En local, pas besoin de signature — on sert via Express avec auth
  */
 export async function getSignedDownloadUrl(
-  path: string,
+  filePath: string,
   expiresIn = 3600,
   originalFilename?: string
 ): Promise<string> {
-  const command = new GetObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: path,
-    // Forcer le telechargement avec le nom original du fichier
-    ...(originalFilename && {
-      ResponseContentDisposition: `attachment; filename="${encodeURIComponent(originalFilename)}"`,
-    }),
-  });
-
-  return getSignedUrl(s3Client, command, { expiresIn });
+  const appUrl = process.env.APP_URL || 'http://localhost:3003';
+  const params = originalFilename ? `?download=${encodeURIComponent(originalFilename)}` : '';
+  return `${appUrl}/uploads/${filePath}${params}`;
 }
 
 /**
- * Verifie si le storage est configure
+ * Le stockage local est toujours configure
  */
 export function isStorageConfigured(): boolean {
-  return !!(
-    process.env.S3_ENDPOINT &&
-    process.env.S3_ACCESS_KEY_ID &&
-    process.env.S3_SECRET_ACCESS_KEY &&
-    process.env.S3_BUCKET_NAME
-  );
+  return true;
+}
+
+/**
+ * Initialise le dossier uploads
+ */
+export async function initStorage(): Promise<void> {
+  await fs.mkdir(UPLOAD_DIR, { recursive: true });
 }

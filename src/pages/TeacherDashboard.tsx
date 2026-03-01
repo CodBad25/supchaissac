@@ -500,10 +500,10 @@ const TeacherDashboard: React.FC = () => {
         }
       }
 
-      // Mettre a jour la session dans l'etat local
+      // Mettre à jour la session dans l'état local
       setSessions(prev => prev.map(s => s.id === sessionId ? updatedSession : s));
 
-      console.log('Session modifiee avec succes:', updatedSession);
+      console.log('Session modifiée avec succès:', updatedSession);
 
     } catch (error) {
       console.error('Erreur lors de la modification de la session:', error);
@@ -524,10 +524,10 @@ const TeacherDashboard: React.FC = () => {
         throw new Error(errorData.error || 'Erreur lors de la suppression de la session');
       }
 
-      // Supprimer la session de l'etat local
+      // Supprimer la session de l'état local
       setSessions(prev => prev.filter(s => s.id !== sessionId));
 
-      console.log('Session supprimee avec succes:', sessionId);
+      console.log('Session supprimée avec succès:', sessionId);
 
     } catch (error) {
       console.error('Erreur lors de la suppression de la session:', error);

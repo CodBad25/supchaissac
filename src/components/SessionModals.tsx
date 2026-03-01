@@ -93,7 +93,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Autocomplete state - recherche globale eleves
+  // Autocomplete state - recherche globale élèves
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<StudentSearchResult[]>([]);
   const [matchingClass, setMatchingClass] = useState<{ name: string; count: number } | null>(null);
@@ -128,7 +128,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
         setMatchingClass(data.matchingClass || null);
       }
     } catch (error) {
-      console.error('Erreur recherche eleves:', error);
+      console.error('Erreur recherche élèves:', error);
     }
   }, []);
 
@@ -142,7 +142,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
       if (response.ok) {
         const classStudents: StudentSearchResult[] = await response.json();
 
-        // Ajouter tous les eleves de la classe (sans doublons)
+        // Ajouter tous les élèves de la classe (sans doublons)
         setStudentsList(prev => {
           const existingKeys = new Set(prev.map(s => `${s.lastName}-${s.firstName}-${s.className}`));
           const newStudents = classStudents
@@ -151,7 +151,9 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
 
           // Supprimer les lignes vides et ajouter les nouveaux
           const nonEmpty = prev.filter(s => s.lastName || s.firstName);
-          return [...nonEmpty, ...newStudents];
+          const updatedList = [...nonEmpty, ...newStudents];
+          setStudentCount(updatedList.length);
+          return updatedList;
         });
 
         setSearchQuery('');
@@ -226,7 +228,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
 
   // Handle student selection from search results
   const addStudentFromSearch = (student: StudentSearchResult) => {
-    // Verifier si l'eleve n'est pas deja dans la liste
+    // Verifier si l'élève n'est pas deja dans la liste
     const alreadyExists = studentsList.some(
       s => s.lastName === student.lastName && s.firstName === student.firstName && s.className === student.className
     );
@@ -234,25 +236,16 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
       return; // Ne pas ajouter de doublon
     }
 
-    // Remplacer la ligne vide ou ajouter
-    const emptyIndex = studentsList.findIndex(s => !s.lastName && !s.firstName);
-    if (emptyIndex !== -1) {
-      setStudentsList(prev => {
-        const updated = [...prev];
-        updated[emptyIndex] = {
-          lastName: student.lastName,
-          firstName: student.firstName,
-          className: student.className,
-        };
-        return updated;
-      });
-    } else {
-      setStudentsList(prev => [...prev, {
+    // Ajouter l'élève a la liste
+    setStudentsList(prev => {
+      const newList = [...prev.filter(s => s.lastName || s.firstName), {
         lastName: student.lastName,
         firstName: student.firstName,
         className: student.className,
-      }]);
-    }
+      }];
+      setStudentCount(newList.length);
+      return newList;
+    });
 
     // Vider le champ de recherche et les résultats après ajout
     setSearchQuery('');
@@ -279,7 +272,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
       setIsAnimating(true);
 
       if (editSession) {
-        // Mode edition: pre-remplir avec les donnees existantes
+        // Mode edition: pré-remplir avec les données existantes
         setStep('form');
         setSessionType(editSession.type);
         setFormDate(editSession.date);
@@ -292,7 +285,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
         setDescription(editSession.description || '');
         setComment(editSession.comment || '');
       } else if (duplicateData) {
-        // Mode duplication: pre-remplir avec les donnees copiees
+        // Mode duplication: pré-remplir avec les données copiées
         setStep('form');
         setSessionType(duplicateData.type);
         setFormDate(''); // L'utilisateur doit choisir la date
@@ -315,10 +308,10 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
         setReplacedPrefix('M.');
         setReplacedName('');
         setReplacedFirstName('');
-        setStudentCount(1);
+        setStudentCount(0);
         setStudentsList([]);
         setSelectedFile(null);
-        setJustificationMode('none');
+        setJustificationMode('manual');
         setDescription('');
         setComment('');
       }
@@ -360,8 +353,9 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
       data.replacedTeacherLastName = replacedName;
       data.replacedTeacherFirstName = replacedFirstName;
     } else if (sessionType === 'DEVOIRS_FAITS') {
-      data.studentCount = studentCount;
-      data.studentsList = studentsList;
+      const filledStudents = studentsList.filter(s => s.lastName || s.firstName);
+      data.studentCount = filledStudents.length;
+      data.studentsList = filledStudents;
       if (selectedFile) {
         data.attachment = selectedFile;
       }
@@ -430,13 +424,6 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
   };
 
   // Student list handlers
-  const generateStudentFields = (count: number) => {
-    const newStudentsList: Student[] = [];
-    for (let i = 0; i < count; i++) {
-      newStudentsList.push({ lastName: '', firstName: '', className: '' });
-    }
-    setStudentsList(newStudentsList);
-  };
 
   const removeStudent = (index: number) => {
     const newList = studentsList.filter((_, i) => i !== index);
@@ -603,7 +590,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
           </div>
 
           <div className={bodyClass + " space-y-3"}>
-            {/* Mode duplication: Date + Creneau sur une ligne */}
+            {/* Mode duplication: Date + Créneau sur une ligne */}
             {isDuplicateMode && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-2 flex items-center gap-2">
                 <Copy className="w-4 h-4 text-green-600" />
@@ -619,7 +606,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             )}
 
-            {/* Creneau horaire */}
+            {/* Créneau horaire */}
             <div className={`relative transition-all duration-300 ${
               isDuplicateMode && !formDate ? 'opacity-40 pointer-events-none' : ''
             }`}>
@@ -627,7 +614,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                 <div className="w-5 h-5 rounded-full bg-purple-500 text-white text-xs font-bold flex items-center justify-center">
                   {isDuplicateMode ? '2' : '1'}
                 </div>
-                <label className="text-sm font-medium text-gray-700">Creneau</label>
+                <label className="text-sm font-medium text-gray-700">Créneau</label>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -667,7 +654,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             </div>
 
-            {/* Etape 2: Classe */}
+            {/* Étape 2: Classe */}
             <div className={`relative transition-all duration-300 ${
               formTimeSlot ? '' : 'opacity-40 pointer-events-none'
             }`}>
@@ -707,7 +694,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             </div>
 
-            {/* Etape 3: Enseignant remplacé - avec recherche intelligente */}
+            {/* Étape 3: Enseignant remplacé - avec recherche intelligente */}
             <div className={`relative transition-all duration-300 ${
               className ? '' : 'opacity-40 pointer-events-none'
             }`}>
@@ -757,7 +744,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                 {showTeacherResults && teacherSearchResults.length > 0 && (
                   <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden z-50">
                     <div className="px-3 py-2 bg-purple-50 border-b border-purple-100 text-xs text-purple-600 font-medium">
-                      {teacherSearchResults.length} enseignant{teacherSearchResults.length > 1 ? 's' : ''} trouve{teacherSearchResults.length > 1 ? 's' : ''}
+                      {teacherSearchResults.length} enseignant{teacherSearchResults.length > 1 ? 's' : ''} trouvé{teacherSearchResults.length > 1 ? 's' : ''}
                     </div>
                     <div className="divide-y divide-gray-100 max-h-48 overflow-y-auto overscroll-contain">
                       {teacherSearchResults.map((teacher) => (
@@ -919,12 +906,10 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
     // Handler pour selectionner le mode de justification
     const selectJustificationMode = (mode: 'excel' | 'manual' | 'photo') => {
       setJustificationMode(mode);
-      if (mode === 'manual') {
-        // Generer les champs eleves vides
-        generateStudentFields(studentCount);
-      } else {
+      if (mode !== 'manual') {
         // Effacer la liste si on change de mode
         setStudentsList([]);
+        setStudentCount(0);
       }
       if (mode !== 'excel' && mode !== 'photo') {
         setSelectedFile(null);
@@ -966,7 +951,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             )}
 
-            {/* Etape 0 (duplication): Date */}
+            {/* Étape 0 (duplication): Date */}
             {isDuplicateMode && (
               <div className="relative">
                 <div className="flex items-center gap-2 mb-2">
@@ -989,7 +974,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             )}
 
-            {/* Etape 1: Creneau horaire */}
+            {/* Étape 1: Créneau horaire */}
             <div className={`relative transition-all duration-500 ${
               isDuplicateMode && !formDate
                 ? 'opacity-40 translate-y-2 pointer-events-none'
@@ -999,7 +984,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                 <div className={`w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center`}>
                   {isDuplicateMode ? '2' : '1'}
                 </div>
-                <label className="text-sm font-medium text-gray-700">Creneau horaire</label>
+                <label className="text-sm font-medium text-gray-700">Créneau horaire</label>
                 {isDuplicateMode && !formDate && <span className="text-xs text-gray-400 ml-auto">Selectionnez une date</span>}
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1040,7 +1025,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             </div>
 
-            {/* Etape 2: Nombre d'eleves (OBLIGATOIRE) */}
+            {/* Étape 2: Justification (OPTIONNELLE) */}
             <div className={`relative transition-all duration-500 ${
               formTimeSlot
                 ? 'opacity-100 translate-y-0'
@@ -1050,42 +1035,6 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                 <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors duration-300 ${
                   formTimeSlot ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'
                 }`}>{isDuplicateMode ? '3' : '2'}</div>
-                <label className="text-sm font-medium text-gray-700">Nombre d'eleves <span className="text-red-500">*</span></label>
-                {!formTimeSlot && <span className="text-xs text-gray-400 ml-auto">Selectionnez un creneau</span>}
-              </div>
-              <div className="flex flex-col items-center gap-2 py-2">
-                <span className="text-3xl font-bold text-blue-600">{studentCount} <span className="text-base font-normal text-gray-500">élève{studentCount > 1 ? 's' : ''}</span></span>
-                <div className="w-full flex items-center gap-3">
-                  <span className="text-xs text-gray-400 w-4 text-right">1</span>
-                  <input
-                    type="range"
-                    min="1"
-                    max="30"
-                    value={studentCount}
-                    onChange={e => {
-                      const count = parseInt(e.target.value);
-                      setStudentCount(count);
-                      if (justificationMode === 'manual') {
-                        generateStudentFields(count);
-                      }
-                    }}
-                    className="flex-1 h-3 rounded-full appearance-none cursor-pointer accent-blue-500 bg-gray-200 [&::-webkit-slider-thumb]:w-7 [&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:shadow-lg"
-                  />
-                  <span className="text-xs text-gray-400 w-4">30</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Etape 3: Justification (OPTIONNELLE) */}
-            <div className={`relative transition-all duration-500 ${
-              formTimeSlot && studentCount > 0
-                ? 'opacity-100 translate-y-0'
-                : 'opacity-40 translate-y-2 pointer-events-none'
-            }`}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors duration-300 ${
-                  formTimeSlot && studentCount > 0 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'
-                }`}>{isDuplicateMode ? '4' : '3'}</div>
                 <label className="text-sm font-medium text-gray-700">
                   Justification <span className="font-normal text-gray-400">(optionnel)</span>
                 </label>
@@ -1139,7 +1088,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                   />
                   {studentsList.length > 0 && (
                     <p className="text-xs text-green-600 mt-2">
-                      {studentsList.length} eleves importes depuis le fichier
+                      {studentsList.length} élèves importés depuis le fichier
                     </p>
                   )}
                 </div>
@@ -1163,7 +1112,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               )}
             </div>
 
-            {/* Liste des eleves (mode manuel ou apres import Excel) */}
+            {/* Liste des élèves (mode manuel ou après import Excel) */}
             {(justificationMode === 'manual' || (justificationMode === 'excel' && studentsList.length > 0)) && formTimeSlot && (
               <div className="relative transition-all duration-500 opacity-100 translate-y-0">
                 <div className="flex items-center gap-2 mb-2">
@@ -1216,18 +1165,18 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                           </span>
                         </div>
                         <span className="px-2 py-0.5 bg-white/20 rounded text-sm">
-                          {matchingClass.count} eleves
+                          {matchingClass.count} élèves
                         </span>
                       </button>
                     )}
                     {/* Header resultats individuels */}
                     {searchResults.length > 0 && (
                       <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-medium flex items-center justify-between">
-                        <span>{matchingClass ? 'Ou ajouter individuellement' : `${searchResults.length} eleve${searchResults.length > 1 ? 's' : ''} trouve${searchResults.length > 1 ? 's' : ''}`}</span>
+                        <span>{matchingClass ? 'Ou ajouter individuellement' : `${searchResults.length} élève${searchResults.length > 1 ? 's' : ''} trouvé${searchResults.length > 1 ? 's' : ''}`}</span>
                         <span className="text-gray-400">Cliquez pour ajouter</span>
                       </div>
                     )}
-                    {/* Liste eleves individuels */}
+                    {/* Liste élèves individuels */}
                     {searchResults.length > 0 && (
                       <div className="divide-y divide-gray-100 max-h-32 overflow-y-auto">
                         {searchResults.map((result) => {
@@ -1261,12 +1210,12 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                   </div>
                 )}
 
-                {/* Liste compacte des eleves selectionnes */}
+                {/* Liste compacte des élèves sélectionnées */}
                 {studentsList.filter(s => s.lastName || s.firstName).length > 0 && (
                   <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
                     <div className="px-3 py-2 bg-green-50 border-b border-green-200 flex items-center justify-between">
                       <span className="text-sm font-medium text-green-800">
-                        {studentsList.filter(s => s.lastName || s.firstName).length} eleve{studentsList.filter(s => s.lastName || s.firstName).length > 1 ? 's' : ''} selectionne{studentsList.filter(s => s.lastName || s.firstName).length > 1 ? 's' : ''}
+                        {studentsList.filter(s => s.lastName || s.firstName).length} élève{studentsList.filter(s => s.lastName || s.firstName).length > 1 ? 's' : ''} sélectionné{studentsList.filter(s => s.lastName || s.firstName).length > 1 ? 's' : ''}
                       </span>
                       <button
                         onClick={() => setStudentsList([{ lastName: '', firstName: '', className: '' }])}
@@ -1313,7 +1262,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                 {/* Formulaire saisie manuelle */}
                 {showManualEntry && (
                   <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                    <p className="text-xs text-amber-700 mb-2 font-medium">Saisie manuelle (eleve non trouve)</p>
+                    <p className="text-xs text-amber-700 mb-2 font-medium">Saisie manuelle (élève non trouvé)</p>
                     <div className="flex gap-2 mb-2">
                       <input
                         type="text"
@@ -1386,7 +1335,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               Retour
             </button>
             <button onClick={handleGoToConfirmation}
-              disabled={!formTimeSlot || studentCount < 1}
+              disabled={!formTimeSlot || studentsList.filter(s => s.lastName || s.firstName).length < 1}
               className={`${touchBtn} flex-1 px-4 bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed`}>
               Continuer
             </button>
@@ -1435,7 +1384,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             )}
 
-            {/* Etape 0 (duplication): Date */}
+            {/* Étape 0 (duplication): Date */}
             {isDuplicateMode && (
               <div className="relative">
                 <div className="flex items-center gap-2 mb-2">
@@ -1458,7 +1407,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             )}
 
-            {/* Etape 1: Creneau horaire */}
+            {/* Étape 1: Créneau horaire */}
             <div className={`relative transition-all duration-500 ${
               isDuplicateMode && !formDate
                 ? 'opacity-40 translate-y-2 pointer-events-none'
@@ -1468,7 +1417,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
                 <div className={`w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center`}>
                   {isDuplicateMode ? '2' : '1'}
                 </div>
-                <label className="text-sm font-medium text-gray-700">Creneau horaire</label>
+                <label className="text-sm font-medium text-gray-700">Créneau horaire</label>
                 {isDuplicateMode && !formDate && <span className="text-xs text-gray-400 ml-auto">Selectionnez une date</span>}
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1509,7 +1458,7 @@ const SessionModals: React.FC<SessionModalProps> = ({ isOpen, onClose, date, tim
               </div>
             </div>
 
-            {/* Etape 2: Description */}
+            {/* Étape 2: Description */}
             <div className={`relative transition-all duration-500 ${
               formTimeSlot
                 ? 'opacity-100 translate-y-0'

@@ -25,7 +25,7 @@ interface FileUploadProps {
   acceptedTypes?: string[];
   maxSize?: number; // in MB
   disabled?: boolean;
-  showStudentSelector?: boolean; // Afficher la modale de selection
+  showStudentSelector?: boolean; // Afficher la modale de sélection
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({
@@ -46,7 +46,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [success, setSuccess] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Etat pour la selection des eleves
+  // État pour la sélection des élèves
   const [showSelector, setShowSelector] = useState(false);
   const [parseResult, setParseResult] = useState<ExcelParseResult | null>(null);
   const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set());
@@ -88,7 +88,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     ].includes(file.type);
 
     if (!validExt && !validMime) {
-      return 'Type de fichier non autorise';
+      return 'Type de fichier non autorisé';
     }
 
     return null;
@@ -149,18 +149,18 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
   };
 
-  // Confirmer la selection des eleves
+  // Confirmer la sélection des élèves
   const confirmSelection = () => {
     if (!parseResult) return;
 
     let filteredStudents = parseResult.students;
 
-    // Filtrer par classes selectionnees
+    // Filtrer par classes sélectionnées
     if (selectedClasses.size > 0 && selectedClasses.size < parseResult.availableClasses.length) {
       filteredStudents = filteredStudents.filter(s => selectedClasses.has(s.className));
     }
 
-    // Limiter le nombre si specifie
+    // Limiter le nombre si spécifié
     if (studentLimit && studentLimit > 0) {
       filteredStudents = filteredStudents.slice(0, studentLimit);
     }
@@ -183,7 +183,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     setSelectedClasses(newSelected);
   };
 
-  // Selectionner/Deselectionner tout
+  // Sélectionner/Désélectionner tout
   const toggleAllClasses = () => {
     if (selectedClasses.size === parseResult?.availableClasses.length) {
       setSelectedClasses(new Set());
@@ -280,7 +280,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
           ) : (
             <div className="text-sm text-gray-600">
               <p className="font-medium">Glissez un fichier ici</p>
-              <p className="text-gray-400 text-xs mt-1">ou cliquez pour selectionner</p>
+              <p className="text-gray-400 text-xs mt-1">ou cliquez pour sélectionner</p>
             </div>
           )}
         </div>
@@ -322,7 +322,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         <div className="relative rounded-xl overflow-hidden border border-gray-200 shadow-sm">
           <img
             src={preview}
-            alt="Apercu"
+            alt="Aperçu"
             className="w-full h-48 object-contain bg-gray-50"
           />
         </div>
@@ -333,7 +333,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         PDF, Excel (.xlsx, .xls), Images (jpg, png) - Max {maxSize}MB
       </p>
 
-      {/* Modale de selection des eleves */}
+      {/* Modale de sélection des élèves */}
       {showSelector && parseResult && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
@@ -345,9 +345,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
                     <Users className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">Selection des eleves</h3>
+                    <h3 className="font-semibold text-gray-900">Sélection des élèves</h3>
                     <p className="text-sm text-gray-500">
-                      {parseResult.totalRows} eleves detectes
+                      {parseResult.totalRows} élèves détectés
                     </p>
                   </div>
                 </div>
@@ -365,7 +365,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
                   Nom: <span className="font-medium">{parseResult.detectedColumns.lastName || 'Col 1'}</span>
                 </span>
                 <span className="px-2 py-1 bg-white rounded-full text-gray-600 border">
-                  Prenom: <span className="font-medium">{parseResult.detectedColumns.firstName || 'Col 2'}</span>
+                  Prénom: <span className="font-medium">{parseResult.detectedColumns.firstName || 'Col 2'}</span>
                 </span>
                 <span className="px-2 py-1 bg-white rounded-full text-gray-600 border">
                   Classe: <span className="font-medium">{parseResult.detectedColumns.className || 'Col 3'}</span>
@@ -413,7 +413,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
               {/* Limite de nombre */}
               <div className="mb-4">
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Limiter le nombre d'eleves (optionnel)
+                  Limiter le nombre d'élèves (optionnel)
                 </label>
                 <div className="flex gap-2">
                   {[null, 5, 10, 15, 20].map(limit => (
@@ -433,16 +433,16 @@ const FileUpload: React.FC<FileUploadProps> = ({
                 </div>
               </div>
 
-              {/* Apercu des eleves */}
+              {/* Aperçu des élèves */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Apercu ({(() => {
+                  Aperçu ({(() => {
                     let filtered = parseResult.students.filter(s =>
                       selectedClasses.size === 0 || selectedClasses.has(s.className)
                     );
                     if (studentLimit) filtered = filtered.slice(0, studentLimit);
                     return filtered.length;
-                  })()} eleves)
+                  })()} élèves)
                 </label>
                 <div className="max-h-48 overflow-y-auto bg-gray-50 rounded-lg border">
                   {(() => {
@@ -481,7 +481,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
                 disabled={selectedClasses.size === 0}
                 className="flex-1 px-4 py-2.5 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Confirmer la selection
+                Confirmer la sélection
               </button>
             </div>
           </div>

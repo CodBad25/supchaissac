@@ -340,7 +340,7 @@ export default function AdminDashboard() {
 
   // Clear students
   const handleClearStudents = async () => {
-    if (!confirm('Voulez-vous vraiment supprimer tous les eleves de cette annee scolaire ?')) return;
+    if (!confirm('Voulez-vous vraiment supprimer tous les élèves de cette année scolaire ?')) return;
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/students`, {
@@ -683,7 +683,7 @@ export default function AdminDashboard() {
             { id: 'dashboard', label: 'Tableau de bord', icon: Home },
             { id: 'users', label: 'Utilisateurs', icon: Users },
             { id: 'import', label: 'Import CSV', icon: Upload },
-            { id: 'students', label: 'Eleves', icon: GraduationCap },
+            { id: 'students', label: 'Élèves', icon: GraduationCap },
             { id: 'maintenance', label: 'Maintenance', icon: Settings },
           ].map(tab => (
             <button
@@ -980,7 +980,7 @@ export default function AdminDashboard() {
                       <>
                         <Upload className="w-10 h-10 text-gray-400 mb-3" />
                         <p className="mb-2 text-sm text-gray-500">
-                          <span className="font-semibold">Cliquez pour selectionner</span> ou glissez-deposez
+                          <span className="font-semibold">Cliquez pour sélectionner</span> ou glissez-déposez
                         </p>
                         <p className="text-xs text-gray-500">Fichier CSV uniquement</p>
                       </>
@@ -1029,16 +1029,16 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Apercu */}
+                  {/* Aperçu */}
                   <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">Apercu (5 premiers):</p>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Aperçu (5 premiers):</p>
                     <div className="bg-gray-50 rounded-lg p-3 overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-left text-gray-500">
                             <th className="pb-2 pr-4">Civilite</th>
                             <th className="pb-2 pr-4">Nom</th>
-                            <th className="pb-2 pr-4">Prenom</th>
+                            <th className="pb-2 pr-4">Prénom</th>
                             <th className="pb-2 pr-4">Email</th>
                             <th className="pb-2 pr-4">Discipline</th>
                           </tr>
@@ -1153,13 +1153,13 @@ export default function AdminDashboard() {
             {studentStats && studentStats.totalStudents > 0 && (
               <div className="bg-white rounded-xl p-6 border border-gray-200">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Eleves importes</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">Élèves importés</h2>
                   <span className="text-sm text-gray-500">{studentStats.schoolYear}</span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div className="bg-blue-50 rounded-lg p-4 text-center">
                     <p className="text-3xl font-bold text-blue-600">{studentStats.totalStudents}</p>
-                    <p className="text-sm text-blue-700">Eleves</p>
+                    <p className="text-sm text-blue-700">Élèves</p>
                   </div>
                   <div className="bg-green-50 rounded-lg p-4 text-center">
                     <p className="text-3xl font-bold text-green-600">{studentStats.totalClasses}</p>
@@ -1183,9 +1183,9 @@ export default function AdminDashboard() {
 
             {/* Upload zone */}
             <div className="bg-white rounded-xl p-6 border border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Import des eleves</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Import des élèves</h2>
               <p className="text-sm text-gray-500 mb-4">
-                Importez un fichier CSV depuis Pronote avec les colonnes: Nom, Prenom, Classe, etc.
+                Importez un fichier CSV depuis Pronote avec les colonnes: Nom, Prénom, Classe, etc.
               </p>
 
               {!studentPreview ? (
@@ -1200,7 +1200,7 @@ export default function AdminDashboard() {
                       <>
                         <Upload className="w-10 h-10 text-gray-400 mb-3" />
                         <p className="mb-2 text-sm text-gray-500">
-                          <span className="font-semibold">Cliquez pour selectionner</span> ou glissez-deposez
+                          <span className="font-semibold">Cliquez pour sélectionner</span> ou glissez-déposez
                         </p>
                         <p className="text-xs text-gray-500">Fichier CSV uniquement</p>
                       </>
@@ -1223,7 +1223,7 @@ export default function AdminDashboard() {
                       <span className="font-medium text-blue-800">{studentFile?.name}</span>
                     </div>
                     <p className="text-sm text-blue-700">
-                      {studentPreview.totalRows} eleves trouves dans {studentPreview.classesFound.length} classes
+                      {studentPreview.totalRows} élèves trouvés dans {studentPreview.classesFound.length} classes
                     </p>
                   </div>
 
@@ -1239,7 +1239,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Projets detectes */}
+                  {/* Projets détectés */}
                   {studentPreview.projectsFound.length > 0 && (
                     <div>
                       <p className="text-sm font-medium text-gray-700 mb-2">Projets d'accompagnement:</p>
@@ -1253,15 +1253,15 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  {/* Apercu */}
+                  {/* Aperçu */}
                   <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">Apercu (5 premiers):</p>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Aperçu (5 premiers):</p>
                     <div className="bg-gray-50 rounded-lg p-3">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-left text-gray-500">
                             <th className="pb-2">Nom</th>
-                            <th className="pb-2">Prenom</th>
+                            <th className="pb-2">Prénom</th>
                             <th className="pb-2">Classe</th>
                             <th className="pb-2">Projet</th>
                           </tr>
@@ -1348,13 +1348,13 @@ export default function AdminDashboard() {
                   <p className={`font-medium ${
                     studentImportResult.success ? 'text-green-800' : 'text-red-800'
                   }`}>
-                    {studentImportResult.success ? 'Import reussi !' : 'Erreurs lors de l\'import'}
+                    {studentImportResult.success ? 'Import réussi !' : 'Erreurs lors de l\'import'}
                   </p>
                 </div>
                 <p className={`text-sm ${
                   studentImportResult.success ? 'text-green-700' : 'text-red-700'
                 }`}>
-                  {studentImportResult.imported} eleves importes
+                  {studentImportResult.imported} élèves importés
                   {studentImportResult.errors > 0 && `, ${studentImportResult.errors} erreurs`}
                 </p>
                 {studentImportResult.classes.length > 0 && (
@@ -1374,9 +1374,9 @@ export default function AdminDashboard() {
               <div className="bg-red-50 rounded-xl p-4 border border-red-200">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-medium text-red-800">Supprimer tous les eleves</h3>
+                    <h3 className="font-medium text-red-800">Supprimer tous les élèves</h3>
                     <p className="text-sm text-red-600 mt-1">
-                      Supprime tous les eleves de l'annee {studentStats.schoolYear}
+                      Supprime tous les élèves de l'année {studentStats.schoolYear}
                     </p>
                   </div>
                   <button

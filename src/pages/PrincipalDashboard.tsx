@@ -144,6 +144,21 @@ export default function PrincipalDashboard() {
   // Tour guidé
   const [showTour, setShowTour] = useState(shouldShowTour('principal'));
 
+  // Mobile avatar menu
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close avatar menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target as Node)) {
+        setShowAvatarMenu(false);
+      }
+    };
+    if (showAvatarMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAvatarMenu]);
+
   // UI state
   const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'teachers' | 'contrats' | 'stats'>('dashboard');
   const [sessionFilter, setSessionFilter] = useState<'all' | 'pending' | 'validated' | 'rejected'>('pending');
@@ -771,11 +786,11 @@ export default function PrincipalDashboard() {
       case 'PENDING_REVIEW':
         return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Nouvelle</span>;
       case 'PENDING_VALIDATION':
-        return <span className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800">A valider</span>;
+        return <span className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800">À valider</span>;
       case 'VALIDATED':
-        return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Validee</span>;
+        return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Validée</span>;
       case 'REJECTED':
-        return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Rejetee</span>;
+        return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Rejetée</span>;
       default:
         return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">{status}</span>;
     }
@@ -844,16 +859,17 @@ export default function PrincipalDashboard() {
       <header className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">S</span>
+            <div className="w-9 h-9 md:w-10 md:h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-base md:text-lg">S</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">SupChaissac</h1>
+              <h1 className="text-lg md:text-xl font-bold text-gray-900">SupChaissac</h1>
               <p className="text-xs text-purple-600 font-medium">Direction</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Desktop : tous les boutons */}
+          <div className="hidden md:flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
               <p className="text-xs text-gray-500">Principal</p>
@@ -872,9 +888,7 @@ export default function PrincipalDashboard() {
             >
               <BookOpen className="w-5 h-5" />
             </button>
-            {/* Notifications */}
             <NotificationBell />
-
             <button
               onClick={() => navigate('/profile')}
               className="p-2 text-gray-400 hover:text-purple-500 transition-colors"
@@ -886,33 +900,87 @@ export default function PrincipalDashboard() {
               <LogOut className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Mobile : cloche + avatar avec menu */}
+          <div className="flex md:hidden items-center gap-2">
+            <NotificationBell />
+            <div className="relative" ref={avatarMenuRef}>
+              <button
+                onClick={() => setShowAvatarMenu(!showAvatarMenu)}
+                className="w-9 h-9 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center"
+              >
+                <span className="text-white font-bold text-xs">
+                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                </span>
+              </button>
+              {showAvatarMenu && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="font-medium text-gray-900 text-sm">{user?.firstName} {user?.lastName}</p>
+                    <p className="text-xs text-gray-500">Principal</p>
+                  </div>
+                  <button
+                    onClick={() => { setShowAvatarMenu(false); setShowTour(true); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <HelpCircle className="w-4 h-4 text-gray-400" />
+                    Visite guidée
+                  </button>
+                  <button
+                    onClick={() => { setShowAvatarMenu(false); navigate('/help'); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <BookOpen className="w-4 h-4 text-gray-400" />
+                    Centre d'aide
+                  </button>
+                  <button
+                    onClick={() => { setShowAvatarMenu(false); navigate('/profile'); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <User className="w-4 h-4 text-gray-400" />
+                    Mon profil
+                  </button>
+                  <div className="border-t border-gray-100 mt-1 pt-1">
+                    <button
+                      onClick={() => { setShowAvatarMenu(false); handleLogout(); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Déconnexion
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </header>
 
-      {/* Navigation tabs - 4 onglets principaux */}
-      <nav className="bg-white border-b border-gray-200 px-4">
-        <div className="max-w-7xl mx-auto flex gap-1">
+      {/* Navigation tabs - 5 onglets principaux */}
+      <nav className="bg-white border-b border-gray-200 px-1 md:px-4">
+        <div className="max-w-7xl mx-auto flex">
           {[
-            { id: 'dashboard', label: 'Tableau de bord', icon: Home, count: null },
-            { id: 'sessions', label: 'Sessions', icon: ClipboardCheck, count: stats.pending },
-            { id: 'teachers', label: 'Enseignants', icon: Users, count: null },
-            { id: 'contrats', label: 'Contrats PACTE', icon: FileText, count: null },
-            { id: 'stats', label: 'Statistiques', icon: TrendingUp, count: null },
+            { id: 'dashboard', label: 'Tableau de bord', shortLabel: 'Accueil', icon: Home, count: null },
+            { id: 'sessions', label: 'Sessions', shortLabel: 'Sessions', icon: ClipboardCheck, count: stats.pending },
+            { id: 'teachers', label: 'Enseignants', shortLabel: 'Profs', icon: Users, count: null },
+            { id: 'contrats', label: 'Contrats PACTE', shortLabel: 'PACTE', icon: FileText, count: null },
+            { id: 'stats', label: 'Statistiques', shortLabel: 'Stats', icon: TrendingUp, count: null },
           ].map(tab => (
             <button
               key={tab.id}
               data-tour={tab.id !== 'dashboard' ? `${tab.id}-tab` : undefined}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center gap-0.5 md:gap-2 px-1 md:px-4 py-2 md:py-3 text-[10px] md:text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.id
                   ? 'border-purple-500 text-purple-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
-              <span>{tab.label}</span>
+              <tab.icon className="w-5 h-5 md:w-4 md:h-4" />
+              <span className="hidden md:inline">{tab.label}</span>
+              <span className="md:hidden">{tab.shortLabel}</span>
               {tab.count !== null && tab.count > 0 && (
-                <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">{tab.count}</span>
+                <span className="px-1.5 md:px-2 py-0.5 text-[9px] md:text-xs rounded-full bg-purple-100 text-purple-700">{tab.count}</span>
               )}
             </button>
           ))}
@@ -924,46 +992,34 @@ export default function PrincipalDashboard() {
         {activeTab === 'dashboard' ? (
           <>
             {/* Cartes cliquables */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-3 gap-3 md:gap-6">
               <button
                 onClick={() => { setActiveTab('sessions'); setSessionFilter('pending'); }}
-                className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl md:rounded-2xl p-3 md:p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-amber-100 text-sm">A valider</p>
-                    <p className="text-4xl font-bold">{stats.pending}</p>
-                  </div>
-                  <ClipboardCheck className="w-12 h-12 text-amber-200" />
-                </div>
+                <ClipboardCheck className="w-6 h-6 md:w-8 md:h-8 text-amber-200 mb-1 md:mb-2" />
+                <p className="text-2xl md:text-4xl font-bold">{stats.pending}</p>
+                <p className="text-amber-100 text-[10px] md:text-sm">À valider</p>
               </button>
               <button
                 onClick={() => { setActiveTab('sessions'); setSessionFilter('validated'); }}
-                className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl md:rounded-2xl p-3 md:p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-100 text-sm">Validees</p>
-                    <p className="text-4xl font-bold">{stats.validated}</p>
-                  </div>
-                  <CheckCircle className="w-12 h-12 text-green-200" />
-                </div>
+                <CheckCircle className="w-6 h-6 md:w-8 md:h-8 text-green-200 mb-1 md:mb-2" />
+                <p className="text-2xl md:text-4xl font-bold">{stats.validated}</p>
+                <p className="text-green-100 text-[10px] md:text-sm">Validées</p>
               </button>
               <button
                 onClick={() => { setActiveTab('sessions'); setSessionFilter('rejected'); }}
-                className="bg-gradient-to-br from-red-400 to-red-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                className="bg-gradient-to-br from-red-400 to-red-500 rounded-xl md:rounded-2xl p-3 md:p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-red-100 text-sm">Rejetees</p>
-                    <p className="text-4xl font-bold">{stats.rejected}</p>
-                  </div>
-                  <XCircle className="w-12 h-12 text-red-200" />
-                </div>
+                <XCircle className="w-6 h-6 md:w-8 md:h-8 text-red-200 mb-1 md:mb-2" />
+                <p className="text-2xl md:text-4xl font-bold">{stats.rejected}</p>
+                <p className="text-red-100 text-[10px] md:text-sm">Rejetées</p>
               </button>
             </div>
 
-            {/* Budgets annuels de l'etablissement */}
+            {/* Budgets annuels de l'établissement */}
             <div className="bg-white rounded-2xl border border-gray-200 p-6 mt-6">
               <div className="flex items-center justify-between mb-2">
                 <div>
@@ -1784,7 +1840,7 @@ export default function PrincipalDashboard() {
             {/* Sous-filtres de statut */}
             <div className="flex flex-wrap gap-2 mb-4">
               {[
-                { id: 'pending', label: 'A valider', count: stats.pending, color: 'amber' },
+                { id: 'pending', label: 'À valider', count: stats.pending, color: 'amber' },
                 { id: 'validated', label: 'Validées', count: stats.validated, color: 'green' },
                 { id: 'rejected', label: 'Rejetées', count: stats.rejected, color: 'red' },
                 { id: 'all', label: 'Toutes', count: sessions.length, color: 'gray' },
@@ -1858,7 +1914,7 @@ export default function PrincipalDashboard() {
                     </button>
                     {selectedIds.size > 0 && (
                       <span className="text-sm text-purple-600 font-medium">
-                        {selectedIds.size} session{selectedIds.size > 1 ? 's' : ''} selectionnee{selectedIds.size > 1 ? 's' : ''}
+                        {selectedIds.size} session{selectedIds.size > 1 ? 's' : ''} sélectionnée{selectedIds.size > 1 ? 's' : ''}
                       </span>
                     )}
                     {filteredSessions.some(s => s.type === 'AUTRE' && s.status === 'PENDING_VALIDATION') && (
@@ -2041,7 +2097,7 @@ export default function PrincipalDashboard() {
 
             <div className="px-5 py-4 space-y-4">
 
-              {/* Details RCD */}
+              {/* Détails RCD */}
               {selectedSession.type === 'RCD' && (
                 <div className="grid grid-cols-2 gap-4">
                   {selectedSession.className && (
@@ -2059,7 +2115,7 @@ export default function PrincipalDashboard() {
                 </div>
               )}
 
-              {/* Details Devoirs Faits */}
+              {/* Détails Devoirs Faits */}
               {selectedSession.type === 'DEVOIRS_FAITS' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -2131,7 +2187,7 @@ export default function PrincipalDashboard() {
                 </div>
               )}
 
-              {/* Details AUTRE avec conversion */}
+              {/* Détails AUTRE avec conversion */}
               {selectedSession.type === 'AUTRE' && (
                 <div className="space-y-3">
                   {selectedSession.description && (
@@ -2527,7 +2583,7 @@ export default function PrincipalDashboard() {
                   <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
                   <div className="text-sm text-red-800">
                     <p className="font-medium">Action irreversible</p>
-                    <p>Cette session sera definitivement supprimee de la base de donnees.</p>
+                    <p>Cette session sera définitivement supprimée de la base de données.</p>
                   </div>
                 </div>
               </div>
@@ -2590,13 +2646,13 @@ export default function PrincipalDashboard() {
                   <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
                   <div className="text-sm text-red-800">
                     <p className="font-medium">Action irreversible</p>
-                    <p>Vous allez supprimer definitivement <strong>{selectedIds.size} session{selectedIds.size > 1 ? 's' : ''}</strong>.</p>
+                    <p>Vous allez supprimer définitivement <strong>{selectedIds.size} session{selectedIds.size > 1 ? 's' : ''}</strong>.</p>
                   </div>
                 </div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600 mb-2">Sessions selectionnees :</p>
+                <p className="text-sm text-gray-600 mb-2">Sessions sélectionnées :</p>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {sessions.filter(s => selectedIds.has(s.id)).map(s => (
                     <div key={s.id} className="text-sm text-gray-800">

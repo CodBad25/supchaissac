@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LogOut, Search, Calendar, Clock, User, FileText,
@@ -155,6 +155,20 @@ export default function SecretaryDashboard() {
 
   // Tour guidé
   const [showTour, setShowTour] = useState(shouldShowTour('secretary'));
+
+  // Mobile avatar menu
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target as Node)) {
+        setShowAvatarMenu(false);
+      }
+    };
+    if (showAvatarMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAvatarMenu]);
 
   // UI state
   const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'teachers' | 'contrats'>('dashboard');
@@ -870,16 +884,17 @@ export default function SecretaryDashboard() {
       <header className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">S</span>
+            <div className="w-9 h-9 md:w-10 md:h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-base md:text-lg">S</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">SupChaissac</h1>
-              <p className="text-xs text-amber-600 font-medium">Secretariat</p>
+              <h1 className="text-lg md:text-xl font-bold text-gray-900">SupChaissac</h1>
+              <p className="text-xs text-amber-600 font-medium">Secrétariat</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Desktop : tous les boutons */}
+          <div className="hidden md:flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-medium text-gray-900">{user?.name}</p>
               <p className="text-xs text-gray-500">Secrétaire</p>
@@ -898,9 +913,7 @@ export default function SecretaryDashboard() {
             >
               <BookOpen className="w-5 h-5" />
             </button>
-            {/* Notifications */}
             <NotificationBell />
-
             <button
               onClick={() => navigate('/profile')}
               className="p-2 text-gray-400 hover:text-amber-500 transition-colors"
@@ -912,32 +925,86 @@ export default function SecretaryDashboard() {
               <LogOut className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Mobile : cloche + avatar avec menu */}
+          <div className="flex md:hidden items-center gap-2">
+            <NotificationBell />
+            <div className="relative" ref={avatarMenuRef}>
+              <button
+                onClick={() => setShowAvatarMenu(!showAvatarMenu)}
+                className="w-9 h-9 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center"
+              >
+                <span className="text-white font-bold text-xs">
+                  {user?.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                </span>
+              </button>
+              {showAvatarMenu && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="font-medium text-gray-900 text-sm">{user?.name}</p>
+                    <p className="text-xs text-gray-500">Secrétaire</p>
+                  </div>
+                  <button
+                    onClick={() => { setShowAvatarMenu(false); setShowTour(true); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <HelpCircle className="w-4 h-4 text-gray-400" />
+                    Visite guidée
+                  </button>
+                  <button
+                    onClick={() => { setShowAvatarMenu(false); navigate('/help'); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <BookOpen className="w-4 h-4 text-gray-400" />
+                    Centre d'aide
+                  </button>
+                  <button
+                    onClick={() => { setShowAvatarMenu(false); navigate('/profile'); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <User className="w-4 h-4 text-gray-400" />
+                    Mon profil
+                  </button>
+                  <div className="border-t border-gray-100 mt-1 pt-1">
+                    <button
+                      onClick={() => { setShowAvatarMenu(false); handleLogout(); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Déconnexion
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </header>
 
       {/* Navigation tabs - 4 onglets principaux */}
-      <nav className="bg-white border-b border-gray-200 px-4">
-        <div className="max-w-7xl mx-auto flex gap-1">
+      <nav className="bg-white border-b border-gray-200 px-1 md:px-4">
+        <div className="max-w-7xl mx-auto flex">
           {[
-            { id: 'dashboard', label: 'Tableau de bord', icon: Home, count: null },
-            { id: 'sessions', label: 'Sessions', icon: ClipboardCheck, count: stats.pending + stats.toPay },
-            { id: 'teachers', label: 'Enseignants', icon: Users, count: null },
-            { id: 'contrats', label: 'Contrats PACTE', icon: FileText, count: null },
+            { id: 'dashboard', label: 'Tableau de bord', shortLabel: 'Accueil', icon: Home, count: null },
+            { id: 'sessions', label: 'Sessions', shortLabel: 'Sessions', icon: ClipboardCheck, count: stats.pending + stats.toPay },
+            { id: 'teachers', label: 'Enseignants', shortLabel: 'Profs', icon: Users, count: null },
+            { id: 'contrats', label: 'Contrats PACTE', shortLabel: 'PACTE', icon: FileText, count: null },
           ].map(tab => (
             <button
               key={tab.id}
               data-tour={tab.id === 'sessions' ? 'sessions-tab' : tab.id === 'teachers' ? 'teachers-tab' : tab.id === 'contrats' ? 'contrats-tab' : undefined}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center gap-0.5 md:gap-2 px-1 md:px-4 py-2 md:py-3 text-[10px] md:text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.id
                   ? 'border-amber-500 text-amber-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
-              <span>{tab.label}</span>
+              <tab.icon className="w-5 h-5 md:w-4 md:h-4" />
+              <span className="hidden md:inline">{tab.label}</span>
+              <span className="md:hidden">{tab.shortLabel}</span>
               {tab.count !== null && tab.count > 0 && (
-                <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700">{tab.count}</span>
+                <span className="px-1.5 md:px-2 py-0.5 text-[9px] md:text-xs rounded-full bg-amber-100 text-amber-700">{tab.count}</span>
               )}
             </button>
           ))}
@@ -950,46 +1017,34 @@ export default function SecretaryDashboard() {
           /* Dashboard */
           <div className="space-y-6">
             {/* Cartes stats principales */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-3 gap-3 md:gap-6">
               <button
                 onClick={() => { setActiveTab('sessions'); setSessionFilter('pending'); }}
-                className="bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                className="bg-gradient-to-br from-yellow-400 to-amber-500 rounded-xl md:rounded-2xl p-3 md:p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-yellow-100 text-sm">À examiner</p>
-                    <p className="text-4xl font-bold">{stats.pending}</p>
-                  </div>
-                  <ClipboardCheck className="w-12 h-12 text-yellow-200" />
-                </div>
+                <ClipboardCheck className="w-6 h-6 md:w-8 md:h-8 text-yellow-200 mb-1 md:mb-2" />
+                <p className="text-2xl md:text-4xl font-bold">{stats.pending}</p>
+                <p className="text-yellow-100 text-[10px] md:text-sm">À examiner</p>
               </button>
               <button
                 onClick={() => { setActiveTab('sessions'); setSessionFilter('to-pay'); }}
-                className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl md:rounded-2xl p-3 md:p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-100 text-sm">À mettre en paiement</p>
-                    <p className="text-4xl font-bold">{stats.toPay}</p>
-                  </div>
-                  <CreditCard className="w-12 h-12 text-green-200" />
-                </div>
+                <CreditCard className="w-6 h-6 md:w-8 md:h-8 text-green-200 mb-1 md:mb-2" />
+                <p className="text-2xl md:text-4xl font-bold">{stats.toPay}</p>
+                <p className="text-green-100 text-[10px] md:text-sm">Paiement</p>
               </button>
               <button
                 onClick={() => { setActiveTab('sessions'); setSessionFilter('history'); }}
-                className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl md:rounded-2xl p-3 md:p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-200 text-sm">Mis en paiement</p>
-                    <p className="text-4xl font-bold">{stats.paid}</p>
-                  </div>
-                  <CheckCircle className="w-12 h-12 text-gray-300" />
-                </div>
+                <CheckCircle className="w-6 h-6 md:w-8 md:h-8 text-gray-300 mb-1 md:mb-2" />
+                <p className="text-2xl md:text-4xl font-bold">{stats.paid}</p>
+                <p className="text-gray-200 text-[10px] md:text-sm">Payées</p>
               </button>
             </div>
 
-            {/* Apercu PACTE */}
+            {/* Aperçu PACTE */}
             {pacteStats && (
               <button
                 onClick={() => setActiveTab('contrats')}
@@ -998,7 +1053,7 @@ export default function SecretaryDashboard() {
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <FileText className="w-5 h-5 text-purple-600" />
-                    Apercu PACTE
+                    Aperçu PACTE
                   </h3>
                   <span className="text-xs text-gray-500">Cliquer pour gerer</span>
                 </div>
@@ -1044,7 +1099,7 @@ export default function SecretaryDashboard() {
                       className="w-full flex items-center justify-between p-2 bg-white rounded-lg hover:bg-red-100 transition-colors text-left"
                     >
                       <span className="text-sm text-red-700">
-                        {alerts.validatedNotPaid.length} session(s) validee(s) non mises en paiement depuis + de 14 jours
+                        {alerts.validatedNotPaid.length} session(s) validée(s) non mises en paiement depuis + de 14 jours
                       </span>
                       <span className="text-xs text-red-500">Voir</span>
                     </button>
@@ -1242,7 +1297,7 @@ export default function SecretaryDashboard() {
             ) : filteredTeachers.length === 0 ? (
               <div className="bg-white rounded-xl p-12 text-center">
                 <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Aucun enseignant trouve</p>
+                <p className="text-gray-500">Aucun enseignant trouvé</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -1419,22 +1474,23 @@ export default function SecretaryDashboard() {
             {/* Sous-filtres Sessions */}
             <div className="flex gap-2 mb-6">
               {[
-                { id: 'pending', label: 'À examiner', count: stats.pending, icon: ClipboardCheck },
-                { id: 'to-pay', label: 'À mettre en paiement', count: stats.toPay, icon: CreditCard },
-                { id: 'history', label: 'Historique', count: stats.history, icon: History },
+                { id: 'pending', label: 'À examiner', shortLabel: 'À examiner', count: stats.pending, icon: ClipboardCheck },
+                { id: 'to-pay', label: 'À mettre en paiement', shortLabel: 'Paiement', count: stats.toPay, icon: CreditCard },
+                { id: 'history', label: 'Historique', shortLabel: 'Historique', count: stats.history, icon: History },
               ].map(filter => (
                 <button
                   key={filter.id}
                   data-tour={filter.id === 'pending' ? 'pending-filter' : filter.id === 'to-pay' ? 'to-pay-filter' : undefined}
                   onClick={() => setSessionFilter(filter.id as typeof sessionFilter)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                  className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-1.5 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-xs md:text-base font-medium transition-all ${
                     sessionFilter === filter.id
                       ? 'bg-amber-500 text-white shadow-md'
                       : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
                   }`}
                 >
-                  <filter.icon className="w-4 h-4" />
-                  <span>{filter.label}</span>
+                  <filter.icon className="w-4 h-4 shrink-0" />
+                  <span className="hidden md:inline">{filter.label}</span>
+                  <span className="md:hidden truncate">{filter.shortLabel}</span>
                   {filter.count > 0 && (
                     <span className={`px-2 py-0.5 text-xs rounded-full ${
                       sessionFilter === filter.id
@@ -1508,7 +1564,7 @@ export default function SecretaryDashboard() {
                     </button>
                     {selectedIds.size > 0 && (
                       <span className="text-sm text-amber-600 font-medium">
-                        {selectedIds.size} session{selectedIds.size > 1 ? 's' : ''} selectionnee{selectedIds.size > 1 ? 's' : ''}
+                        {selectedIds.size} session{selectedIds.size > 1 ? 's' : ''} sélectionnée{selectedIds.size > 1 ? 's' : ''}
                       </span>
                     )}
                   </div>
@@ -1542,7 +1598,7 @@ export default function SecretaryDashboard() {
             {filteredSessions.length === 0 ? (
               <div className="bg-white rounded-xl p-12 text-center">
                 <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Aucune session trouvee</p>
+                <p className="text-gray-500">Aucune session trouvée</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -1620,7 +1676,7 @@ export default function SecretaryDashboard() {
                           className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
                         >
                           <Eye className="w-4 h-4" />
-                          Details
+                          Détails
                         </button>
 
                         {session.status === 'PENDING_REVIEW' && (
@@ -1669,7 +1725,7 @@ export default function SecretaryDashboard() {
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Details de la session</h2>
+                <h2 className="text-xl font-bold text-gray-900">Détails de la session</h2>
                 <button onClick={() => setShowDetailModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                   <X className="w-5 h-5" />
                 </button>
@@ -1691,14 +1747,14 @@ export default function SecretaryDashboard() {
                 </div>
               </div>
 
-              {/* Details */}
+              {/* Détails */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 mb-2">Informations</h4>
                   <div className="space-y-1 text-sm">
                     <p><span className="text-gray-500">Type:</span> {selectedSession.type}</p>
                     <p><span className="text-gray-500">Date:</span> {formatDate(selectedSession.date)}</p>
-                    <p><span className="text-gray-500">Creneau:</span> {selectedSession.timeSlot}</p>
+                    <p><span className="text-gray-500">Créneau:</span> {selectedSession.timeSlot}</p>
                   </div>
                 </div>
 
@@ -1708,7 +1764,7 @@ export default function SecretaryDashboard() {
                     <div className="space-y-1 text-sm">
                       {selectedSession.className && <p><span className="text-gray-500">Classe:</span> {selectedSession.className}</p>}
                       {getReplacedTeacherName(selectedSession) && <p><span className="text-gray-500">Remplace:</span> {getReplacedTeacherName(selectedSession)}</p>}
-                      {selectedSession.replacedTeacherSubject && <p><span className="text-gray-500">Matiere:</span> {selectedSession.replacedTeacherSubject}</p>}
+                      {selectedSession.replacedTeacherSubject && <p><span className="text-gray-500">Matière:</span> {selectedSession.replacedTeacherSubject}</p>}
                     </div>
                   </div>
                 )}
@@ -1790,7 +1846,7 @@ export default function SecretaryDashboard() {
                   <div className="bg-amber-50 border border-amber-200 p-6 rounded-lg text-center">
                     <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
                     <p className="text-amber-700 font-medium">Aucune piece jointe</p>
-                    <p className="text-amber-600 text-sm">Vous pouvez demander des documents a l'enseignant</p>
+                    <p className="text-amber-600 text-sm">Vous pouvez demander des documents à l'enseignant</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1805,7 +1861,7 @@ export default function SecretaryDashboard() {
 
                       return (
                         <div key={attachment.id} className="bg-gray-50 rounded-lg overflow-hidden">
-                          {/* Apercu image si c'est une image */}
+                          {/* Aperçu image si c'est une image */}
                           {isImage && (
                             <div
                               className="relative bg-gray-100 cursor-pointer group"
@@ -1925,7 +1981,7 @@ export default function SecretaryDashboard() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Message a l'enseignant <span className="text-red-500">*</span>
+                  Message à l'enseignant <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={pendingComment}
@@ -1946,7 +2002,7 @@ export default function SecretaryDashboard() {
                     <p className="font-medium">Actions automatiques:</p>
                     <ul className="list-disc list-inside mt-1 space-y-1">
                       <li>Statut change en "En attente PJ"</li>
-                      <li>Notification a l'enseignant</li>
+                      <li>Notification à l'enseignant</li>
                     </ul>
                   </div>
                 </div>
@@ -2060,7 +2116,7 @@ export default function SecretaryDashboard() {
                   </div>
                   <div>
                     <p className="text-lg font-bold text-green-600">{editingTeacher.stats.validatedSessions}</p>
-                    <p className="text-xs text-gray-600">Validees</p>
+                    <p className="text-xs text-gray-600">Validées</p>
                   </div>
                 </div>
               </div>

@@ -100,8 +100,8 @@ app.use((req, res, next) => {
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: https://s3.fr-par.scw.cloud",
-      "connect-src 'self' https://s3.fr-par.scw.cloud",
+      "img-src 'self' data:",
+      "connect-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'"
@@ -134,6 +134,9 @@ async function startServer() {
     // Configuration authentification
     setupAuth(app)
     
+    // Servir les fichiers uploades
+    app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
+
     // Routes API
     app.use('/api/auth', authRoutes)
     app.use('/api/sessions', sessionsRoutes)
@@ -174,7 +177,7 @@ async function startServer() {
 
       // SPA fallback: toutes les routes non-API renvoient index.html
       app.get('*', (req, res) => {
-        if (!req.path.startsWith('/api')) {
+        if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
           res.sendFile(path.join(distPath, 'index.html'))
         }
       })
