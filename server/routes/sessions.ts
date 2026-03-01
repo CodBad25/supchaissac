@@ -4,17 +4,18 @@ import { sessions, insertSessionSchema, users, attachments } from '../../src/lib
 import { requireAuth, requireSecretary, requirePrincipal } from '../middleware/auth';
 import { eq, and, desc, or, inArray, isNull } from 'drizzle-orm';
 import { isBlockedDate } from '../services/holidays';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
 // Créer une nouvelle session
 router.post('/', requireAuth, async (req, res) => {
   try {
-    console.log('📝 [API] Création de session:', req.body);
+    logger.info('📝 [API] Création de session:', req.body);
 
     // Vérifier que l'utilisateur est authentifié
     if (!req.user) {
-      console.log('❌ [API] Utilisateur non authentifié');
+      logger.info('❌ [API] Utilisateur non authentifié');
       return res.status(401).json({ error: 'Non authentifié' });
     }
 
@@ -22,7 +23,7 @@ router.post('/', requireAuth, async (req, res) => {
     const validationResult = insertSessionSchema.safeParse(req.body);
 
     if (!validationResult.success) {
-      console.error('❌ [API] Validation échouée:', validationResult.error.errors);
+      logger.error('❌ [API] Validation échouée:', validationResult.error.errors);
       return res.status(400).json({
         error: 'Données invalides',
         details: validationResult.error.errors
@@ -33,7 +34,7 @@ router.post('/', requireAuth, async (req, res) => {
     const sessionDate = new Date(validationResult.data.date);
     const blockedCheck = isBlockedDate(sessionDate);
     if (blockedCheck.isBlocked) {
-      console.log(`❌ [API] Date bloquée: ${validationResult.data.date} - ${blockedCheck.reason}`);
+      logger.info(`❌ [API] Date bloquée: ${validationResult.data.date} - ${blockedCheck.reason}`);
       return res.status(400).json({
         error: 'Date non disponible',
         details: `Impossible de créer une session le ${validationResult.data.date} : ${blockedCheck.reason}`
@@ -48,12 +49,12 @@ router.post('/', requireAuth, async (req, res) => {
       status: 'PENDING_REVIEW',
     }).returning();
 
-    console.log(`✅ [API] Session créée: ${newSession[0].type} - ${newSession[0].date} (ID: ${newSession[0].id})`);
+    logger.info(`✅ [API] Session créée: ${newSession[0].type} - ${newSession[0].date} (ID: ${newSession[0].id})`);
 
     res.status(201).json(newSession[0]);
 
   } catch (error) {
-    console.error('❌ [API] Erreur création session:', error);
+    logger.error('❌ [API] Erreur création session:', error);
     res.status(500).json({
       error: 'Erreur lors de la création de la session',
       details: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -68,7 +69,7 @@ router.get('/', requireAuth, async (req, res) => {
       return res.status(401).json({ error: 'Non authentifié' });
     }
 
-    console.log('📋 [API] Récupération sessions pour:', req.user.name);
+    logger.info('📋 [API] Récupération sessions pour:', req.user.name);
 
     // Récupérer toutes les sessions de l'enseignant, triées par date de création
     const userSessions = await db
@@ -77,12 +78,12 @@ router.get('/', requireAuth, async (req, res) => {
       .where(and(eq(sessions.teacherId, req.user.id), isNull(sessions.deletedAt)))
       .orderBy(desc(sessions.createdAt));
 
-    console.log(`✅ [API] ${userSessions.length} session(s) trouvée(s)`);
+    logger.info(`✅ [API] ${userSessions.length} session(s) trouvée(s)`);
 
     res.json(userSessions);
 
   } catch (error) {
-    console.error('❌ [API] Erreur récupération sessions:', error);
+    logger.error('❌ [API] Erreur récupération sessions:', error);
     res.status(500).json({
       error: 'Erreur lors de la récupération des sessions',
       details: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -104,7 +105,7 @@ router.get('/admin/all', requireSecretary, async (req, res) => {
     const { status, type } = req.query;
     const userRole = req.user.role;
 
-    console.log(`📋 [API] Récupération sessions admin par ${req.user.name} (${userRole})`);
+    logger.info(`📋 [API] Récupération sessions admin par ${req.user.name} (${userRole})`);
 
     // Requête avec jointure pour récupérer la matière de l'enseignant
     let query = db
@@ -152,12 +153,12 @@ router.get('/admin/all', requireSecretary, async (req, res) => {
     // Trier par date de création (plus récent en premier)
     const allSessions = await query.orderBy(desc(sessions.createdAt));
 
-    console.log(`✅ [API] ${allSessions.length} session(s) trouvée(s)`);
+    logger.info(`✅ [API] ${allSessions.length} session(s) trouvée(s)`);
 
     res.json(allSessions);
 
   } catch (error) {
-    console.error('❌ [API] Erreur récupération sessions admin:', error);
+    logger.error('❌ [API] Erreur récupération sessions admin:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -197,7 +198,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     res.json(session);
 
   } catch (error) {
-    console.error('❌ [API] Erreur récupération session:', error);
+    logger.error('❌ [API] Erreur récupération session:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -265,7 +266,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     const sessionDate = new Date(validationResult.data.date);
     const blockedCheck = isBlockedDate(sessionDate);
     if (blockedCheck.isBlocked) {
-      console.log(`❌ [API] Date bloquée pour modification: ${validationResult.data.date} - ${blockedCheck.reason}`);
+      logger.info(`❌ [API] Date bloquée pour modification: ${validationResult.data.date} - ${blockedCheck.reason}`);
       return res.status(400).json({
         error: 'Date non disponible',
         details: `Impossible de déplacer la session vers le ${validationResult.data.date} : ${blockedCheck.reason}`
@@ -283,12 +284,12 @@ router.put('/:id', requireAuth, async (req, res) => {
       .where(eq(sessions.id, sessionId))
       .returning();
 
-    console.log(`✅ [API] Session ${sessionId} modifiée par ${req.user.name}`);
+    logger.info(`✅ [API] Session ${sessionId} modifiée par ${req.user.name}`);
 
     res.json(updatedSession);
 
   } catch (error) {
-    console.error('❌ [API] Erreur modification session:', error);
+    logger.error('❌ [API] Erreur modification session:', error);
     res.status(500).json({ error: 'Erreur serveur lors de la modification' });
   }
 });
@@ -324,7 +325,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
     if (isPrincipal || isAdmin) {
       // Principal/Admin peut supprimer n'importe quelle session
-      console.log(`🗑️ [API] Principal/Admin ${req.user.name} supprime session ${sessionId}`);
+      logger.info(`🗑️ [API] Principal/Admin ${req.user.name} supprime session ${sessionId}`);
     } else if (isOwner) {
       // Enseignant peut supprimer seulement ses propres sessions en PENDING_REVIEW
       if (existingSession.status !== 'PENDING_REVIEW') {
@@ -343,7 +344,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
       .set({ deletedAt: new Date() })
       .where(eq(sessions.id, sessionId));
 
-    console.log(`✅ [API] Session ${sessionId} supprimée (soft) par ${req.user.name} (${req.user.role})`);
+    logger.info(`✅ [API] Session ${sessionId} supprimée (soft) par ${req.user.name} (${req.user.role})`);
 
     res.json({
       success: true,
@@ -351,7 +352,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [API] Erreur suppression session:', error);
+    logger.error('❌ [API] Erreur suppression session:', error);
     res.status(500).json({ error: 'Erreur serveur lors de la suppression' });
   }
 });
@@ -410,12 +411,12 @@ router.put('/:id/review', requireSecretary, async (req, res) => {
       });
     }
 
-    console.log(`✅ [API] Session ${sessionId} vérifiée par ${req.user.name} → PENDING_VALIDATION`);
+    logger.info(`✅ [API] Session ${sessionId} vérifiée par ${req.user.name} → PENDING_VALIDATION`);
 
     res.json(updatedSession);
 
   } catch (error) {
-    console.error('❌ [API] Erreur vérification session:', error);
+    logger.error('❌ [API] Erreur vérification session:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -495,12 +496,12 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
         // Conversion RCD ou DEVOIRS_FAITS en HSE
         updateData.originalType = session.type; // Sauvegarder le type original
         updateData.type = 'HSE';
-        console.log(`📌 [API] Session ${sessionId} convertie de ${session.type} vers HSE`);
+        logger.info(`📌 [API] Session ${sessionId} convertie de ${session.type} vers HSE`);
       } else if (conversionType && conversionType !== session.type) {
         // Conversion AUTRE vers RCD/DF/HSE (ou autre conversion)
         updateData.originalType = session.type; // Sauvegarder le type original
         updateData.type = conversionType;
-        console.log(`📌 [API] Session ${sessionId} convertie de ${session.type} vers ${conversionType}`);
+        logger.info(`📌 [API] Session ${sessionId} convertie de ${session.type} vers ${conversionType}`);
       }
     } else if (action === 'reject') {
       newStatus = 'REJECTED';
@@ -564,12 +565,12 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
       cancel: 'annulée',
       unpay: 'retirée de la mise en paiement'
     };
-    console.log(`✅ [API] Session ${sessionId} ${actionLabels[action]} par ${req.user.name}`);
+    logger.info(`✅ [API] Session ${sessionId} ${actionLabels[action]} par ${req.user.name}`);
 
     res.json(updatedSession);
 
   } catch (error) {
-    console.error('❌ [API] Erreur validation session:', error);
+    logger.error('❌ [API] Erreur validation session:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -623,12 +624,12 @@ router.put('/:id/mark-paid', requireSecretary, async (req, res) => {
       });
     }
 
-    console.log(`✅ [API] Session ${sessionId} mise en paiement par ${req.user.name}`);
+    logger.info(`✅ [API] Session ${sessionId} mise en paiement par ${req.user.name}`);
 
     res.json(updatedSession);
 
   } catch (error) {
-    console.error('❌ [API] Erreur mise en paiement:', error);
+    logger.error('❌ [API] Erreur mise en paiement:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

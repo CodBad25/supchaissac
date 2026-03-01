@@ -11,6 +11,7 @@ import { updateUserSchema } from '../validators/user';
 import { validatePassword } from '../validators/password';
 import { importUsersSchema } from '../validators';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/auth';
+import { logger } from '../utils/logger';
 
 const router = Router();
 const upload = multer({
@@ -129,7 +130,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Erreur stats admin:', error);
+    logger.error('Erreur stats admin:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -158,7 +159,7 @@ router.get('/users', requireAdmin, async (req, res) => {
 
     res.json(allUsers);
   } catch (error) {
-    console.error('Erreur liste users:', error);
+    logger.error('Erreur liste users:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -201,7 +202,7 @@ router.post('/users', requireAdmin, async (req, res) => {
       })
       .returning();
 
-    console.log(`[ADMIN] Utilisateur créé: ${name} (${role})`);
+    logger.info(`Utilisateur créé: ${name} (${role})`, { name, role });
     res.json({
       id: newUser.id,
       username: newUser.username,
@@ -209,7 +210,7 @@ router.post('/users', requireAdmin, async (req, res) => {
       role: newUser.role,
     });
   } catch (error) {
-    console.error('Erreur création user:', error);
+    logger.error('Erreur création user:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -242,10 +243,10 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
       })
       .where(eq(users.id, parseInt(id)));
 
-    console.log(`[ADMIN] Utilisateur ${id} modifié`);
+    logger.info(`Utilisateur ${id} modifié`, { userId: id });
     res.json({ success: true });
   } catch (error) {
-    console.error('Erreur modification user:', error);
+    logger.error('Erreur modification user:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -280,10 +281,10 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
       await tx.delete(users).where(eq(users.id, parseInt(id)));
     });
 
-    console.log(`[ADMIN] Utilisateur ${id} supprimé`);
+    logger.info(`Utilisateur ${id} supprimé`, { userId: id });
     res.json({ success: true });
   } catch (error) {
-    console.error('Erreur suppression user:', error);
+    logger.error('Erreur suppression user:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -311,10 +312,10 @@ router.post('/users/:id/reset-password', requireAdmin, async (req, res) => {
       })
       .where(eq(users.id, parseInt(id)));
 
-    console.log(`[ADMIN] Mot de passe réinitialisé pour l'utilisateur ${id}`);
+    logger.info(`Mot de passe réinitialisé pour l'utilisateur ${id}`, { userId: id });
     res.json({ success: true });
   } catch (error) {
-    console.error('Erreur reset password:', error);
+    logger.error('Erreur reset password:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -381,7 +382,7 @@ router.post('/import', requireAdmin, async (req, res) => {
       }
     }
 
-    console.log(`[ADMIN] Import CSV: ${created} créés, ${updated} mis à jour`);
+    logger.info(`Import CSV: ${created} créés, ${updated} mis à jour`, { created, updated });
     res.json({
       success: true,
       created,
@@ -389,7 +390,7 @@ router.post('/import', requireAdmin, async (req, res) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
-    console.error('Erreur import CSV:', error);
+    logger.error('Erreur import CSV:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -408,7 +409,7 @@ router.post('/import-teachers-csv', requireAdmin, upload.single('file'), async (
       return res.status(400).json({ error: 'Fichier CSV vide ou invalide' });
     }
 
-    console.log(`[ADMIN] Import CSV enseignants: ${rows.length} lignes, headers:`, headers);
+    logger.info(`Import CSV enseignants: ${rows.length} lignes`, { rowCount: rows.length, headers });
 
     let created = 0;
     let skipped = 0;
@@ -438,7 +439,7 @@ router.post('/import-teachers-csv', requireAdmin, upload.single('file'), async (
         if (existing.length > 0) {
           skipped++;
           skippedNames.push(`${prenom} ${nom}`);
-          console.log(`[ADMIN] Enseignant ignoré (existe déjà): ${prenom} ${nom} (${email})`);
+          logger.info(`Enseignant ignoré (existe déjà): ${prenom} ${nom} (${email})`, { name: `${prenom} ${nom}`, email });
           continue;
         }
 
@@ -462,14 +463,14 @@ router.post('/import-teachers-csv', requireAdmin, upload.single('file'), async (
         });
 
         created++;
-        console.log(`[ADMIN] Enseignant créé: ${fullName} (${email})`);
+        logger.info(`Enseignant créé: ${fullName} (${email})`, { name: fullName, email });
 
       } catch (err: any) {
         errors.push({ line: i + 2, reason: err.message });
       }
     }
 
-    console.log(`[ADMIN] Import terminé: ${created} créés, ${skipped} ignorés (existants)`);
+    logger.info(`Import terminé: ${created} créés, ${skipped} ignorés (existants)`, { created, skipped });
 
     res.json({
       success: true,
@@ -575,7 +576,7 @@ router.post('/users/:id/send-activation', requireAdmin, async (req, res) => {
     // Envoyer l'email (ou simuler)
     const result = await sendActivationEmail(user.username, user.name, token);
 
-    console.log(`[ADMIN] Lien d'activation généré pour ${user.name} (${user.username})`);
+    logger.info(`Lien d'activation généré pour ${user.name} (${user.username})`, { userName: user.name, username: user.username });
 
     res.json({
       success: true,
@@ -585,7 +586,7 @@ router.post('/users/:id/send-activation', requireAdmin, async (req, res) => {
       emailEnabled: isEmailEnabled(),
     });
   } catch (error) {
-    console.error('Erreur envoi activation:', error);
+    logger.error('Erreur envoi activation:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -604,10 +605,10 @@ router.get('/email-status', requireAdmin, async (req, res) => {
 router.delete('/sessions/all', requireAdmin, async (req, res) => {
   try {
     const result = await db.delete(sessions);
-    console.log('🗑️ [ADMIN] Toutes les sessions supprimées');
+    logger.info('Toutes les sessions supprimées');
     res.json({ success: true, message: 'Toutes les sessions ont été supprimées' });
   } catch (error) {
-    console.error('Erreur suppression sessions:', error);
+    logger.error('Erreur suppression sessions:', error);
     res.status(500).json({ error: 'Erreur lors de la suppression' });
   }
 });
@@ -619,10 +620,10 @@ router.delete('/users/all', requireAdmin, async (req, res) => {
     await db.delete(sessions);
     // Puis supprimer les utilisateurs non-admin
     await db.delete(users).where(sql`${users.role} != 'ADMIN'`);
-    console.log('🗑️ [ADMIN] Tous les utilisateurs (sauf admin) supprimés');
+    logger.info('Tous les utilisateurs (sauf admin) supprimés');
     res.json({ success: true, message: 'Tous les utilisateurs (sauf admin) ont été supprimés' });
   } catch (error) {
-    console.error('Erreur suppression utilisateurs:', error);
+    logger.error('Erreur suppression utilisateurs:', error);
     res.status(500).json({ error: 'Erreur lors de la suppression' });
   }
 });
@@ -634,13 +635,13 @@ router.delete('/reset', requireAdmin, async (req, res) => {
     const sessionResult = await db.delete(sessions);
     // Supprimer tous les utilisateurs sauf admin
     const userResult = await db.delete(users).where(sql`${users.role} != 'ADMIN'`);
-    console.log('🗑️ [ADMIN] Réinitialisation complète effectuée');
+    logger.info('Réinitialisation complète effectuée');
     res.json({
       success: true,
       message: 'Base de données réinitialisée (sessions et utilisateurs supprimés, admin conservé)'
     });
   } catch (error) {
-    console.error('Erreur réinitialisation:', error);
+    logger.error('Erreur réinitialisation:', error);
     res.status(500).json({ error: 'Erreur lors de la réinitialisation' });
   }
 });

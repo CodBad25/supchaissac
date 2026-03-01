@@ -1,4 +1,5 @@
 import { Response } from 'express'
+import { logger } from './logger'
 
 export class AppError extends Error {
   constructor(
@@ -20,6 +21,6 @@ export function errorResponse(res: Response, error: unknown): void {
     return
   }
 
-  console.error('Erreur inattendue:', error)
+  logger.error('Erreur inattendue', { error })
   res.status(500).json({ error: 'Erreur serveur' })
 }

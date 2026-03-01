@@ -6,6 +6,7 @@ import { db } from '../../src/lib/db';
 import { attachments, sessions } from '../../src/lib/schema';
 import { eq } from 'drizzle-orm';
 import { requireAuth, requireSecretary } from '../middleware/auth';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -94,13 +95,13 @@ router.post('/upload/:sessionId', requireAuth, upload.single('file'), async (req
       try {
         const parseResult = await parseStudentList(file.buffer);
         students = parseResult.students;
-        console.log(`[UPLOAD] Excel parse: ${parseResult.successCount} eleves extraits`);
+        logger.info(` Excel parse: ${parseResult.successCount} eleves extraits`);
       } catch (err) {
-        console.error('[UPLOAD] Erreur parsing Excel:', err);
+        logger.error(' Erreur parsing Excel:', err);
       }
     }
 
-    console.log(`[UPLOAD] Fichier uploade: ${file.originalname} -> ${result.url}`);
+    logger.info(` Fichier uploade: ${file.originalname} -> ${result.url}`);
 
     res.json({
       success: true,
@@ -115,7 +116,7 @@ router.post('/upload/:sessionId', requireAuth, upload.single('file'), async (req
     });
 
   } catch (error) {
-    console.error('[UPLOAD] Erreur:', error);
+    logger.error(' Erreur:', error);
     res.status(500).json({
       error: 'Erreur lors de l\'upload',
       message: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -152,7 +153,7 @@ router.patch('/:id/verify', requireSecretary, async (req: Request, res: Response
       .where(eq(attachments.id, id))
       .returning();
 
-    console.log(`[VERIFY] Fichier verifie: ${updated.originalName}`);
+    logger.info(` Fichier verifie: ${updated.originalName}`);
 
     res.json({
       success: true,
@@ -160,7 +161,7 @@ router.patch('/:id/verify', requireSecretary, async (req: Request, res: Response
     });
 
   } catch (error) {
-    console.error('[VERIFY] Erreur:', error);
+    logger.error(' Erreur:', error);
     res.status(500).json({
       error: 'Erreur lors de la verification',
       message: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -210,19 +211,19 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     try {
       await deleteFile(attachment.filename);
     } catch (err) {
-      console.error('[DELETE] Erreur suppression storage:', err);
+      logger.error(' Erreur suppression storage:', err);
       // Continuer meme si le fichier n'existe plus dans le storage
     }
 
     // Supprimer de la base
     await db.delete(attachments).where(eq(attachments.id, id));
 
-    console.log(`[DELETE] Fichier supprime: ${attachment.originalName}`);
+    logger.info(` Fichier supprime: ${attachment.originalName}`);
 
     res.json({ success: true });
 
   } catch (error) {
-    console.error('[DELETE] Erreur:', error);
+    logger.error(' Erreur:', error);
     res.status(500).json({
       error: 'Erreur lors de la suppression',
       message: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -283,7 +284,7 @@ router.get('/session/:sessionId', requireAuth, async (req: Request, res: Respons
             url: signedUrl, // Remplacer l'URL publique par l'URL signee
           };
         } catch (err) {
-          console.error(`[LIST] Erreur generation URL signee pour ${attachment.filename}:`, err);
+          logger.error(` Erreur generation URL signee pour ${attachment.filename}:`, err);
           return attachment; // Retourner l'attachment sans modification en cas d'erreur
         }
       })
@@ -292,7 +293,7 @@ router.get('/session/:sessionId', requireAuth, async (req: Request, res: Respons
     res.json(attachmentsWithSignedUrls);
 
   } catch (error) {
-    console.error('[LIST] Erreur:', error);
+    logger.error(' Erreur:', error);
     res.status(500).json({
       error: 'Erreur lors de la recuperation des fichiers',
       message: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -364,7 +365,7 @@ router.get('/:id/download-url', requireAuth, async (req: Request, res: Response)
     });
 
   } catch (error) {
-    console.error('[DOWNLOAD-URL] Erreur:', error);
+    logger.error(' Erreur:', error);
     res.status(500).json({
       error: 'Erreur lors de la generation de l\'URL',
       message: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -398,7 +399,7 @@ router.post('/parse-excel', requireAuth, upload.single('file'), async (req: Requ
     });
 
   } catch (error) {
-    console.error('[PARSE] Erreur:', error);
+    logger.error(' Erreur:', error);
     res.status(500).json({
       error: 'Erreur lors du parsing',
       message: error instanceof Error ? error.message : 'Erreur inconnue'

@@ -7,6 +7,7 @@ import { users } from '../../src/lib/schema'
 import { eq, and, gt, like } from 'drizzle-orm'
 import { validatePassword } from '../validators/password'
 import { BCRYPT_ROUNDS } from '../utils/constants'
+import { logger } from '../utils/logger'
 
 const router = Router()
 
@@ -21,26 +22,26 @@ const loginLimiter = rateLimit({
 
 // Route de connexion (avec rate limiting)
 router.post('/login', loginLimiter, (req, res, next) => {
-  console.log(`🔐 [API] Tentative de connexion: ${req.body.username}`)
+  logger.info(`🔐 [API] Tentative de connexion: ${req.body.username}`)
   
   passport.authenticate('local', (err: any, user: any, info: any) => {
     if (err) {
-      console.error('❌ [API] Erreur authentification:', err)
+      logger.error('❌ [API] Erreur authentification:', err)
       return res.status(500).json({ error: 'Erreur serveur' })
     }
     
     if (!user) {
-      console.log('❌ [API] Échec authentification:', req.body.username)
+      logger.info('❌ [API] Échec authentification:', req.body.username)
       return res.status(401).json({ error: 'Identifiants incorrects' })
     }
     
     req.logIn(user, (err) => {
       if (err) {
-        console.error('❌ [API] Erreur session:', err)
+        logger.error('❌ [API] Erreur session:', err)
         return res.status(500).json({ error: 'Erreur de session' })
       }
       
-      console.log(`✅ [API] Connexion réussie: ${user.name} (${user.role})`)
+      logger.info(`✅ [API] Connexion réussie: ${user.name} (${user.role})`)
 
       // Parser le nom complet pour extraire prénom et nom
       const nameParts = user.name?.split(' ') || ['', '']
@@ -73,11 +74,11 @@ router.post('/logout', (req, res) => {
   
   req.logout((err) => {
     if (err) {
-      console.error('❌ [API] Erreur déconnexion:', err)
+      logger.error('❌ [API] Erreur déconnexion:', err)
       return res.status(500).json({ error: 'Erreur de déconnexion' })
     }
     
-    console.log(`👋 [API] Déconnexion: ${username}`)
+    logger.info(`👋 [API] Déconnexion: ${username}`)
     res.json({ message: 'Déconnexion réussie' })
   })
 })
@@ -86,7 +87,7 @@ router.post('/logout', (req, res) => {
 router.get('/me', async (req, res) => {
   if (req.isAuthenticated()) {
     try {
-      console.log(`ℹ️ [API] Vérification statut: ${req.user?.name} (${req.user?.role})`)
+      logger.info(`ℹ️ [API] Vérification statut: ${req.user?.name} (${req.user?.role})`)
       
       // Récupérer les données fraîches depuis la base de données
       const userData = await db.select().from(users).where(eq(users.id, req.user?.id)).limit(1)
@@ -119,11 +120,11 @@ router.get('/me', async (req, res) => {
         pacteHoursCompletedRCD: user.pacteHoursCompletedRCD || 0
       })
     } catch (error) {
-      console.error('❌ [API] Erreur récupération utilisateur:', error)
+      logger.error('❌ [API] Erreur récupération utilisateur:', error)
       res.status(500).json({ error: 'Erreur serveur' })
     }
   } else {
-    console.log('ℹ️ [API] Vérification statut: Non connecté')
+    logger.info('ℹ️ [API] Vérification statut: Non connecté')
     res.status(401).json({ error: 'Non connecté' })
   }
 })
@@ -182,11 +183,11 @@ router.patch('/profile', async (req, res) => {
     // Appliquer les modifications
     await db.update(users).set(updateData).where(eq(users.id, userId));
 
-    console.log(`✅ [API] Profil mis à jour: ${user.name}`);
+    logger.info(`✅ [API] Profil mis à jour: ${user.name}`);
 
     res.json({ success: true, message: 'Profil mis à jour' });
   } catch (error) {
-    console.error('❌ [API] Erreur mise à jour profil:', error);
+    logger.error('❌ [API] Erreur mise à jour profil:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -211,7 +212,7 @@ router.get('/users-list', async (req, res) => {
 
     res.json(demoUsers);
   } catch (error) {
-    console.error('❌ [API] Erreur récupération users-list:', error);
+    logger.error('❌ [API] Erreur récupération users-list:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -277,7 +278,7 @@ router.get('/verify-token/:token', activationLimiter, async (req, res) => {
       email: user.username,
     });
   } catch (error) {
-    console.error('❌ [API] Erreur vérification token:', error);
+    logger.error('❌ [API] Erreur vérification token:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -334,14 +335,14 @@ router.post('/activate', activationLimiter, async (req, res) => {
       })
       .where(eq(users.id, user.id));
 
-    console.log(`✅ [AUTH] Compte activé: ${user.name} (${user.username})`);
+    logger.info(`✅ [AUTH] Compte activé: ${user.name} (${user.username})`);
 
     res.json({
       success: true,
       message: 'Compte activé avec succès. Vous pouvez maintenant vous connecter.',
     });
   } catch (error) {
-    console.error('❌ [API] Erreur activation:', error);
+    logger.error('❌ [API] Erreur activation:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

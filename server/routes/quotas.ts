@@ -4,6 +4,7 @@ import { hourQuotas, sessions } from '../../src/lib/schema';
 import { requirePrincipal } from '../middleware/auth';
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { quotaUpdateSchema } from '../validators';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -70,10 +71,10 @@ router.get('/', requirePrincipal, async (req, res) => {
       };
     });
 
-    console.log(`[QUOTAS] Recuperation quotas pour ${schoolYear}:`, quotasWithConsumption);
+    logger.debug(`Récupération quotas pour ${schoolYear}`, { schoolYear, quotasCount: quotasWithConsumption.length });
     res.json(quotasWithConsumption);
   } catch (error) {
-    console.error('Erreur recuperation quotas:', error);
+    logger.error('Erreur récupération quotas', { error });
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -117,7 +118,7 @@ router.put('/', requirePrincipal, async (req, res) => {
           })
           .where(eq(hourQuotas.id, existing[0].id));
 
-        console.log(`[QUOTAS] Mise a jour ${update.type}: ${update.budgetHours}h par ${userName}`);
+        logger.info(`Mise à jour quota ${update.type}: ${update.budgetHours}h par ${userName}`, { type: update.type, budgetHours: update.budgetHours, userName });
       } else {
         // Creation
         await db
@@ -129,13 +130,13 @@ router.put('/', requirePrincipal, async (req, res) => {
             updatedBy: userName,
           });
 
-        console.log(`[QUOTAS] Creation ${update.type}: ${update.budgetHours}h par ${userName}`);
+        logger.info(`Création quota ${update.type}: ${update.budgetHours}h par ${userName}`, { type: update.type, budgetHours: update.budgetHours, userName });
       }
     }
 
-    res.json({ success: true, message: 'Quotas mis a jour' });
+    res.json({ success: true, message: 'Quotas mis à jour' });
   } catch (error) {
-    console.error('Erreur mise a jour quotas:', error);
+    logger.error('Erreur mise à jour quotas', { error });
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

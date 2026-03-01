@@ -3,6 +3,7 @@ import { db } from '../../src/lib/db';
 import { users } from '../../src/lib/schema';
 import { requireAuth } from '../middleware/auth';
 import { eq, and, or, ilike, asc, sql } from 'drizzle-orm';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.get('/search', requireAuth, async (req, res) => {
     const searchTerm = normalizeForSearch(q as string);
     const maxResults = Math.min(parseInt(limit as string) || 10, 20);
 
-    console.log(`[TEACHERS] Recherche: "${q}" -> "${searchTerm}"`);
+    logger.info(`TEACHERS] Recherche: "${q}" -> "${searchTerm}"`);
 
     // Recherche SQL directe avec ILIKE (pas de chargement complet en mémoire)
     const searchPattern = `%${q as string}%`;
@@ -76,11 +77,11 @@ router.get('/search', requireAuth, async (req, res) => {
       };
     });
 
-    console.log(`[TEACHERS] ${results.length} resultats pour "${q}"`);
+    logger.info(`TEACHERS] ${results.length} resultats pour "${q}"`);
 
     res.json(results);
   } catch (error) {
-    console.error('Erreur recherche enseignants:', error);
+    logger.error('Erreur recherche enseignants:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -121,10 +122,10 @@ router.get('/', requireAuth, async (req, res) => {
       };
     });
 
-    console.log(`[TEACHERS] ${results.length} enseignants recuperes`);
+    logger.info(`TEACHERS] ${results.length} enseignants recuperes`);
     res.json(results);
   } catch (error) {
-    console.error('Erreur recuperation enseignants:', error);
+    logger.error('Erreur recuperation enseignants:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

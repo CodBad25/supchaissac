@@ -4,6 +4,7 @@ import { users, sessions } from '../../src/lib/schema';
 import { requireSecretary } from '../middleware/auth';
 import { eq, and, sql, count, gte, isNull } from 'drizzle-orm';
 import { pacteStatusSchema, pacteContratSchema } from '../validators';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -67,7 +68,7 @@ router.get('/teachers', requireSecretary, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Erreur récupération enseignants:', error);
+    logger.error('Erreur récupération enseignants:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -110,7 +111,7 @@ router.get('/statistics', requireSecretary, async (req, res) => {
 
     res.json(stats);
   } catch (error) {
-    console.error('Erreur statistiques PACTE:', error);
+    logger.error('Erreur statistiques PACTE:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -143,7 +144,7 @@ router.patch('/teachers/:id/status', requireSecretary, async (req, res) => {
       return res.status(404).json({ error: 'Enseignant non trouve' });
     }
 
-    console.log(`[PACTE] Statut mis a jour pour ${updatedUser.name}: inPacte=${inPacte}`);
+    logger.info(`PACTE] Statut mis a jour pour ${updatedUser.name}: inPacte=${inPacte}`);
 
     res.json({
       success: true,
@@ -151,7 +152,7 @@ router.patch('/teachers/:id/status', requireSecretary, async (req, res) => {
       user: updatedUser
     });
   } catch (error) {
-    console.error('Erreur mise a jour PACTE:', error);
+    logger.error('Erreur mise a jour PACTE:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -190,7 +191,7 @@ router.patch('/teachers/:id/contrat', requireSecretary, async (req, res) => {
       return res.status(404).json({ error: 'Enseignant non trouve' });
     }
 
-    console.log(`[PACTE] Contrat mis a jour pour ${updatedUser.name}: DF=${pacteHoursDF}h, RCD=${pacteHoursRCD}h`);
+    logger.info(`PACTE] Contrat mis a jour pour ${updatedUser.name}: DF=${pacteHoursDF}h, RCD=${pacteHoursRCD}h`);
 
     res.json({
       success: true,
@@ -198,7 +199,7 @@ router.patch('/teachers/:id/contrat', requireSecretary, async (req, res) => {
       user: updatedUser
     });
   } catch (error) {
-    console.error('Erreur mise a jour contrat PACTE:', error);
+    logger.error('Erreur mise a jour contrat PACTE:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

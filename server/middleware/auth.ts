@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from 'express'
+import { logger } from '../utils/logger'
 
 // Middleware pour vérifier l'authentification
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (req.isAuthenticated()) {
     return next()
   }
-  
-  console.log('🚫 [AUTH] Accès non autorisé - utilisateur non connecté')
+
+  logger.warn('Accès non autorisé - utilisateur non connecté')
   res.status(401).json({ error: 'Authentification requise' })
 }
 
@@ -14,17 +15,17 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 export function requireRole(...allowedRoles: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.isAuthenticated()) {
-      console.log('🚫 [AUTH] Accès non autorisé - utilisateur non connecté')
+      logger.warn('Accès non autorisé - utilisateur non connecté')
       return res.status(401).json({ error: 'Authentification requise' })
     }
 
     const userRole = req.user?.role
     if (!userRole || !allowedRoles.includes(userRole)) {
-      console.log(`🚫 [AUTH] Accès refusé - rôle ${userRole} non autorisé pour ${allowedRoles.join(', ')}`)
+      logger.warn(`Accès refusé - rôle ${userRole} non autorisé pour ${allowedRoles.join(', ')}`, { userRole, allowedRoles })
       return res.status(403).json({ error: 'Permissions insuffisantes' })
     }
 
-    console.log(`✅ [AUTH] Accès autorisé - ${req.user?.name} (${userRole})`)
+    logger.debug(`Accès autorisé - ${req.user?.name} (${userRole})`, { userName: req.user?.name, userRole })
     next()
   }
 }
@@ -54,6 +55,6 @@ export function requireTeacherOwnership(req: Request, res: Response, next: NextF
     return next()
   }
 
-  console.log(`🚫 [AUTH] Accès refusé - enseignant ${userId} tentant d'accéder aux données de ${requestedTeacherId}`)
+  logger.warn(`Accès refusé - enseignant ${userId} tentant d'accéder aux données de ${requestedTeacherId}`, { userId, requestedTeacherId })
   res.status(403).json({ error: 'Accès autorisé uniquement à vos propres données' })
 }

@@ -5,6 +5,7 @@ import { requireAdmin, requireAuth } from '../middleware/auth';
 import { eq, and, like, sql, asc } from 'drizzle-orm';
 import multer from 'multer';
 import iconv from 'iconv-lite';
+import { logger } from '../utils/logger';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -25,22 +26,22 @@ function decodeBuffer(buffer: Buffer): string {
     // Essayer Windows-1252 (plus courant que ISO-8859-1 pour les fichiers Excel)
     try {
       const win1252Content = iconv.decode(buffer, 'win1252');
-      console.log('[STUDENTS] Fichier detecte comme Windows-1252');
+      logger.debug('Fichier détecté comme Windows-1252');
       return win1252Content;
     } catch {
       // Fallback sur ISO-8859-1
       try {
         const latin1Content = iconv.decode(buffer, 'iso-8859-1');
-        console.log('[STUDENTS] Fichier detecte comme ISO-8859-1');
+        logger.debug('Fichier détecté comme ISO-8859-1');
         return latin1Content;
       } catch {
-        console.log('[STUDENTS] Fallback sur UTF-8');
+        logger.debug('Fallback sur UTF-8');
         return utf8Content;
       }
     }
   }
 
-  console.log('[STUDENTS] Fichier detecte comme UTF-8');
+  logger.debug('Fichier détecté comme UTF-8');
   return utf8Content;
 }
 
@@ -69,12 +70,12 @@ function parseCSV(content: string): { headers: string[]; rows: Record<string, st
 
   const lines = cleanContent.split(/\r?\n/).filter(line => line.trim());
   if (lines.length === 0) {
-    console.log('[STUDENTS] CSV vide - aucune ligne trouvee');
+    logger.debug('CSV vide - aucune ligne trouvée');
     return { headers: [], rows: [] };
   }
 
-  console.log('[STUDENTS] CSV: ' + lines.length + ' lignes trouvees');
-  console.log('[STUDENTS] Premiere ligne:', lines[0].substring(0, 200));
+  logger.debug(`CSV: ${lines.length} lignes trouvées`, { lineCount: lines.length });
+  logger.debug(`Première ligne: ${lines[0].substring(0, 200)}`);
 
   // Detecter le separateur (point-virgule ou virgule ou tabulation)
   const firstLine = lines[0];
@@ -86,11 +87,11 @@ function parseCSV(content: string): { headers: string[]; rows: Record<string, st
   } else if (firstLine.includes(',')) {
     separator = ',';
   }
-  console.log('[STUDENTS] Separateur detecte:', separator === '\t' ? 'TAB' : separator);
+  logger.debug(`Séparateur détecté: ${separator === '\t' ? 'TAB' : separator}`);
 
   // Extraire les headers et les normaliser
   const headers = firstLine.split(separator).map(h => h.trim().replace(/^"|"$/g, ''));
-  console.log('[STUDENTS] Headers detectes:', headers);
+  logger.debug(`Headers détectés`, { headers });
 
   // Parser les lignes de donnees
   const rows: Record<string, string>[] = [];
@@ -106,9 +107,9 @@ function parseCSV(content: string): { headers: string[]; rows: Record<string, st
     }
   }
 
-  console.log('[STUDENTS] ' + rows.length + ' lignes de donnees parsees');
+  logger.debug(`${rows.length} lignes de données parsées`, { rowCount: rows.length });
   if (rows.length > 0) {
-    console.log('[STUDENTS] Exemple premiere ligne:', JSON.stringify(rows[0]));
+    logger.debug(`Exemple première ligne: ${JSON.stringify(rows[0])}`);
   }
 
   return { headers, rows };
@@ -183,10 +184,10 @@ router.get('/', requireAuth, async (req, res) => {
       );
     }
 
-    console.log(`[STUDENTS] ${filteredStudents.length} eleves recuperes pour ${currentSchoolYear}`);
+    logger.debug(`${filteredStudents.length} élèves récupérés pour ${currentSchoolYear}`, { count: filteredStudents.length, schoolYear: currentSchoolYear });
     res.json(filteredStudents);
   } catch (error) {
-    console.error('Erreur recuperation eleves:', error);
+    logger.error('Erreur recuperation eleves:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -214,7 +215,7 @@ router.get('/search', requireAuth, async (req, res) => {
     const maxResults = Math.min(parseInt(limit as string) || 15, 30);
     const currentSchoolYear = getCurrentSchoolYear();
 
-    console.log(`[STUDENTS] Recherche: "${q}" -> "${searchTerm}"`);
+    logger.debug(`Recherche: "${q}" -> "${searchTerm}"`, { originalQuery: q, searchTerm });
 
     // Recherche SQL directe avec ILIKE (bien plus rapide que charger tous les élèves)
     const searchPattern = `%${searchTerm}%`;
@@ -255,17 +256,17 @@ router.get('/search', requireAuth, async (req, res) => {
         name: searchTermUpper,
         count: classCount[0].count,
       };
-      console.log(`[STUDENTS] Classe detectee: ${searchTermUpper} (${classCount[0].count} eleves)`);
+      logger.debug(`Classe détectée: ${searchTermUpper} (${classCount[0].count} élèves)`, { className: searchTermUpper, studentCount: classCount[0].count });
     }
 
-    console.log(`[STUDENTS] ${filtered.length} resultats pour "${q}"`);
+    logger.debug(`${filtered.length} résultats pour "${q}"`, { resultCount: filtered.length, query: q });
 
     res.json({
       students: filtered,
       matchingClass,
     });
   } catch (error) {
-    console.error('Erreur recherche eleves:', error);
+    logger.error('Erreur recherche eleves:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -292,11 +293,11 @@ router.get('/class/:className', requireAuth, async (req, res) => {
       )
       .orderBy(asc(students.lastName), asc(students.firstName));
 
-    console.log(`[STUDENTS] Classe ${className}: ${classStudents.length} eleves`);
+    logger.debug(`Classe ${className}: ${classStudents.length} élèves`, { className, studentCount: classStudents.length });
 
     res.json(classStudents);
   } catch (error) {
-    console.error('Erreur recuperation classe:', error);
+    logger.error('Erreur recuperation classe:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -315,10 +316,10 @@ router.get('/classes', requireAuth, async (req, res) => {
       .orderBy(asc(students.className));
 
     const classes = allStudents.map(s => s.className);
-    console.log(`[STUDENTS] ${classes.length} classes trouvees pour ${currentSchoolYear}:`, classes);
+    logger.debug(`${classes.length} classes trouvées pour ${currentSchoolYear}`, { classCount: classes.length, schoolYear: currentSchoolYear, classes });
     res.json(classes);
   } catch (error) {
-    console.error('Erreur recuperation classes:', error);
+    logger.error('Erreur recuperation classes:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -356,7 +357,7 @@ router.get('/stats', requireAuth, async (req, res) => {
       schoolYear: currentSchoolYear,
     });
   } catch (error) {
-    console.error('Erreur statistiques eleves:', error);
+    logger.error('Erreur statistiques eleves:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -380,14 +381,14 @@ router.post('/import', requireAdmin, upload.single('file'), async (req, res) => 
       return res.status(400).json({ error: 'Fichier CSV vide ou invalide' });
     }
 
-    console.log(`[STUDENTS] Import CSV: ${rows.length} lignes, headers:`, headers);
+    logger.info(`Import CSV: ${rows.length} lignes`, { rowCount: rows.length, headers });
 
     // Si remplacement, supprimer les anciens eleves de cette annee
     if (replaceExisting) {
       const deleted = await db
         .delete(students)
         .where(eq(students.schoolYear, schoolYear));
-      console.log(`[STUDENTS] Suppression des anciens eleves de ${schoolYear}`);
+      logger.info(`Suppression des anciens élèves de ${schoolYear}`, { schoolYear });
     }
 
     // Mapper et inserer les eleves
@@ -411,7 +412,7 @@ router.post('/import', requireAdmin, upload.single('file'), async (req, res) => 
     // Recuperer les classes importees
     const importedClasses = [...new Set(studentsToInsert.map(s => s.className))].sort();
 
-    console.log(`[STUDENTS] Import termine: ${studentsToInsert.length} eleves, ${importedClasses.length} classes`);
+    logger.info(`Import terminé: ${studentsToInsert.length} élèves, ${importedClasses.length} classes`, { studentCount: studentsToInsert.length, classCount: importedClasses.length });
 
     res.json({
       success: true,
@@ -422,7 +423,7 @@ router.post('/import', requireAdmin, upload.single('file'), async (req, res) => 
       schoolYear,
     });
   } catch (error) {
-    console.error('Erreur import eleves:', error);
+    logger.error('Erreur import eleves:', error);
     res.status(500).json({ error: 'Erreur lors de l\'import' });
   }
 });
@@ -467,7 +468,7 @@ router.post('/preview', requireAdmin, upload.single('file'), async (req, res) =>
       preview,
     });
   } catch (error) {
-    console.error('Erreur preview CSV:', error);
+    logger.error('Erreur preview CSV:', error);
     res.status(500).json({ error: 'Erreur lors de l\'analyse du fichier' });
   }
 });
@@ -485,7 +486,7 @@ router.delete('/', requireAdmin, async (req, res) => {
     console.log(`[STUDENTS] Suppression des eleves de ${targetYear}`);
     res.json({ success: true, message: `Eleves de ${targetYear} supprimes` });
   } catch (error) {
-    console.error('Erreur suppression eleves:', error);
+    logger.error('Erreur suppression eleves:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

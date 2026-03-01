@@ -3,14 +3,50 @@ version: '3.8'
 services:
   db:
     image: postgres:16-alpine
+    container_name: supchaissac-db
     environment:
-      POSTGRES_USER: supchaissac
-      POSTGRES_PASSWORD: supchaissac_dev
-      POSTGRES_DB: supchaissac
+      POSTGRES_USER: ${DB_USER:-supchaissac}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-supchaissac_dev}
+      POSTGRES_DB: ${DB_NAME:-supchaissac}
+      TZ: Europe/Paris
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-supchaissac}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supchaissac-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: supchaissac-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://${DB_USER:-supchaissac}:${DB_PASSWORD:-supchaissac_dev}@db:5432/${DB_NAME:-supchaissac}
+      PORT: 8080
+      TZ: Europe/Paris
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/dist
+    networks:
+      - supchaissac-network
+    restart: unless-stopped
 
 volumes:
-  pgdata:
+  postgres_data:
+
+networks:
+  supchaissac-network:
+    driver: bridge

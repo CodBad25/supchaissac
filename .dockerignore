@@ -38,3 +38,9 @@ vitest.config.ts
 # Scripts
 scripts/
 check-s3.*
+
+# Claude workspace
+.claude/
+
+# Additional
+docs/

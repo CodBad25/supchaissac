@@ -9,6 +9,7 @@ import crypto from 'crypto'
 import { db } from '../../src/lib/db'
 import { users } from '../../src/lib/schema'
 import { eq } from 'drizzle-orm'
+import { logger } from '../utils/logger'
 
 // Session store PostgreSQL
 const PgSession = connectPgSimple(session)
@@ -34,7 +35,7 @@ declare global {
 
 // Configuration authentification
 export function setupAuth(app: Express) {
-  console.log('🔐 Configuration de l\'authentification...')
+  logger.info('🔐 Configuration de l\'authentification...')
 
   // Configuration des sessions avec PostgreSQL store
   const isProduction = process.env.NODE_ENV === 'production'
@@ -45,7 +46,7 @@ export function setupAuth(app: Express) {
     throw new Error('SESSION_SECRET est requis en production')
   }
   if (!sessionSecret) {
-    console.warn('⚠️ [AUTH] SESSION_SECRET non défini, utilisation d\'une clé de développement')
+    logger.warn('⚠️ [AUTH] SESSION_SECRET non défini, utilisation d\'une clé de développement')
   }
 
   const sessionConfig: session.SessionOptions = {
@@ -67,9 +68,9 @@ export function setupAuth(app: Express) {
     }
   }
 
-  console.log(`🍪 [AUTH] Cookie config: secure=${isProduction}, sameSite=lax`)
+  logger.info(`🍪 [AUTH] Cookie config: secure=${isProduction}, sameSite=lax`)
 
-  console.log('📦 [AUTH] Session store: PostgreSQL (persistant)')
+  logger.info('📦 [AUTH] Session store: PostgreSQL (persistant)')
 
   app.use(session(sessionConfig))
   app.use(passport.initialize())
@@ -84,7 +85,7 @@ export function setupAuth(app: Express) {
       },
       async (username, password, done) => {
         try {
-          console.log(`🔐 [AUTH] Tentative de connexion: ${username}`)
+          logger.info(`🔐 [AUTH] Tentative de connexion: ${username}`)
 
           // Rechercher l'utilisateur
           const userResult = await db
@@ -94,17 +95,17 @@ export function setupAuth(app: Express) {
             .limit(1)
 
           if (userResult.length === 0) {
-            console.log(`❌ [AUTH] Utilisateur non trouvé: ${username}`)
+            logger.info(`❌ [AUTH] Utilisateur non trouvé: ${username}`)
             return done(null, false)
           }
 
           const user = userResult[0]
-          console.log(`👤 [AUTH] Utilisateur trouvé: ${user.name} (${user.role})`)
+          logger.info(`👤 [AUTH] Utilisateur trouvé: ${user.name} (${user.role})`)
 
           // Bloquer les comptes non activés en production (sauf comptes de test @example.com)
           const isTestAccount = user.username.endsWith('@example.com')
           if (!isTestAccount && user.isActivated === false) {
-            console.log(`🚫 [AUTH] Compte non activé: ${username}`)
+            logger.info(`🚫 [AUTH] Compte non activé: ${username}`)
             return done(null, false, { message: 'Compte non activé. Vérifiez votre email ou contactez l\'administrateur.' })
           }
 
@@ -112,7 +113,7 @@ export function setupAuth(app: Express) {
           const isPasswordValid = await bcrypt.compare(password, user.password)
 
           if (isPasswordValid) {
-            console.log(`✅ [AUTH] Connexion réussie: ${user.name} (${user.role})`)
+            logger.info(`✅ [AUTH] Connexion réussie: ${user.name} (${user.role})`)
 
             // Retourner l'utilisateur sans le mot de passe
             const safeUser = {
@@ -131,11 +132,11 @@ export function setupAuth(app: Express) {
 
             return done(null, safeUser)
           } else {
-            console.log(`❌ [AUTH] Mot de passe incorrect: ${username}`)
+            logger.info(`❌ [AUTH] Mot de passe incorrect: ${username}`)
             return done(null, false)
           }
         } catch (error) {
-          console.error('❌ [AUTH] Erreur authentification:', error)
+          logger.error('❌ [AUTH] Erreur authentification:', error)
           return done(error)
         }
       }
@@ -144,14 +145,14 @@ export function setupAuth(app: Express) {
 
   // Sérialisation utilisateur
   passport.serializeUser((user, done) => {
-    console.log(`🔄 Sérialisation utilisateur: ${user.id} ${user.username}`)
+    logger.info(`🔄 Sérialisation utilisateur: ${user.id} ${user.username}`)
     done(null, user.id)
   })
 
   // Désérialisation utilisateur
   passport.deserializeUser(async (id: number, done) => {
     try {
-      console.log(`🔄 Désérialisation utilisateur ID: ${id}`)
+      logger.info(`🔄 Désérialisation utilisateur ID: ${id}`)
       
       const userResult = await db
         .select()
@@ -160,7 +161,7 @@ export function setupAuth(app: Express) {
         .limit(1)
 
       if (userResult.length === 0) {
-        console.log(`❌ Utilisateur non trouvé pour ID: ${id}`)
+        logger.info(`❌ Utilisateur non trouvé pour ID: ${id}`)
         return done(null, false)
       }
 
@@ -179,13 +180,13 @@ export function setupAuth(app: Express) {
         isActivated: user.isActivated
       }
 
-      console.log(`✅ Utilisateur désérialisé: ${user.username}`)
+      logger.info(`✅ Utilisateur désérialisé: ${user.username}`)
       done(null, safeUser)
     } catch (error) {
-      console.error('❌ Erreur désérialisation:', error)
+      logger.error('❌ Erreur désérialisation:', error)
       done(null, false)
     }
   })
 
-  console.log('✅ Authentification configurée')
+  logger.info('✅ Authentification configurée')
 }

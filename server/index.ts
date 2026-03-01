@@ -15,6 +15,7 @@ import adminRoutes from './routes/admin'
 import studentsRoutes from './routes/students'
 import teachersRoutes from './routes/teachers'
 import { testConnection, db, closeDb } from '../src/lib/db'
+import { logger } from './utils/logger'
 
 // Définir le fuseau horaire
 process.env.TZ = 'Europe/Paris'
@@ -29,7 +30,7 @@ const isProduction = process.env.NODE_ENV === 'production'
 // Trust proxy (nécessaire pour les cookies sécurisés derrière Scaleway/load balancer)
 if (isProduction) {
   app.set('trust proxy', 1)
-  console.log('🔒 [SERVER] Trust proxy activé pour production')
+  logger.info('Trust proxy activé pour production')
 }
 
 // Configuration CORS - Whitelist explicite d'origines autorisées
@@ -114,10 +115,10 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {
     const start = Date.now()
-    
+
     res.on('finish', () => {
       const duration = Date.now() - start
-      console.log(`🌐 [API] ${req.method} ${req.path} ${res.statusCode} in ${duration}ms`)
+      logger.debug(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`, { method: req.method, path: req.path, statusCode: res.statusCode, durationMs: duration })
     })
   }
   next()
@@ -126,7 +127,7 @@ app.use((req, res, next) => {
 async function startServer() {
   try {
     // Test de connexion base de données
-    console.log('🔧 Test de connexion PostgreSQL...')
+    logger.info('Test de connexion PostgreSQL...')
     await testConnection()
     
     // Configuration authentification
@@ -176,12 +177,12 @@ async function startServer() {
         }
       })
 
-      console.log(`📦 [SERVER] Mode production - Frontend servi depuis ${distPath}`)
+      logger.info(`Mode production - Frontend servi depuis ${distPath}`)
     }
 
     // Gestionnaire d'erreurs global (DOIT être après toutes les routes)
     app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      console.error('❌ [ERROR]', err.stack)
+      logger.error('Erreur non gérée', { stack: err.stack, message: err.message })
 
       // En production, masquer les détails de l'erreur
       if (isProduction) {
@@ -221,35 +222,29 @@ async function startServer() {
 
     // Démarrage du serveur sur toutes les interfaces (0.0.0.0)
     const server = app.listen(Number(PORT), '0.0.0.0', () => {
-      console.log(`🚀 [SERVER] SupChaissac v2.0 démarré sur le port ${PORT}`)
-      console.log(`🌐 [SERVER] Mode: ${isProduction ? 'PRODUCTION' : 'DEVELOPPEMENT'}`)
-      console.log(`🌐 [SERVER] API disponible sur:`)
-      console.log(`   - http://localhost:${PORT}/api`)
+      logger.info(`SupChaissac v2.0 démarré sur le port ${PORT}`, { port: PORT })
+      logger.info(`Mode: ${isProduction ? 'PRODUCTION' : 'DEVELOPPEMENT'}`, { environment: isProduction ? 'production' : 'development' })
+      logger.info(`API disponible sur http://localhost:${PORT}/api`)
       if (!isProduction) {
-        console.log(`   - http://192.168.1.6:${PORT}/api (réseau local)`)
-        console.log(`🔐 [SERVER] Comptes de test disponibles:`)
-        console.log(`   👨‍🏫 sophie.martin@example.com / password123`)
-        console.log(`   📝 laure.martin@example.com / password123`)
-        console.log(`   🏛️ jean.dupont@example.com / password123`)
-        console.log(`   ⚙️ admin@example.com / password123`)
+        logger.info(`Mode développement - Comptes de test disponibles`, { testAccounts: ['sophie.martin@example.com', 'laure.martin@example.com', 'jean.dupont@example.com', 'admin@example.com'] })
       }
     })
 
     // Gestion de l'arrêt gracieux
     function gracefulShutdown(signal: string) {
-      console.log(`\n📴 [SERVER] Signal ${signal} reçu. Arrêt gracieux...`)
+      logger.info(`Signal ${signal} reçu. Arrêt gracieux...`, { signal })
       server.close(async () => {
         try {
           await closeDb()
-          console.log('✅ [SERVER] Connexion BDD fermée')
+          logger.info('Connexion BDD fermée')
         } catch (e) {
-          console.error('❌ [SERVER] Erreur fermeture BDD:', e)
+          logger.error('Erreur fermeture BDD', { error: e })
         }
         process.exit(0)
       })
       // Timeout de sécurité
       setTimeout(() => {
-        console.error('❌ [SERVER] Timeout arrêt gracieux, forçage...')
+        logger.error('Timeout arrêt gracieux, forçage...')
         process.exit(1)
       }, 10000)
     }
@@ -258,19 +253,19 @@ async function startServer() {
     process.on('SIGINT', () => gracefulShutdown('SIGINT'))
     
   } catch (error) {
-    console.error('💥 [SERVER] Erreur fatale au démarrage:', error)
+    logger.error('Erreur fatale au démarrage', { error })
     process.exit(1)
   }
 }
 
 // Gestion des erreurs non capturées
 process.on('uncaughtException', (error) => {
-  console.error('💥 [SERVER] Exception non capturée:', error)
+  logger.error('Exception non capturée', { error })
   process.exit(1)
 })
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 [SERVER] Promesse rejetée non gérée:', reason)
+  logger.error('Promesse rejetée non gérée', { reason })
   // Ne pas exit brutalement, logger et laisser le graceful shutdown gérer
 })
 

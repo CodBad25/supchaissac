@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { logger } from '../utils/logger';
 
 // Configuration email - désactivé par défaut pour la phase de présentation
 const EMAIL_ENABLED = process.env.EMAIL_ENABLED === 'true';
@@ -68,12 +69,12 @@ export async function sendActivationEmail(
 
   if (!EMAIL_ENABLED) {
     // Mode présentation : on log le lien au lieu d'envoyer l'email
-    console.log('\n' + '='.repeat(60));
-    console.log('[EMAIL SIMULATION - Mode présentation]');
-    console.log(`Destinataire: ${email}`);
-    console.log(`Nom: ${name}`);
-    console.log(`Lien d'activation: ${activationLink}`);
-    console.log('='.repeat(60) + '\n');
+    logger.info('\n' + '='.repeat(60));
+    logger.info('[EMAIL SIMULATION - Mode présentation]');
+    logger.info(`Destinataire: ${email}`);
+    logger.info(`Nom: ${name}`);
+    logger.info(`Lien d'activation: ${activationLink}`);
+    logger.info('='.repeat(60) + '\n');
 
     return {
       success: true,
@@ -96,10 +97,10 @@ export async function sendActivationEmail(
     });
     */
 
-    console.log(`[EMAIL] Email d'activation envoyé à ${email}`);
+    logger.info(`EMAIL] Email d'activation envoyé à ${email}`);
     return { success: true, message: 'Email envoyé' };
   } catch (error) {
-    console.error('[EMAIL] Erreur envoi:', error);
+    logger.error('EMAIL] Erreur envoi:', error);
     return { success: false, message: 'Erreur lors de l\'envoi de l\'email' };
   }
 }
