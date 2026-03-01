@@ -29,19 +29,6 @@ interface User {
 interface Stats {
   totalUsers: number;
   totalTeachers: number;
-  teachersWithPacte: number;
-  teachersWithoutPacte: number;
-  pactePercentage: number;
-  totalSessions: number;
-  pendingSessions: number;
-  validatedSessions: number;
-  totalHours: number;
-  hoursByType: {
-    rcd: number;
-    devoirsFaits: number;
-    hse: number;
-    autre: number;
-  };
 }
 
 interface UserInfo {
@@ -66,7 +53,6 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'import' | 'students' | 'maintenance'>('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'TEACHER' | 'SECRETARY' | 'PRINCIPAL' | 'ADMIN'>('all');
-  const [pacteFilter, _setPacteFilter] = useState<'all' | 'pacte' | 'non-pacte'>('all');
 
   // Modal state
   const [showUserModal, setShowUserModal] = useState(false);
@@ -388,11 +374,6 @@ export default function AdminDashboard() {
       filtered = filtered.filter(u => u.role === roleFilter);
     }
 
-    if (pacteFilter === 'pacte') {
-      filtered = filtered.filter(u => u.role === 'TEACHER' && u.inPacte);
-    } else if (pacteFilter === 'non-pacte') {
-      filtered = filtered.filter(u => u.role === 'TEACHER' && !u.inPacte);
-    }
 
     if (activationFilter === 'activated') {
       filtered = filtered.filter(u => u.isActivated);
@@ -408,7 +389,7 @@ export default function AdminDashboard() {
     });
 
     return filtered;
-  }, [users, searchTerm, roleFilter, pacteFilter, activationFilter]);
+  }, [users, searchTerm, roleFilter, activationFilter]);
 
   // Logout
   const handleLogout = async () => {
@@ -737,9 +718,8 @@ export default function AdminDashboard() {
               <div className="bg-white rounded-xl p-5 border border-gray-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-500 text-sm">Enseignants PACTE</p>
-                    <p className="text-3xl font-bold text-green-600">{stats.teachersWithPacte}</p>
-                    <p className="text-sm text-gray-500">{stats.pactePercentage}% du total</p>
+                    <p className="text-gray-500 text-sm">Comptes activés</p>
+                    <p className="text-3xl font-bold text-green-600">{users.filter(u => u.isActivated).length}</p>
                   </div>
                   <UserCheck className="w-10 h-10 text-green-300" />
                 </div>
@@ -748,11 +728,10 @@ export default function AdminDashboard() {
               <div className="bg-white rounded-xl p-5 border border-gray-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-500 text-sm">Sans PACTE</p>
-                    <p className="text-3xl font-bold text-gray-600">{stats.teachersWithoutPacte}</p>
-                    <p className="text-sm text-gray-500">{100 - stats.pactePercentage}% du total</p>
+                    <p className="text-gray-500 text-sm">En attente d'activation</p>
+                    <p className="text-3xl font-bold text-amber-600">{users.filter(u => !u.isActivated).length}</p>
                   </div>
-                  <UserX className="w-10 h-10 text-gray-300" />
+                  <UserX className="w-10 h-10 text-amber-300" />
                 </div>
               </div>
             </div>
@@ -863,7 +842,6 @@ export default function AdminDashboard() {
                         <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Utilisateur</th>
                         <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Email/Login</th>
                         <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Rôle</th>
-                        <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">PACTE</th>
                         <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Statut</th>
                         <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Actions</th>
                       </tr>
@@ -908,15 +886,6 @@ export default function AdminDashboard() {
                             <span className={`px-3 py-1 text-sm rounded-full font-medium ${getRoleColor(u.role)}`}>
                               {getRoleLabel(u.role)}
                             </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {u.role === 'TEACHER' && (
-                              <span className={`px-3 py-1 text-sm rounded-full font-medium ${
-                                u.inPacte ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                              }`}>
-                                {u.inPacte ? 'Oui' : 'Non'}
-                              </span>
-                            )}
                           </td>
                           <td className="px-4 py-3 text-center">
                             {u.isActivated ? (
@@ -1640,22 +1609,6 @@ export default function AdminDashboard() {
                       onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500"
                     />
-                  </div>
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, inPacte: !formData.inPacte })}
-                      className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
-                        formData.inPacte
-                          ? 'bg-green-50 border-green-400 text-green-800'
-                          : 'bg-gray-50 border-gray-200 text-gray-600'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">Enseignant PACTE</span>
-                        {formData.inPacte && <span className="text-green-600">✓</span>}
-                      </div>
-                    </button>
                   </div>
                 </>
               )}
