@@ -113,7 +113,7 @@ Fichier exemple : `supchaissac-app-final/exemple-import-pronote.csv`
 - Tailwind CSS (design custom)
 - Express.js backend
 - PostgreSQL Neon avec Drizzle ORM
-- S3 Scaleway pour fichiers
+- Stockage local pour fichiers (dossier uploads/)
 
 ---
 
@@ -158,36 +158,53 @@ Les comptes de test suivent la convention `prenom.nom@example.com` et sont **vis
 
 ---
 
-## Déploiement (Scaleway Serverless Containers)
+## Hébergement (Oracle Cloud VPS)
 
-Procédure de déploiement vers Scaleway :
+**Migré depuis Scaleway Serverless Containers le 1er mars 2026** pour éliminer le cold start (10-15s).
+
+### Infos serveur
+
+- **IP** : 89.168.61.230
+- **SSH** : `ssh -i ~/.ssh/oracle-serveur.key ubuntu@89.168.61.230`
+- **OS** : Ubuntu 24.04 ARM (aarch64), 4 OCPUs, 24GB RAM
+- **Node.js** : 22, PM2, Nginx, Certbot
+- **Port** : 3003
+- **Dossier** : `/home/ubuntu/supchaissac/`
+
+### Déploiement
 
 ```bash
-# 1. Build image Docker (architecture amd64)
-docker build --platform=linux/amd64 -t rg.fr-par.scw.cloud/funcscwsupchaissacvgfvl03o/supchaissac-app:latest .
-
-# 2. Pousser l'image vers le registre Scaleway
-docker push rg.fr-par.scw.cloud/funcscwsupchaissacvgfvl03o/supchaissac-app:latest
-
-# 3. Déployer le container
-scw container container deploy 581e9931-716f-42db-b6db-586ecb5b72c7
+ssh -i ~/.ssh/oracle-serveur.key ubuntu@89.168.61.230
+cd /home/ubuntu/supchaissac
+git pull
+npm install
+npm run build
+pm2 restart supchaissac
 ```
 
-**Notes importantes** :
-- L'image doit être en architecture `linux/amd64` (pas de ARM)
-- Le registry est `rg.fr-par.scw.cloud` (région Paris)
-- Vérifier que les variables d'environnement sont correctement configurées dans Scaleway Console
-- Vérifier que S3 Scaleway est configuré avec les bonnes permissions pour les uploads de fichiers
-
-### Domaine custom
+### Domaine et SSL
 
 - **URL publique** : https://supchaissac.beltools.fr
-- **DNS** : CNAME `supchaissac.beltools.fr` → `supchaissacvgfvl03o-supchaissac-app.functions.fnc.fr-par.scw.cloud.` (OVH)
-- **SSL** : certificat automatique par Scaleway
-- **Variables d'environnement Scaleway** :
-  - `APP_URL` = `https://supchaissac.beltools.fr`
-  - `ALLOWED_ORIGINS` = `https://supchaissac.beltools.fr,https://supchaissacvgfvl03o-supchaissac-app.functions.fnc.fr-par.scw.cloud`
-- **Icône pour portail BelTools** : `https://supchaissac.beltools.fr/logo.png`
+- **DNS** : A record `supchaissac` → `89.168.61.230` (OVH)
+- **SSL** : Let's Encrypt via Certbot (renouvellement auto)
+- **Nginx** : `/etc/nginx/sites-available/supchaissac` → reverse proxy vers localhost:3003
+
+### Stockage fichiers
+
+Les pièces jointes sont stockées localement dans `uploads/sessions/<id>/` (plus de S3 Scaleway).
+Route statique : `/uploads` → `express.static('uploads')`.
+
+### Variables d'environnement
+
+```env
+NODE_ENV=production
+PORT=3003
+DATABASE_URL=<PostgreSQL Neon>
+SESSION_SECRET=<secret>
+APP_URL=https://supchaissac.beltools.fr
+ALLOWED_ORIGINS=https://supchaissac.beltools.fr
+EMAIL_ENABLED=false
+```
 
 ---
 
