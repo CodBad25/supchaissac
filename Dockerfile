@@ -1,5 +1,5 @@
 # SupChaissac v2.0 - Dockerfile Production
-# Hebergement: Scaleway Serverless Containers (France - RGPD)
+# Hebergement: Oracle Cloud VPS (Docker + Nginx)
 
 # ============================================
 # Stage 1: Build Frontend
@@ -42,6 +42,9 @@ COPY src/lib ./src/lib
 
 # Copier le frontend build depuis le stage precedent
 COPY --from=frontend-builder /app/dist ./dist
+
+# Creer le dossier uploads pour le stockage local des fichiers
+RUN mkdir -p /app/uploads
 
 # Définir les permissions pour l'utilisateur nodejs
 RUN chown -R nodejs:nodejs /app

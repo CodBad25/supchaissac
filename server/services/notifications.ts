@@ -9,7 +9,8 @@ export type NotificationType =
   | 'session_rejected'
   | 'session_paid'
   | 'new_session_to_review'
-  | 'session_ready_for_payment';
+  | 'session_ready_for_payment'
+  | 'info_requested';
 
 // Créer une notification
 export async function createNotification(

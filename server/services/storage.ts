@@ -2,10 +2,16 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 // Dossier de stockage local
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
-// Types MIME autorises
+// Créer le dossier uploads s'il n'existe pas
+import { existsSync, mkdirSync } from 'fs';
+if (!existsSync(UPLOAD_DIR)) {
+  mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+// Types MIME autorisés
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
   'application/vnd.ms-excel',
@@ -25,13 +31,13 @@ export interface UploadResult {
 /**
  * Valide un fichier avant upload
  */
-export function validateFile(mimeType: string, size: number, filename: string): string | null {
+export function validateFile(mimeType: string, size: number, _filename: string): string | null {
   if (size > MAX_FILE_SIZE) {
     return `Fichier trop volumineux (max ${MAX_FILE_SIZE / 1024 / 1024} MB)`;
   }
 
   if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-    return 'Type de fichier non autorise (PDF, Excel, JPG, PNG uniquement)';
+    return 'Type de fichier non autorisé (PDF, Excel, JPG, PNG uniquement)';
   }
 
   return null;
@@ -54,15 +60,14 @@ export async function uploadFile(
   const relativePath = `sessions/${sessionId}/${timestamp}_${sanitizedFilename}`;
   const fullPath = path.join(UPLOAD_DIR, relativePath);
 
-  // Creer le dossier si necessaire
+  // Créer le dossier si nécessaire
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
 
-  // Ecrire le fichier
+  // Écrire le fichier
   await fs.writeFile(fullPath, buffer);
 
   // URL relative servie par Express
-  const appUrl = process.env.APP_URL || 'http://localhost:3003';
-  const url = `${appUrl}/uploads/${relativePath}`;
+  const url = `/uploads/${relativePath}`;
 
   return {
     url,
@@ -82,12 +87,12 @@ export async function deleteFile(filePath: string): Promise<void> {
     await fs.unlink(fullPath);
   } catch (err: any) {
     if (err.code !== 'ENOENT') throw err;
-    // Fichier deja supprime, on ignore
+    // Fichier déjà supprimé, on ignore
   }
 }
 
 /**
- * Retourne l'URL de telechargement d'un fichier
+ * Retourne l'URL de téléchargement d'un fichier
  * En local, pas besoin de signature — on sert via Express avec auth
  */
 export async function getSignedDownloadUrl(
@@ -95,21 +100,20 @@ export async function getSignedDownloadUrl(
   expiresIn = 3600,
   originalFilename?: string
 ): Promise<string> {
-  const appUrl = process.env.APP_URL || 'http://localhost:3003';
   const params = originalFilename ? `?download=${encodeURIComponent(originalFilename)}` : '';
-  return `${appUrl}/uploads/${filePath}${params}`;
+  return `/uploads/${filePath}${params}`;
 }
 
 /**
- * Le stockage local est toujours configure
+ * Le stockage local est toujours configuré
  */
 export function isStorageConfigured(): boolean {
   return true;
 }
 
 /**
- * Initialise le dossier uploads
+ * Retourne le dossier d'uploads
  */
-export async function initStorage(): Promise<void> {
-  await fs.mkdir(UPLOAD_DIR, { recursive: true });
+export function getUploadDir(): string {
+  return UPLOAD_DIR;
 }

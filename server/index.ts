@@ -28,7 +28,7 @@ const app = express()
 const PORT = process.env.PORT || 3001
 const isProduction = process.env.NODE_ENV === 'production'
 
-// Trust proxy (nécessaire pour les cookies sécurisés derrière Scaleway/load balancer)
+// Trust proxy (nécessaire pour les cookies sécurisés derrière un reverse proxy/load balancer)
 if (isProduction) {
   app.set('trust proxy', 1)
   logger.info('Trust proxy activé pour production')

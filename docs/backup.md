@@ -20,12 +20,11 @@ pg_restore -d "$DATABASE_URL" --no-owner --clean --if-exists backup_20260228.dum
 psql "$DATABASE_URL" < backup_20260228.sql
 ```
 
-### Sauvegarde vers S3 Scaleway
+### Sauvegarde vers stockage externe
 ```bash
-# Backup + upload vers S3
+# Backup + copie vers le VPS
 pg_dump "$DATABASE_URL" --no-owner -Fc -f /tmp/backup.dump
-aws s3 cp /tmp/backup.dump s3://$S3_BUCKET/backups/backup_$(date +%Y%m%d).dump \
-  --endpoint-url https://s3.fr-par.scw.cloud
+scp -i ~/.ssh/supchaissac_vps /tmp/backup.dump ubuntu@89.168.61.230:/backups/db/backup_$(date +%Y%m%d).dump
 rm /tmp/backup.dump
 ```
 
@@ -35,18 +34,29 @@ rm /tmp/backup.dump
 0 2 * * * /path/to/backup-script.sh >> /var/log/backup.log 2>&1
 ```
 
-## Fichiers S3 (Scaleway Object Storage)
+## Fichiers (Stockage local)
 
-Les pièces jointes sont stockées sur S3 Scaleway (`s3.fr-par.scw.cloud`).
+Les pièces jointes sont stockées sur le VPS Oracle Cloud (89.168.61.230) dans `/app/uploads` via volume Docker.
 
 ### Synchronisation locale
 ```bash
-aws s3 sync s3://$S3_BUCKET ./backup-s3/ --endpoint-url https://s3.fr-par.scw.cloud
+# Télécharger les fichiers depuis le VPS
+rsync -avz -e "ssh -i ~/.ssh/supchaissac_vps" ubuntu@89.168.61.230:/app/uploads ./backup-uploads/
 ```
 
 ## Plan de récupération
 
-1. **Base de données** : restaurer le dernier dump depuis S3
-2. **Fichiers** : les pièces jointes restent sur S3 (pas de perte sauf suppression manuelle)
+1. **Base de données** : restaurer le dernier dump depuis le VPS
+   ```bash
+   scp -i ~/.ssh/supchaissac_vps ubuntu@89.168.61.230:/backups/db/backup_20260313.dump /tmp/
+   pg_restore -d "$DATABASE_URL" --no-owner --clean --if-exists /tmp/backup_20260313.dump
+   ```
+
+2. **Fichiers** : les pièces jointes sont dans `/app/uploads` sur le VPS
+   ```bash
+   rsync -avz -e "ssh -i ~/.ssh/supchaissac_vps" ubuntu@89.168.61.230:/app/uploads ./restore-uploads/
+   ```
+
 3. **Code** : redéployer depuis GitHub (`git pull && npm run build`)
+
 4. **Sessions utilisateur** : seront invalidées (les utilisateurs devront se reconnecter)

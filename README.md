@@ -11,7 +11,7 @@ SupChaissac permet aux enseignants de déclarer leurs heures supplémentaires (R
 - **Déclaration des heures** : Calendrier interactif pour déclarer les sessions
 - **Workflow de validation** : Circuit de validation Secrétariat → Direction
 - **Suivi PACTE** : Gestion des contrats PACTE pour les enseignants concernés
-- **Pièces jointes** : Upload de documents justificatifs (S3)
+- **Pièces jointes** : Upload de documents justificatifs (stockage local)
 - **Recherche intelligente** : Autocomplétion des enseignants remplacés
 
 ## Stack technique
@@ -21,8 +21,8 @@ SupChaissac permet aux enseignants de déclarer leurs heures supplémentaires (R
 | **Frontend** | React 18 + TypeScript + Vite + Tailwind CSS |
 | **Backend** | Express.js + Passport.js |
 | **Base de données** | PostgreSQL (Neon) |
-| **Stockage fichiers** | Scaleway Object Storage (S3) |
-| **Déploiement** | Scaleway Serverless Containers |
+| **Stockage fichiers** | Local (Docker volume) |
+| **Déploiement** | Oracle Cloud VPS (Docker + Nginx) |
 
 ## Rôles utilisateurs
 
@@ -92,7 +92,7 @@ npm run dev:full
 
 - [Guide Utilisateur](./docs/GUIDE-UTILISATEUR.md) - Comment utiliser l'application
 - [Documentation API](./docs/API.md) - Liste des endpoints
-- [Guide de Déploiement](./docs/DEPLOIEMENT.md) - Déployer sur Scaleway
+- [Guide de Déploiement](./docs/DEPLOIEMENT.md) - Déployer sur Oracle Cloud
 
 ## Comptes de démonstration
 

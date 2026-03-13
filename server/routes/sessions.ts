@@ -232,25 +232,27 @@ router.put('/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Session non trouvée' });
     }
 
-    // Vérifier si la session peut être modifiée (seulement PENDING_REVIEW)
-    if (existingSession.status !== 'PENDING_REVIEW') {
+    // Vérifier si la session peut être modifiée (PENDING_REVIEW ou PENDING_DOCUMENTS)
+    if (existingSession.status !== 'PENDING_REVIEW' && existingSession.status !== 'PENDING_DOCUMENTS') {
       return res.status(403).json({
         error: 'Cette session ne peut plus être modifiée',
-        details: `Statut actuel: ${existingSession.status}. Seules les sessions en attente de révision peuvent être modifiées.`
+        details: `Statut actuel: ${existingSession.status}. Seules les sessions en attente de révision ou de document peuvent être modifiées.`
       });
     }
 
-    // Vérifier le délai d'édition (60 minutes)
-    const createdAt = new Date(existingSession.createdAt);
-    const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60));
-    const maxEditWindow = 60;
+    // Vérifier le délai d'édition (60 minutes) — sauf si la secrétaire a demandé un document
+    if (existingSession.status !== 'PENDING_DOCUMENTS') {
+      const createdAt = new Date(existingSession.createdAt);
+      const now = new Date();
+      const diffMinutes = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60));
+      const maxEditWindow = 60;
 
-    if (diffMinutes > maxEditWindow) {
-      return res.status(403).json({
-        error: 'Délai de modification dépassé',
-        details: `Cette session a été créée il y a ${diffMinutes} minutes. Le délai maximum est de ${maxEditWindow} minutes.`
-      });
+      if (diffMinutes > maxEditWindow) {
+        return res.status(403).json({
+          error: 'Délai de modification dépassé',
+          details: `Cette session a été créée il y a ${diffMinutes} minutes. Le délai maximum est de ${maxEditWindow} minutes.`
+        });
+      }
     }
 
     // Valider les données
@@ -274,18 +276,35 @@ router.put('/:id', requireAuth, async (req, res) => {
       });
     }
 
+    // Si la session était en PENDING_DOCUMENTS, elle repasse en PENDING_REVIEW
+    const statusUpdate = existingSession.status === 'PENDING_DOCUMENTS'
+      ? { status: 'PENDING_REVIEW' as const, reviewComments: null }
+      : {};
+
     // Mettre à jour la session
     const [updatedSession] = await db
       .update(sessions)
       .set({
         ...validationResult.data,
+        ...statusUpdate,
         updatedAt: new Date(),
         updatedBy: req.user.email || req.user.name,
       })
       .where(eq(sessions.id, sessionId))
       .returning();
 
-    logger.info(`✅ [API] Session ${sessionId} modifiée par ${req.user.name}`);
+    logger.info(`✅ [API] Session ${sessionId} modifiée par ${req.user.name}${existingSession.status === 'PENDING_DOCUMENTS' ? ' (documents fournis → PENDING_REVIEW)' : ''}`);
+
+    // Notifier la secrétaire que l'enseignant a répondu à la demande de documents
+    if (existingSession.status === 'PENDING_DOCUMENTS') {
+      notifyByRole(
+        'SECRETARY',
+        'new_session_to_review',
+        'Documents fournis',
+        `${req.user.name} a mis à jour sa session ${updatedSession.type} du ${updatedSession.date} suite à votre demande.`,
+        sessionId
+      );
+    }
 
     res.json(updatedSession);
 
@@ -362,7 +381,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 // ROUTES SECRÉTAIRE / PRINCIPAL - Validation des sessions
 // ============================================================================
 
-// Secrétaire OU Principal : Vérifier une session (PENDING_REVIEW → PENDING_VALIDATION)
+// Secrétaire OU Principal : Vérifier une session ou demander des documents
 router.put('/:id/review', requireSecretary, async (req, res) => {
   try {
     if (!req.user) {
@@ -370,7 +389,7 @@ router.put('/:id/review', requireSecretary, async (req, res) => {
     }
 
     const sessionId = parseInt(req.params.id);
-    const { reviewComments } = req.body;
+    const { action, comment, reviewComments } = req.body;
 
     if (isNaN(sessionId)) {
       return res.status(400).json({ error: 'ID de session invalide' });
@@ -386,24 +405,78 @@ router.put('/:id/review', requireSecretary, async (req, res) => {
       return res.status(404).json({ error: 'Session non trouvée' });
     }
 
-    // Vérifier le statut
-    if (session.status !== 'PENDING_REVIEW') {
+    // === Action : Demander des pièces jointes ===
+    if (action === 'request-info') {
+      if (session.status !== 'PENDING_REVIEW' && session.status !== 'PENDING_DOCUMENTS') {
+        return res.status(400).json({
+          error: 'Impossible de demander des documents pour cette session',
+          details: `Statut actuel: ${session.status}.`
+        });
+      }
+
+      if (!comment?.trim()) {
+        return res.status(400).json({ error: 'Le message pour l\'enseignant est obligatoire' });
+      }
+
+      const [updatedSession] = await db
+        .update(sessions)
+        .set({
+          status: 'PENDING_DOCUMENTS',
+          reviewComments: comment.trim(),
+          updatedAt: new Date(),
+          updatedBy: req.user.name,
+        })
+        .where(and(eq(sessions.id, sessionId), eq(sessions.status, session.status)))
+        .returning();
+
+      if (!updatedSession) {
+        return res.status(409).json({
+          error: 'La session a été modifiée par un autre utilisateur. Veuillez rafraîchir.'
+        });
+      }
+
+      logger.info(`📎 [API] Session ${sessionId} : documents demandés par ${req.user.name} → PENDING_DOCUMENTS`);
+
+      // Notifier l'enseignant
+      createNotification(
+        session.teacherId,
+        'info_requested',
+        'Document demandé',
+        `La secrétaire demande un document pour votre session ${session.type} du ${session.date} : "${comment.trim()}"`,
+        sessionId
+      );
+
+      return res.json(updatedSession);
+    }
+
+    // === Action par défaut : Vérifier et transmettre/valider ===
+    if (session.status !== 'PENDING_REVIEW' && session.status !== 'PENDING_DOCUMENTS') {
       return res.status(400).json({
         error: 'Cette session ne peut pas être vérifiée',
         details: `Statut actuel: ${session.status}. Seules les sessions en attente de révision peuvent être vérifiées.`
       });
     }
 
+    // Vérifier si c'est une session PACTE (enseignant PACTE + type DF ou RCD)
+    const isPacteSession = (session.type === 'DEVOIRS_FAITS' || session.type === 'RCD') && await (async () => {
+      const [teacher] = await db.select({ inPacte: users.inPacte }).from(users).where(eq(users.id, session.teacherId));
+      return teacher?.inPacte === true;
+    })();
+
+    // PACTE : secrétaire valide directement | Hors PACTE : transmettre au principal
+    const newStatus = isPacteSession ? 'VALIDATED' : 'PENDING_VALIDATION';
+
     // Mettre à jour le statut avec verrou optimiste
     const [updatedSession] = await db
       .update(sessions)
       .set({
-        status: 'PENDING_VALIDATION',
+        status: newStatus,
         reviewComments: reviewComments || null,
+        validatedAt: isPacteSession ? new Date() : undefined,
         updatedAt: new Date(),
         updatedBy: req.user.name,
       })
-      .where(and(eq(sessions.id, sessionId), eq(sessions.status, 'PENDING_REVIEW')))
+      .where(and(eq(sessions.id, sessionId), eq(sessions.status, session.status)))
       .returning();
 
     if (!updatedSession) {
@@ -412,16 +485,30 @@ router.put('/:id/review', requireSecretary, async (req, res) => {
       });
     }
 
-    logger.info(`✅ [API] Session ${sessionId} vérifiée par ${req.user.name} → PENDING_VALIDATION`);
+    if (isPacteSession) {
+      // Session PACTE : validée directement par la secrétaire
+      logger.info(`✅ [API] Session PACTE ${sessionId} validée directement par ${req.user.name} → VALIDATED`);
 
-    // Notifier le principal qu'une session est prête à valider
-    notifyByRole(
-      'PRINCIPAL',
-      'new_session_to_review',
-      'Nouvelle session à valider',
-      `Session ${updatedSession.type} du ${updatedSession.date} de ${updatedSession.teacherName} est prête pour validation.`,
-      sessionId
-    );
+      // Notifier l'enseignant
+      createNotification(
+        session.teacherId,
+        'session_validated',
+        'Session validée',
+        `Votre session ${updatedSession.type} du ${updatedSession.date} a été validée par la secrétaire (PACTE).`,
+        sessionId
+      );
+    } else {
+      // Hors PACTE : transmettre au principal
+      logger.info(`✅ [API] Session ${sessionId} transmise par ${req.user.name} → PENDING_VALIDATION`);
+
+      notifyByRole(
+        'PRINCIPAL',
+        'new_session_to_review',
+        'Nouvelle session à valider',
+        `Session ${updatedSession.type} du ${updatedSession.date} de ${updatedSession.teacherName} est prête pour validation.`,
+        sessionId
+      );
+    }
 
     res.json(updatedSession);
 
@@ -445,8 +532,8 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
       return res.status(400).json({ error: 'ID de session invalide' });
     }
 
-    if (!action || !['validate', 'reject', 'cancel', 'unpay'].includes(action)) {
-      return res.status(400).json({ error: 'Action invalide (validate, reject, cancel ou unpay)' });
+    if (!action || !['validate', 'reject', 'hold', 'cancel', 'unpay', 'unhold'].includes(action)) {
+      return res.status(400).json({ error: 'Action invalide (validate, reject, hold, cancel, unpay ou unhold)' });
     }
 
     // Récupérer la session
@@ -461,26 +548,32 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
 
     // Vérifier le statut selon l'action
     if (action === 'cancel') {
-      // Annuler : seulement pour VALIDATED ou REJECTED
-      if (!['VALIDATED', 'REJECTED'].includes(session.status)) {
+      if (!['VALIDATED', 'REJECTED', 'ON_HOLD'].includes(session.status)) {
         return res.status(400).json({
           error: 'Cette session ne peut pas être annulée',
-          details: `Statut actuel: ${session.status}. Seules les sessions validées ou rejetées peuvent être annulées.`
+          details: `Statut actuel: ${session.status}. Seules les sessions validées, rejetées ou en attente peuvent être annulées.`
         });
       }
     } else if (action === 'unpay') {
-      // Retirer de la mise en paiement : seulement pour SENT_FOR_PAYMENT
       if (session.status !== 'SENT_FOR_PAYMENT') {
         return res.status(400).json({
           error: 'Cette session ne peut pas être retirée de la mise en paiement',
           details: `Statut actuel: ${session.status}. Seules les sessions en paiement peuvent être retirées.`
         });
       }
-    } else {
-      // Valider/Rejeter : pour PENDING_VALIDATION ou PENDING_REVIEW (le Principal peut court-circuiter)
-      if (!['PENDING_VALIDATION', 'PENDING_REVIEW'].includes(session.status)) {
+    } else if (action === 'unhold') {
+      // Reprendre une session en attente pour la valider ou rejeter
+      if (session.status !== 'ON_HOLD') {
         return res.status(400).json({
-          error: 'Cette session ne peut pas être validée/rejetée',
+          error: 'Cette session n\'est pas en attente',
+          details: `Statut actuel: ${session.status}.`
+        });
+      }
+    } else {
+      // Valider/Rejeter/Mettre en attente : pour PENDING_VALIDATION, PENDING_REVIEW ou ON_HOLD
+      if (!['PENDING_VALIDATION', 'PENDING_REVIEW', 'ON_HOLD'].includes(session.status)) {
+        return res.status(400).json({
+          error: 'Cette session ne peut pas être traitée',
           details: `Statut actuel: ${session.status}. Seules les sessions en attente peuvent être traitées.`
         });
       }
@@ -523,8 +616,26 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
         updatedAt: new Date(),
         updatedBy: req.user.name,
       };
+    } else if (action === 'hold') {
+      // Mettre en attente (le principal décidera plus tard)
+      newStatus = 'ON_HOLD';
+      updateData = {
+        status: newStatus,
+        validationComments: validationComments || null,
+        validatedAt: new Date(),
+        updatedAt: new Date(),
+        updatedBy: req.user.name,
+      };
+    } else if (action === 'unhold') {
+      // Reprendre une session en attente → retour à PENDING_VALIDATION
+      newStatus = 'PENDING_VALIDATION';
+      updateData = {
+        status: newStatus,
+        validationComments: null,
+        updatedAt: new Date(),
+        updatedBy: req.user.name,
+      };
     } else if (action === 'unpay') {
-      // Retirer de la mise en paiement -> retour a VALIDATED
       newStatus = 'VALIDATED';
       updateData = {
         status: newStatus,
@@ -532,7 +643,7 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
         updatedBy: req.user.name,
       };
     } else {
-      // cancel -> retour a PENDING_VALIDATION
+      // cancel -> retour à PENDING_VALIDATION
       newStatus = 'PENDING_VALIDATION';
       updateData = {
         status: newStatus,
@@ -546,11 +657,13 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
     // Déterminer le statut attendu pour le verrou optimiste
     let expectedStatus = 'PENDING_VALIDATION';
     if (action === 'cancel') {
-      expectedStatus = session.status; // VALIDATED ou REJECTED
+      expectedStatus = session.status; // VALIDATED, REJECTED ou ON_HOLD
     } else if (action === 'unpay') {
       expectedStatus = 'SENT_FOR_PAYMENT';
-    } else if (action === 'validate' || action === 'reject') {
-      // Principal peut valider/rejeter depuis PENDING_REVIEW ou PENDING_VALIDATION
+    } else if (action === 'unhold') {
+      expectedStatus = 'ON_HOLD';
+    } else {
+      // validate, reject, hold : depuis le statut actuel
       expectedStatus = session.status;
     }
 
@@ -572,6 +685,8 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
     const actionLabels: Record<string, string> = {
       validate: 'validée',
       reject: 'rejetée',
+      hold: 'mise en attente',
+      unhold: 'reprise (sortie d\'attente)',
       cancel: 'annulée',
       unpay: 'retirée de la mise en paiement'
     };
@@ -596,13 +711,21 @@ router.put('/:id/validate', requirePrincipal, async (req, res) => {
         sessionId
       );
     } else if (action === 'reject') {
-      // Notifier l'enseignant du rejet
       const motif = rejectionReason ? ` Motif : ${rejectionReason}` : '';
       createNotification(
         session.teacherId,
         'session_rejected',
         'Session rejetée',
         `Votre session ${session.type} du ${session.date} a été rejetée.${motif}`,
+        sessionId
+      );
+    } else if (action === 'hold') {
+      // Pas de notification enseignant pour la mise en attente (décision interne)
+      notifyByRole(
+        'SECRETARY',
+        'new_session_to_review',
+        'Session mise en attente',
+        `Session ${session.type} du ${session.date} de ${session.teacherName} mise en attente par le principal.`,
         sessionId
       );
     }

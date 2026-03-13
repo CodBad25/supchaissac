@@ -49,8 +49,10 @@ export const sessionTypeEnum = pgEnum('session_type', ['RCD', 'DEVOIRS_FAITS', '
 // Un futur statut 'PAYMENT_COMPLETED' sera ajouté pour le vrai "Payé"
 export const sessionStatusEnum = pgEnum('session_status', [
   'PENDING_REVIEW',      // Créée par enseignant, à vérifier par secrétaire
-  'PENDING_VALIDATION',  // Vérifiée par secrétaire, à valider par principal
-  'VALIDATED',           // Validée par principal
+  'PENDING_DOCUMENTS',   // En attente de pièce jointe (secrétaire a demandé un document)
+  'PENDING_VALIDATION',  // Vérifiée par secrétaire, à valider par principal (hors PACTE)
+  'VALIDATED',           // Validée (par secrétaire si PACTE, par principal sinon)
+  'ON_HOLD',             // En attente (principal reporte la décision de paiement)
   'REJECTED',            // Refusée (avec motif)
   'SENT_FOR_PAYMENT'     // Mis en paiement (transmis pour paiement par secrétaire)
 ]);
@@ -123,7 +125,7 @@ export const attachments = pgTable("attachments", {
   originalName: text("original_name").notNull(),
   mimeType: text("mime_type").notNull(),
   size: integer("size").notNull(),
-  url: text("url"), // URL Scaleway Object Storage
+  url: text("url"), // URL du fichier (stockage local)
   uploadedBy: text("uploaded_by").notNull(),
   uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
   isVerified: boolean("is_verified").default(false),

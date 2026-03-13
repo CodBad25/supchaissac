@@ -128,7 +128,7 @@ interface PacteStats {
   pactePercentage: number;
 }
 
-type ActionState = null | 'VALIDATE_COMMENT_PROMPT' | 'REJECT_COMMENT_PROMPT' | 'VALIDATE' | 'REJECT';
+type ActionState = null | 'VALIDATE_COMMENT_PROMPT' | 'REJECT_COMMENT_PROMPT' | 'HOLD_COMMENT_PROMPT' | 'VALIDATE' | 'REJECT' | 'HOLD';
 
 export default function PrincipalDashboard() {
   const navigate = useNavigate();
@@ -161,7 +161,7 @@ export default function PrincipalDashboard() {
 
   // UI state
   const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'teachers' | 'contrats' | 'stats'>('dashboard');
-  const [sessionFilter, setSessionFilter] = useState<'all' | 'pending' | 'validated' | 'rejected'>('pending');
+  const [sessionFilter, setSessionFilter] = useState<'all' | 'pending' | 'validated' | 'rejected' | 'on-hold'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState<'week' | 'month' | 'trimester' | 'year'>('month');
@@ -272,6 +272,12 @@ export default function PrincipalDashboard() {
         } else if (actionState === 'REJECT') {
           // Confirmer rejet avec motif
           finishRejection();
+        } else if (actionState === 'HOLD_COMMENT_PROMPT') {
+          // En attente sans commentaire
+          finishHold();
+        } else if (actionState === 'HOLD') {
+          // Confirmer mise en attente avec commentaire
+          finishHold();
         }
       }
     };
@@ -361,6 +367,11 @@ export default function PrincipalDashboard() {
     setActionState('REJECT_COMMENT_PROMPT');
   };
 
+  // Initier mise en attente
+  const handleHold = () => {
+    setActionState('HOLD_COMMENT_PROMPT');
+  };
+
   // Finaliser validation
   const finishValidation = async () => {
     if (!selectedSession) return;
@@ -447,6 +458,39 @@ export default function PrincipalDashboard() {
     }
   };
 
+  // Finaliser mise en attente (ON_HOLD)
+  const finishHold = async () => {
+    if (!selectedSession) return;
+    setActionLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/sessions/${selectedSession.id}/validate`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'hold',
+          validationComments: feedback.trim() || undefined,
+        }),
+      });
+
+      if (response.ok) {
+        setSessions(prev => prev.map(s =>
+          s.id === selectedSession.id ? { ...s, status: 'ON_HOLD', validationComments: feedback } : s
+        ));
+        closeModal();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showError('Erreur', errorData.error || errorData.details || 'Erreur serveur');
+      }
+    } catch (error) {
+      console.error('Erreur mise en attente:', error);
+      showError('Erreur de connexion au serveur');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Supprimer une session (uniquement Principal)
   const handleDeleteSession = async () => {
     if (!selectedSession) return;
@@ -477,13 +521,15 @@ export default function PrincipalDashboard() {
     }
   };
 
-  // Annuler decision (VALIDATED/REJECTED -> PENDING_VALIDATION, SENT_FOR_PAYMENT "Mis en paiement" -> VALIDATED)
+  // Annuler decision (VALIDATED/REJECTED/ON_HOLD -> PENDING_VALIDATION, SENT_FOR_PAYMENT -> VALIDATED)
   const handleCancelDecision = async () => {
     if (!selectedSession) return;
     setActionLoading(true);
 
     // Determiner l'action selon le statut actuel
-    const action = selectedSession.status === 'SENT_FOR_PAYMENT' ? 'unpay' : 'cancel';
+    const action = selectedSession.status === 'SENT_FOR_PAYMENT' ? 'unpay'
+      : selectedSession.status === 'ON_HOLD' ? 'unhold'
+      : 'cancel';
     const newStatus = selectedSession.status === 'SENT_FOR_PAYMENT' ? 'VALIDATED' : 'PENDING_VALIDATION';
 
     try {
@@ -723,6 +769,8 @@ export default function PrincipalDashboard() {
       filtered = filtered.filter(s => s.status === 'VALIDATED' || s.status === 'SENT_FOR_PAYMENT');
     } else if (sessionFilter === 'rejected') {
       filtered = filtered.filter(s => s.status === 'REJECTED');
+    } else if (sessionFilter === 'on-hold') {
+      filtered = filtered.filter(s => s.status === 'ON_HOLD');
     }
 
     if (searchTerm) {
@@ -753,6 +801,7 @@ export default function PrincipalDashboard() {
     pending: sessions.filter(s => s.status === 'PENDING_VALIDATION' || s.status === 'PENDING_REVIEW').length,
     validated: sessions.filter(s => s.status === 'VALIDATED' || s.status === 'SENT_FOR_PAYMENT').length,
     rejected: sessions.filter(s => s.status === 'REJECTED').length,
+    onHold: sessions.filter(s => s.status === 'ON_HOLD').length,
   };
 
   // Helpers
@@ -791,6 +840,10 @@ export default function PrincipalDashboard() {
         return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Validée</span>;
       case 'REJECTED':
         return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Rejetée</span>;
+      case 'ON_HOLD':
+        return <span className="px-2 py-1 text-xs rounded-full bg-slate-100 text-slate-800">En attente</span>;
+      case 'SENT_FOR_PAYMENT':
+        return <span className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800">Mis en paiement</span>;
       default:
         return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">{status}</span>;
     }
@@ -992,30 +1045,54 @@ export default function PrincipalDashboard() {
         {activeTab === 'dashboard' ? (
           <>
             {/* Cartes cliquables */}
-            <div className="grid grid-cols-3 gap-3 md:gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <button
                 onClick={() => { setActiveTab('sessions'); setSessionFilter('pending'); }}
-                className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl md:rounded-2xl p-3 md:p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-5 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                <ClipboardCheck className="w-6 h-6 md:w-8 md:h-8 text-amber-200 mb-1 md:mb-2" />
-                <p className="text-2xl md:text-4xl font-bold">{stats.pending}</p>
-                <p className="text-amber-100 text-[10px] md:text-sm">À valider</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-amber-100 text-sm">À valider</p>
+                    <p className="text-4xl font-bold">{stats.pending}</p>
+                  </div>
+                  <ClipboardCheck className="w-10 h-10 text-amber-200" />
+                </div>
+              </button>
+              <button
+                onClick={() => { setActiveTab('sessions'); setSessionFilter('on-hold'); }}
+                className="bg-gradient-to-br from-slate-400 to-slate-500 rounded-2xl p-5 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-200 text-sm">En attente</p>
+                    <p className="text-4xl font-bold">{stats.onHold}</p>
+                  </div>
+                  <Clock className="w-10 h-10 text-slate-200" />
+                </div>
               </button>
               <button
                 onClick={() => { setActiveTab('sessions'); setSessionFilter('validated'); }}
-                className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl md:rounded-2xl p-3 md:p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-5 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                <CheckCircle className="w-6 h-6 md:w-8 md:h-8 text-green-200 mb-1 md:mb-2" />
-                <p className="text-2xl md:text-4xl font-bold">{stats.validated}</p>
-                <p className="text-green-100 text-[10px] md:text-sm">Validées</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm">Validées</p>
+                    <p className="text-4xl font-bold">{stats.validated}</p>
+                  </div>
+                  <CheckCircle className="w-10 h-10 text-green-200" />
+                </div>
               </button>
               <button
                 onClick={() => { setActiveTab('sessions'); setSessionFilter('rejected'); }}
-                className="bg-gradient-to-br from-red-400 to-red-500 rounded-xl md:rounded-2xl p-3 md:p-6 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                className="bg-gradient-to-br from-red-400 to-red-500 rounded-2xl p-5 text-white text-left hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                <XCircle className="w-6 h-6 md:w-8 md:h-8 text-red-200 mb-1 md:mb-2" />
-                <p className="text-2xl md:text-4xl font-bold">{stats.rejected}</p>
-                <p className="text-red-100 text-[10px] md:text-sm">Rejetées</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-red-100 text-sm">Rejetées</p>
+                    <p className="text-4xl font-bold">{stats.rejected}</p>
+                  </div>
+                  <XCircle className="w-10 h-10 text-red-200" />
+                </div>
               </button>
             </div>
 
@@ -1841,6 +1918,7 @@ export default function PrincipalDashboard() {
             <div className="flex flex-wrap gap-2 mb-4">
               {[
                 { id: 'pending', label: 'À valider', count: stats.pending, color: 'amber' },
+                { id: 'on-hold', label: 'En attente', count: stats.onHold, color: 'slate' },
                 { id: 'validated', label: 'Validées', count: stats.validated, color: 'green' },
                 { id: 'rejected', label: 'Rejetées', count: stats.rejected, color: 'red' },
                 { id: 'all', label: 'Toutes', count: sessions.length, color: 'gray' },
@@ -1853,6 +1931,7 @@ export default function PrincipalDashboard() {
                       ? filter.color === 'amber' ? 'bg-amber-500 text-white'
                         : filter.color === 'green' ? 'bg-green-500 text-white'
                         : filter.color === 'red' ? 'bg-red-500 text-white'
+                        : filter.color === 'slate' ? 'bg-slate-500 text-white'
                         : 'bg-purple-500 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
@@ -2311,7 +2390,7 @@ export default function PrincipalDashboard() {
               )}
 
               {/* Champ commentaire/motif (visible selon l'etat) */}
-              {(actionState === 'VALIDATE' || actionState === 'REJECT') && (
+              {(actionState === 'VALIDATE' || actionState === 'REJECT' || actionState === 'HOLD') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {actionState === 'REJECT' ? 'Motif du refus' : 'Commentaire'}{' '}
@@ -2321,7 +2400,9 @@ export default function PrincipalDashboard() {
                     value={feedback}
                     onChange={(e) => setFeedback(e.target.value)}
                     placeholder={actionState === 'REJECT'
-                      ? 'Veuillez preciser le motif du refus...'
+                      ? 'Veuillez préciser le motif du refus...'
+                      : actionState === 'HOLD'
+                      ? 'Raison de la mise en attente...'
                       : 'Commentaire pour cette validation...'}
                     className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                     rows={3}
@@ -2443,7 +2524,57 @@ export default function PrincipalDashboard() {
                   </div>
                 )}
 
-                {/* Etat initial: boutons Refuser / Valider */}
+                {/* Etat: choix mise en attente avec/sans commentaire */}
+                {actionState === 'HOLD_COMMENT_PROMPT' && (
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={finishHold}
+                      disabled={actionLoading}
+                      className="flex-1 py-4 px-4 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                    >
+                      <div className="flex flex-col items-center">
+                        <span className="text-2xl mb-1">⏸️</span>
+                        <span className="font-medium text-gray-700">En attente sans commentaire</span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFeedback('');
+                        setActionState('HOLD');
+                      }}
+                      className="flex-1 py-4 px-4 bg-slate-500 hover:bg-slate-600 text-white rounded-xl transition-colors"
+                    >
+                      <div className="flex flex-col items-center">
+                        <span className="text-2xl mb-1">✏️</span>
+                        <span className="font-medium">Ajouter un commentaire</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
+
+                {/* Etat: saisie commentaire pour mise en attente */}
+                {actionState === 'HOLD' && (
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={() => {
+                        setActionState(null);
+                        setFeedback('');
+                      }}
+                      className="flex-1 py-2 px-4 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={finishHold}
+                      disabled={actionLoading}
+                      className="flex-1 py-2 px-4 bg-slate-500 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                    >
+                      {actionLoading ? 'Envoi...' : 'Confirmer la mise en attente'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Etat initial: boutons Refuser / En attente / OK paiement */}
                 {actionState === null && (
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
@@ -2460,18 +2591,24 @@ export default function PrincipalDashboard() {
                       Refuser
                     </button>
                     <button
+                      onClick={handleHold}
+                      className="flex-1 py-3 px-4 bg-slate-500 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
+                    >
+                      En attente
+                    </button>
+                    <button
                       onClick={handleValidate}
                       className="flex-1 py-3 px-4 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
                     >
-                      Valider
+                      OK paiement
                     </button>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Footer pour sessions deja traitees (VALIDATED, REJECTED ou SENT_FOR_PAYMENT) */}
-            {(selectedSession.status === 'VALIDATED' || selectedSession.status === 'REJECTED' || selectedSession.status === 'SENT_FOR_PAYMENT') && (
+            {/* Footer pour sessions déjà traitées (VALIDATED, REJECTED, ON_HOLD ou SENT_FOR_PAYMENT) */}
+            {(selectedSession.status === 'VALIDATED' || selectedSession.status === 'REJECTED' || selectedSession.status === 'SENT_FOR_PAYMENT' || selectedSession.status === 'ON_HOLD') && (
               <div className="p-6 border-t border-gray-100 space-y-3">
                 <div className="flex gap-3">
                   <button
@@ -2486,7 +2623,7 @@ export default function PrincipalDashboard() {
                     disabled={actionLoading}
                     className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
                   >
-                    {actionLoading ? 'Annulation...' : selectedSession.status === 'SENT_FOR_PAYMENT' ? 'Retirer de la mise en paiement' : 'Annuler la decision'}
+                    {actionLoading ? 'Annulation...' : selectedSession.status === 'SENT_FOR_PAYMENT' ? 'Retirer de la mise en paiement' : selectedSession.status === 'ON_HOLD' ? 'Débloquer (remettre à valider)' : 'Annuler la décision'}
                   </button>
                 </div>
                 <button

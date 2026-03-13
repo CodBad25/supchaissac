@@ -7,7 +7,7 @@ Le secret de session chiffre les cookies d'authentification.
 
 **Procédure de rotation :**
 1. Générer un nouveau secret : `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
-2. Mettre à jour la variable `SESSION_SECRET` dans l'environnement de déploiement (Scaleway)
+2. Mettre à jour la variable `SESSION_SECRET` dans l'environnement de déploiement (Oracle Cloud)
 3. Redéployer l'application
 4. **Impact** : tous les utilisateurs seront déconnectés (leurs cookies deviennent invalides)
 
@@ -21,15 +21,6 @@ Contient les identifiants de connexion à Neon PostgreSQL.
 2. Mettre à jour `DATABASE_URL` dans l'environnement de déploiement
 3. Redéployer l'application
 
-### Clés S3 (SCW_ACCESS_KEY / SCW_SECRET_KEY)
-Accès au stockage Scaleway Object Storage.
-
-**Procédure de rotation :**
-1. Créer une nouvelle paire de clés API dans la console Scaleway
-2. Mettre à jour `SCW_ACCESS_KEY` et `SCW_SECRET_KEY`
-3. Redéployer l'application
-4. Supprimer l'ancienne paire de clés
-
 ### SMTP (EMAIL_USER / EMAIL_PASS)
 Identifiants pour l'envoi d'emails d'activation.
 
@@ -37,24 +28,6 @@ Identifiants pour l'envoi d'emails d'activation.
 1. Changer le mot de passe de l'application dans le fournisseur email
 2. Mettre à jour `EMAIL_PASS`
 3. Redéployer
-
-## Versionnement S3
-
-Pour activer le versionnement sur le bucket Scaleway (protection contre les suppressions accidentelles) :
-
-```bash
-aws s3api put-bucket-versioning \
-  --bucket $S3_BUCKET \
-  --versioning-configuration Status=Enabled \
-  --endpoint-url https://s3.fr-par.scw.cloud
-```
-
-Pour vérifier l'état :
-```bash
-aws s3api get-bucket-versioning \
-  --bucket $S3_BUCKET \
-  --endpoint-url https://s3.fr-par.scw.cloud
-```
 
 ## Checklist de sécurité
 

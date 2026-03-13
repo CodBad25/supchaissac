@@ -33,6 +33,7 @@ const typeIcons: Record<string, string> = {
   session_paid: '💰',
   new_session_to_review: '📋',
   session_ready_for_payment: '💳',
+  info_requested: '📎',
 };
 
 export default function NotificationBell() {

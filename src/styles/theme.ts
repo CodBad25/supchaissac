@@ -140,6 +140,22 @@ export const colors = {
       icon: 'text-green-700',
       label: 'Mis en paiement',
     },
+    PENDING_DOCUMENTS: {
+      bg: 'bg-orange-100',
+      text: 'text-orange-700',
+      border: 'border-orange-300',
+      full: 'bg-orange-100 text-orange-700 border-orange-300',
+      icon: 'text-orange-600',
+      label: 'En attente de document',
+    },
+    ON_HOLD: {
+      bg: 'bg-slate-100',
+      text: 'text-slate-700',
+      border: 'border-slate-300',
+      full: 'bg-slate-100 text-slate-700 border-slate-300',
+      icon: 'text-slate-600',
+      label: 'En attente (principal)',
+    },
     REJECTED: {
       bg: 'bg-red-100',
       text: 'text-red-800',

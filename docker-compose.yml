@@ -40,12 +40,14 @@ services:
       - .:/app
       - /app/node_modules
       - /app/dist
+      - uploads_data:/app/uploads
     networks:
       - supchaissac-network
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  uploads_data:
 
 networks:
   supchaissac-network:

@@ -57,7 +57,7 @@ interface Session {
   id: number;
   type: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | 'HSE';
   originalType?: 'RCD' | 'DEVOIRS_FAITS' | 'AUTRE' | 'HSE' | null; // Type avant conversion
-  status: 'PENDING_REVIEW' | 'PENDING_VALIDATION' | 'VALIDATED' | 'SENT_FOR_PAYMENT' | 'REJECTED';
+  status: 'PENDING_REVIEW' | 'PENDING_DOCUMENTS' | 'PENDING_VALIDATION' | 'VALIDATED' | 'SENT_FOR_PAYMENT' | 'REJECTED' | 'ON_HOLD';
   date: string;
   timeSlot: string;
   className?: string;
@@ -68,6 +68,7 @@ interface Session {
   validatedAt?: string;
   paidAt?: string;
   rejectionReason?: string;
+  reviewComments?: string;
 }
 
 interface User {
@@ -161,7 +162,7 @@ const TeacherDashboard: React.FC = () => {
     devoirsFaitsHours: sessions.filter(s => s.type === 'DEVOIRS_FAITS').length,
     hseHours: sessions.filter(s => s.type === 'HSE').length,
     otherHours: sessions.filter(s => s.type === 'AUTRE').length,
-    pendingHours: sessions.filter(s => s.status === 'PENDING_REVIEW').length,
+    pendingHours: sessions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'PENDING_DOCUMENTS' || s.status === 'PENDING_VALIDATION' || s.status === 'ON_HOLD').length,
     validatedHours: sessions.filter(s => s.status === 'VALIDATED').length,
     paidHours: sessions.filter(s => s.status === 'SENT_FOR_PAYMENT').length
   };
@@ -312,7 +313,7 @@ const TeacherDashboard: React.FC = () => {
   // Gestion de l'edition de sessions
   const handleEditSession = (session: any) => {
     // Bloquer l'édition si la session n'est plus modifiable
-    if (session.status !== 'PENDING_REVIEW' && session.status !== 'PENDING_VALIDATION') {
+    if (session.status !== 'PENDING_REVIEW' && session.status !== 'PENDING_DOCUMENTS' && session.status !== 'PENDING_VALIDATION') {
       return;
     }
     setSelectedDate(session.date);
@@ -1067,7 +1068,7 @@ const TeacherDashboard: React.FC = () => {
                 {sessions.slice(0, 3).map((session) => {
                   const statusClasses = getStatusClasses(session.status);
                   const typeColors = getTypeColors(session.type);
-                  const canEdit = session.status === 'PENDING_REVIEW' || session.status === 'PENDING_VALIDATION';
+                  const canEdit = session.status === 'PENDING_REVIEW' || session.status === 'PENDING_DOCUMENTS' || session.status === 'PENDING_VALIDATION';
                   return (
                     <div
                       key={session.id}
@@ -1122,6 +1123,15 @@ const TeacherDashboard: React.FC = () => {
                                 <MessageCircle className="w-3.5 h-3.5" />
                               </button>
                             )}
+                            {session.status === 'PENDING_DOCUMENTS' && session.reviewComments && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setExpandedRejection(expandedRejection === session.id ? null : session.id); }}
+                                className="text-orange-400 hover:text-orange-600 transition-colors"
+                                title="Voir la demande de la secrétaire"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <span className={cn(components.badge.base, statusClasses.full, 'text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5')}>
                               {statusClasses.label}
                             </span>
@@ -1146,6 +1156,11 @@ const TeacherDashboard: React.FC = () => {
                       {expandedRejection === session.id && session.rejectionReason && (
                         <div className="mt-1.5 px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-xs text-red-700">
                           <span className="font-medium">Motif :</span> {session.rejectionReason}
+                        </div>
+                      )}
+                      {expandedRejection === session.id && session.status === 'PENDING_DOCUMENTS' && session.reviewComments && (
+                        <div className="mt-1.5 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
+                          <span className="font-medium">Demande de la secrétaire :</span> {session.reviewComments}
                         </div>
                       )}
                     </div>

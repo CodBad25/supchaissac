@@ -461,36 +461,34 @@ export function ContratsPacte({
 
       {/* Edit Modal */}
       {showContratModal && editingContrat && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Modifier le contrat PACTE</h2>
-                <button
-                  onClick={() => {
-                    setShowContratModal(false);
-                    setEditingContrat(null);
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-3 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-base font-bold text-gray-900">Modifier le contrat PACTE</h2>
+              <button
+                onClick={() => {
+                  setShowContratModal(false);
+                  setEditingContrat(null);
+                }}
+                className="p-1.5 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="px-4 py-3 space-y-3 overflow-y-auto flex-1">
               {/* Teacher info */}
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-xl font-medium text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-sm font-medium text-white">
                   {editingContrat.initials}
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{editingContrat.name}</h3>
-                  <p className="text-sm text-gray-500">{editingContrat.username}</p>
+                  <h3 className="text-sm font-semibold text-gray-900">{editingContrat.name}</h3>
+                  <p className="text-xs text-gray-500">{editingContrat.username}</p>
                 </div>
               </div>
 
-              {/* Toggle reprise en cours d'annee */}
+              {/* Toggle reprise en cours d'année */}
               <button
                 type="button"
                 onClick={() => {
@@ -501,7 +499,7 @@ export function ContratsPacte({
                     setContratCompletedRCD(0);
                   }
                 }}
-                className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
+                className={`w-full p-2.5 rounded-lg border-2 transition-all text-left ${
                   showPreviousHours
                     ? 'bg-amber-50 border-amber-400 text-amber-800'
                     : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
@@ -509,96 +507,96 @@ export function ContratsPacte({
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-medium text-sm">Reprise en cours d'annee</span>
-                    <p className="text-xs opacity-70">Cliquer si des heures ont ete effectuees avant l'app</p>
+                    <span className="font-medium text-xs">Reprise en cours d'année</span>
+                    <p className="text-[10px] opacity-70">Cliquer si des heures ont été effectuées avant l'app</p>
                   </div>
                   {showPreviousHours && (
-                    <span className="text-amber-600 text-lg">✓</span>
+                    <span className="text-amber-600">✓</span>
                   )}
                 </div>
               </button>
 
               {/* Section Devoirs Faits */}
-              <div className="bg-blue-50 p-4 rounded-lg space-y-3">
-                <h4 className="font-medium text-blue-800">Devoirs Faits (DF)</h4>
-                <div className={`grid gap-3 ${showPreviousHours ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                  <div className="space-y-1">
-                    <label className="block text-xs text-gray-600">Heures au contrat</label>
-                    <div className="flex items-center gap-2">
+              <div className="bg-blue-50 p-3 rounded-lg space-y-2">
+                <h4 className="font-medium text-blue-800 text-sm">Devoirs Faits (DF)</h4>
+                <div className={`grid gap-2 ${showPreviousHours ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  <div className="space-y-0.5">
+                    <label className="block text-[10px] text-gray-600">Heures au contrat</label>
+                    <div className="flex items-center gap-1.5">
                       <input
                         type="number"
                         min="0"
                         max="72"
                         value={contratHoursDF}
                         onChange={(e) => setContratHoursDF(Number(e.target.value))}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        className="w-full px-2 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                       />
-                      <span className="text-gray-500 text-sm">h</span>
+                      <span className="text-gray-500 text-xs">h</span>
                     </div>
                   </div>
                   {showPreviousHours && (
-                    <div className="space-y-1">
-                      <label className="block text-xs text-gray-600">Heures avant l'app</label>
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] text-gray-600">Heures avant l'app</label>
+                      <div className="flex items-center gap-1.5">
                         <input
                           type="number"
                           min="0"
                           max="72"
                           value={contratCompletedDF}
                           onChange={(e) => setContratCompletedDF(Number(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full px-2 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         />
-                        <span className="text-gray-500 text-sm">h</span>
+                        <span className="text-gray-500 text-xs">h</span>
                       </div>
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-blue-600">
+                <p className="text-[10px] text-blue-600">
                   + {editingContrat.stats.devoirsFaitsSessions} sessions saisies dans l'app
                 </p>
               </div>
 
               {/* Section RCD */}
-              <div className="bg-purple-50 p-4 rounded-lg space-y-3">
-                <h4 className="font-medium text-purple-800">Remplacement de Courte Duree (RCD)</h4>
-                <div className={`grid gap-3 ${showPreviousHours ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                  <div className="space-y-1">
-                    <label className="block text-xs text-gray-600">Heures au contrat</label>
-                    <div className="flex items-center gap-2">
+              <div className="bg-purple-50 p-3 rounded-lg space-y-2">
+                <h4 className="font-medium text-purple-800 text-sm">Remplacement de Courte Durée (RCD)</h4>
+                <div className={`grid gap-2 ${showPreviousHours ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  <div className="space-y-0.5">
+                    <label className="block text-[10px] text-gray-600">Heures au contrat</label>
+                    <div className="flex items-center gap-1.5">
                       <input
                         type="number"
                         min="0"
                         max="72"
                         value={contratHoursRCD}
                         onChange={(e) => setContratHoursRCD(Number(e.target.value))}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                        className="w-full px-2 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                       />
-                      <span className="text-gray-500 text-sm">h</span>
+                      <span className="text-gray-500 text-xs">h</span>
                     </div>
                   </div>
                   {showPreviousHours && (
-                    <div className="space-y-1">
-                      <label className="block text-xs text-gray-600">Heures avant l'app</label>
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] text-gray-600">Heures avant l'app</label>
+                      <div className="flex items-center gap-1.5">
                         <input
                           type="number"
                           min="0"
                           max="72"
                           value={contratCompletedRCD}
                           onChange={(e) => setContratCompletedRCD(Number(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                          className="w-full px-2 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                         />
-                        <span className="text-gray-500 text-sm">h</span>
+                        <span className="text-gray-500 text-xs">h</span>
                       </div>
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-purple-600">
+                <p className="text-[10px] text-purple-600">
                   + {editingContrat.stats.rcdSessions} sessions saisies dans l'app
                 </p>
               </div>
 
-              {/* Resume */}
+              {/* Résumé */}
               {(() => {
                 const totalContrat = contratHoursDF + contratHoursRCD;
                 const heuresAvantApp = contratCompletedDF + contratCompletedRCD;
@@ -606,47 +604,45 @@ export function ContratsPacte({
                 const totalRealise = heuresAvantApp + sessionsApp;
                 const reste = Math.max(0, totalContrat - totalRealise);
                 return (
-                  <div className="bg-amber-50 p-4 rounded-lg">
-                    <p className="text-sm font-medium text-amber-800 mb-3">Résumé du contrat PACTE</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center p-2 bg-white rounded-lg">
-                        <p className="text-2xl font-bold text-amber-600">{totalContrat}h</p>
-                        <p className="text-xs text-gray-600">Total au contrat</p>
+                  <div className="bg-amber-50 p-3 rounded-lg">
+                    <p className="text-xs font-medium text-amber-800 mb-2">Résumé du contrat PACTE</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="text-center p-1.5 bg-white rounded-lg">
+                        <p className="text-xl font-bold text-amber-600">{totalContrat}h</p>
+                        <p className="text-[10px] text-gray-600">Total au contrat</p>
                       </div>
-                      <div className="text-center p-2 bg-white rounded-lg">
-                        <p className="text-2xl font-bold text-green-600">{totalRealise}h</p>
-                        <p className="text-xs text-gray-600">Déjà réalisées</p>
+                      <div className="text-center p-1.5 bg-white rounded-lg">
+                        <p className="text-xl font-bold text-green-600">{totalRealise}h</p>
+                        <p className="text-[10px] text-gray-600">Déjà réalisées</p>
                         {showPreviousHours && heuresAvantApp > 0 && (
-                          <p className="text-xs text-gray-400">({heuresAvantApp}h avant + {sessionsApp} sess.)</p>
+                          <p className="text-[10px] text-gray-400">({heuresAvantApp}h avant + {sessionsApp} sess.)</p>
                         )}
                       </div>
                     </div>
-                    <div className="mt-3 text-center">
-                      <p className="text-xs text-gray-500">
-                        Reste à réaliser : <span className={`font-bold ${reste > 0 ? 'text-amber-700' : 'text-green-600'}`}>
-                          {reste}h
-                        </span>
-                        {reste === 0 && totalContrat > 0 && <span className="ml-1 text-green-600">✓</span>}
-                      </p>
-                    </div>
+                    <p className="mt-2 text-center text-[10px] text-gray-500">
+                      Reste à réaliser : <span className={`font-bold ${reste > 0 ? 'text-amber-700' : 'text-green-600'}`}>
+                        {reste}h
+                      </span>
+                      {reste === 0 && totalContrat > 0 && <span className="ml-1 text-green-600">✓</span>}
+                    </p>
                   </div>
                 );
               })()}
             </div>
 
-            <div className="p-6 border-t border-gray-100 flex gap-3">
+            <div className="px-4 py-3 border-t border-gray-100 flex gap-3 flex-shrink-0">
               <button
                 onClick={() => {
                   setShowContratModal(false);
                   setEditingContrat(null);
                 }}
-                className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
               >
                 Annuler
               </button>
               <button
                 onClick={saveContrat}
-                className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm"
               >
                 Enregistrer
               </button>

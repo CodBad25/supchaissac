@@ -16,6 +16,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Uploads (stockage local fichiers)
+uploads/
+
 node_modules
 dist
 dist-ssr

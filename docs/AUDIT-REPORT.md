@@ -220,25 +220,13 @@ npm run test:run
 
 ---
 
-## Déploiement (Scaleway Serverless Containers)
+## Déploiement (Oracle Cloud VPS)
 
-Procédure de déploiement vers Scaleway :
+L'application est hébergée sur Oracle Cloud (Docker + Nginx).
 
-```bash
-# 1. Build image Docker (architecture amd64)
-docker build --platform=linux/amd64 -t rg.fr-par.scw.cloud/funcscwsupchaissacvgfvl03o/supchaissac-app:latest .
-
-# 2. Pousser l'image vers le registre Scaleway
-docker push rg.fr-par.scw.cloud/funcscwsupchaissacvgfvl03o/supchaissac-app:latest
-
-# 3. Déployer le container
-scw container container deploy 581e9931-716f-42db-b6db-586ecb5b72c7
-```
-
-**Notes importantes** :
-- L'image doit être en architecture `linux/amd64` (pas de ARM)
-- Le registry est `rg.fr-par.scw.cloud` (région Paris)
-- Vérifier que les variables d'environnement sont correctement configurées dans Scaleway Console
+- **Serveur** : `89.168.61.230` (Ubuntu 24.04 ARM)
+- **URL** : https://supchaissac.beltools.fr
+- **Stockage fichiers** : Local (Docker volume /app/uploads)
 
 ---
 

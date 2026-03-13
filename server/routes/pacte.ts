@@ -191,7 +191,7 @@ router.patch('/teachers/:id/contrat', requireSecretary, async (req, res) => {
       return res.status(404).json({ error: 'Enseignant non trouve' });
     }
 
-    logger.info(`PACTE] Contrat mis a jour pour ${updatedUser.name}: DF=${pacteHoursDF}h, RCD=${pacteHoursRCD}h`);
+    logger.info(`PACTE] Contrat mis à jour pour ${updatedUser.name}: DF=${data.pacteHoursDF}h, RCD=${data.pacteHoursRCD}h`);
 
     res.json({
       success: true,

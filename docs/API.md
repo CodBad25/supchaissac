@@ -3,7 +3,7 @@
 ## Base URL
 
 - **Développement** : `http://localhost:3001/api`
-- **Production** : `https://supchaissacvgfvl03o-supchaissac-app.functions.fnc.fr-par.scw.cloud/api`
+- **Production** : `https://supchaissac.beltools.fr/api`
 
 ## Authentification
 
@@ -205,7 +205,7 @@ Génère une URL de téléchargement signée.
 **Réponse :**
 ```json
 {
-  "url": "https://s3.../file?signature=...",
+  "url": "/api/uploads/sessions/123/file.png?expires=1705348000&sig=abc123...",
   "filename": "enseignant_2025-01-15_M2_document.pdf"
 }
 ```

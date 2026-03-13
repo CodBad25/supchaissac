@@ -1,27 +1,27 @@
 import 'dotenv/config';
 import { db } from '../src/lib/db';
 import { sessions, users, attachments } from '../src/lib/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 /**
  * Seed de données de démonstration cohérentes pour SupChaissac v2
  *
- * Simulation réaliste année scolaire 2025-2026 :
- * - Septembre → janvier : sessions traitées (VALIDATED, SENT_FOR_PAYMENT, quelques REJECTED)
- * - Février : vacances d'hiver Zone B (14 fév → 1er mars) — pas de sessions
- * - Début mars : sessions fraîches à différents stades du workflow
+ * Respecte le workflow révisé (mars 2026) :
+ * - PACTE (DF/RCD d'enseignant PACTE) : secrétaire valide directement
+ * - Hors PACTE : principal décide (OK paiement / En attente / Refuser)
+ * - HSE : jamais un choix enseignant, uniquement conversion par principal
+ * - Statuts : PENDING_REVIEW, PENDING_DOCUMENTS, PENDING_VALIDATION, VALIDATED, ON_HOLD, REJECTED, SENT_FOR_PAYMENT
  */
 
 const DEMO_MARKER = '[DEMO]';
 
-// Vacances scolaires Zone B 2025-2026 (périodes sans cours)
+// Vacances scolaires Zone B 2025-2026
 const HOLIDAYS_2025_2026 = [
   { start: new Date(2025, 9, 18), end: new Date(2025, 10, 2) },   // Toussaint
   { start: new Date(2025, 11, 20), end: new Date(2026, 0, 4) },   // Noël
   { start: new Date(2026, 1, 14), end: new Date(2026, 2, 1) },    // Hiver
 ];
 
-// Jours fériés
 const JOURS_FERIES = [
   new Date(2025, 10, 1),   // Toussaint
   new Date(2025, 10, 11),  // Armistice
@@ -31,18 +31,15 @@ const JOURS_FERIES = [
 
 function isHolidayOrWeekend(date: Date): boolean {
   const day = date.getDay();
-  if (day === 0 || day === 6) return true; // Weekend
-
+  if (day === 0 || day === 6) return true;
   for (const period of HOLIDAYS_2025_2026) {
     if (date >= period.start && date <= period.end) return true;
   }
-
   for (const ferie of JOURS_FERIES) {
     if (date.getFullYear() === ferie.getFullYear() &&
         date.getMonth() === ferie.getMonth() &&
         date.getDate() === ferie.getDate()) return true;
   }
-
   return false;
 }
 
@@ -51,9 +48,7 @@ function getWorkingDays(year: number, month: number): Date[] {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(year, month, d);
-    if (!isHolidayOrWeekend(date)) {
-      days.push(date);
-    }
+    if (!isHolidayOrWeekend(date)) days.push(date);
   }
   return days;
 }
@@ -86,23 +81,25 @@ async function seedDemoData() {
   }
 
   console.log('🧹 Suppression des anciennes sessions...');
-
-  // Supprimer toutes les pièces jointes puis toutes les sessions
   await db.delete(attachments);
   await db.delete(sessions);
   console.log('✅ Anciennes données supprimées\n');
 
   console.log('🎭 Génération des données de démonstration...\n');
 
-  // Enseignants de démo : uniquement les comptes fictifs (pas de vrais enseignants = RGPD)
-  // + Badri BELHAJ (id 49) = le vrai admin/développeur
-  const demoTeacherIds = [1, 2, 3, 16, 49]; // Sophie, Marie, Martin, Philippe, Badri
+  // Enseignants de démo
+  const demoTeacherIds = [1, 2, 3, 16]; // Sans Badri (49)
   const allTeachers = await db.select().from(users).where(eq(users.role, 'TEACHER'));
   const seedTeachers = allTeachers.filter(t => demoTeacherIds.includes(t.id));
-  console.log(`👥 ${seedTeachers.length} enseignants sélectionnés pour le seed\n`);
+  console.log(`👥 ${seedTeachers.length} enseignants sélectionnés pour le seed`);
+  for (const t of seedTeachers) {
+    console.log(`   ${t.name} — PACTE: ${t.inPacte ? 'OUI' : 'NON'}`);
+  }
+  console.log('');
 
-  const types = ['RCD', 'DEVOIRS_FAITS', 'HSE', 'AUTRE'] as const;
-  const typeWeights = [0.35, 0.40, 0.15, 0.10];
+  // Types enseignant : RCD, DEVOIRS_FAITS, AUTRE (jamais HSE directement)
+  const teacherTypes = ['RCD', 'DEVOIRS_FAITS', 'AUTRE'] as const;
+  const teacherTypeWeights = [0.40, 0.45, 0.15];
   const timeSlots = ['M1', 'M2', 'M3', 'M4', 'S1', 'S2', 'S3', 'S4'] as const;
   const gradeLevels = ['6e', '5e', '4e', '3e', 'mixte'];
   const classes = ['6A', '6B', '5A', '5B', '4A', '4B', '3A', '3B'];
@@ -115,29 +112,85 @@ async function seedDemoData() {
     { prefix: 'Mme', last: 'MOREAU', first: 'Sophie' },
   ];
 
-  // Mois de l'année scolaire 2025-2026 : sept → fév (avant vacances)
   const pastMonths = [
     { year: 2025, month: 8 },  // Septembre
     { year: 2025, month: 9 },  // Octobre
     { year: 2025, month: 10 }, // Novembre
     { year: 2025, month: 11 }, // Décembre
     { year: 2026, month: 0 },  // Janvier
-    { year: 2026, month: 1 },  // Février (seulement 2 semaines avant vacances le 14)
+    { year: 2026, month: 1 },  // Février
   ];
 
-  // Sessions par mois par enseignant (variation réaliste)
-  const sessionsPerMonth = [3, 4, 5, 3, 5, 2]; // Moins en sept (rentrée) et déc (fin trimestre)
+  const sessionsPerMonth = [1, 1, 1, 1, 1, 0]; // ~5 sessions passées par enseignant
 
   let grandTotal = 0;
-  const usedSlots = new Set<string>(); // Pour éviter les doublons (teacherId-date-timeSlot)
+  const usedSlots = new Set<string>();
+
+  /**
+   * Détermine le statut d'une session passée en respectant le workflow
+   */
+  function getPastStatus(teacher: typeof seedTeachers[0], type: string): {
+    status: string;
+    type: string;
+    rejectionReason?: string;
+    originalType?: string;
+  } {
+    const isPacte = teacher.inPacte === true;
+    const isPacteSession = isPacte && (type === 'DEVOIRS_FAITS' || type === 'RCD');
+
+    if (isPacteSession) {
+      // PACTE DF/RCD → secrétaire valide directement, pas de rejet possible par principal
+      const r = Math.random();
+      if (r < 0.50) {
+        return { status: 'SENT_FOR_PAYMENT', type };
+      } else {
+        return { status: 'VALIDATED', type };
+      }
+    }
+
+    // Hors PACTE → passe par le principal
+    if (type === 'AUTRE') {
+      // Le principal a converti en HSE, RCD ou DF
+      const r = Math.random();
+      if (r < 0.12) {
+        return { status: 'REJECTED', type: 'AUTRE', rejectionReason: pick([
+          'Créneau non disponible',
+          'Doublon avec une autre session',
+          'Information manquante',
+        ])};
+      }
+      // Conversion par le principal
+      const convertedType = weightedPick(['HSE', 'RCD', 'DEVOIRS_FAITS'], [0.50, 0.30, 0.20]);
+      if (r < 0.55) {
+        return { status: 'SENT_FOR_PAYMENT', type: convertedType, originalType: 'AUTRE' };
+      } else {
+        return { status: 'VALIDATED', type: convertedType, originalType: 'AUTRE' };
+      }
+    }
+
+    // DF/RCD hors PACTE → principal décide
+    const r = Math.random();
+    if (r < 0.10) {
+      return { status: 'REJECTED', type, rejectionReason: pick([
+        'Budget HSE insuffisant',
+        'Doublon avec une autre session',
+        'Créneau non couvert',
+      ])};
+    } else if (r < 0.55) {
+      return { status: 'SENT_FOR_PAYMENT', type };
+    } else {
+      return { status: 'VALIDATED', type };
+    }
+  }
 
   for (const teacher of seedTeachers) {
-    const activityFactor = 0.6 + Math.random() * 0.8; // Variation par enseignant
+    const activityFactor = 0.6 + Math.random() * 0.8;
     let teacherTotal = 0;
+    const isPacte = teacher.inPacte === true;
 
-    console.log(`👤 ${teacher.name} (${teacher.subject || 'N/A'}):`);
+    console.log(`👤 ${teacher.name} (${teacher.subject || 'N/A'}) — PACTE: ${isPacte ? 'OUI' : 'NON'}`);
 
-    // === MOIS PASSÉS : sessions déjà traitées ===
+    // === MOIS PASSÉS : sessions traitées ===
     for (let m = 0; m < pastMonths.length; m++) {
       const { year, month } = pastMonths[m];
       const workingDays = getWorkingDays(year, month);
@@ -152,61 +205,49 @@ async function seedDemoData() {
         if (usedSlots.has(slotKey)) continue;
         usedSlots.add(slotKey);
 
-        const selectedType = weightedPick([...types], typeWeights);
-
-        // Statut pour les mois passés : presque tout traité
-        let status: string;
-        const r = Math.random();
-        if (r < 0.45) {
-          status = 'SENT_FOR_PAYMENT'; // 45% mis en paiement
-        } else if (r < 0.90) {
-          status = 'VALIDATED'; // 45% validé (pas encore mis en paiement)
-        } else {
-          status = 'REJECTED'; // 10% rejeté
-        }
+        const selectedType = weightedPick([...teacherTypes], teacherTypeWeights);
+        const result = getPastStatus(teacher, selectedType);
 
         const sessionData: any = {
           date: formatDate(date),
           timeSlot,
-          type: selectedType,
+          type: result.type,
           teacherId: teacher.id,
           teacherName: teacher.name,
-          status,
+          status: result.status,
           comment: DEMO_MARKER,
           createdAt: date,
-          updatedAt: new Date(date.getTime() + 2 * 24 * 60 * 60 * 1000), // +2 jours
+          updatedAt: new Date(date.getTime() + 2 * 24 * 60 * 60 * 1000),
         };
 
-        // Dates de traçabilité
-        if (status === 'VALIDATED' || status === 'SENT_FOR_PAYMENT') {
-          sessionData.validatedAt = new Date(date.getTime() + 3 * 24 * 60 * 60 * 1000); // +3 jours
+        if (result.originalType) {
+          sessionData.originalType = result.originalType;
         }
 
-        if (status === 'SENT_FOR_PAYMENT') {
-          sessionData.paidAt = new Date(date.getTime() + 7 * 24 * 60 * 60 * 1000); // +7 jours
+        if (result.status === 'VALIDATED' || result.status === 'SENT_FOR_PAYMENT') {
+          sessionData.validatedAt = new Date(date.getTime() + 3 * 24 * 60 * 60 * 1000);
+        }
+        if (result.status === 'SENT_FOR_PAYMENT') {
+          sessionData.paidAt = new Date(date.getTime() + 7 * 24 * 60 * 60 * 1000);
+        }
+        if (result.status === 'REJECTED') {
+          sessionData.validatedAt = new Date(date.getTime() + 3 * 24 * 60 * 60 * 1000);
+          sessionData.rejectionReason = result.rejectionReason;
         }
 
-        if (status === 'REJECTED') {
-          sessionData.validatedAt = new Date(date.getTime() + 3 * 24 * 60 * 60 * 1000); // +3 jours
-          sessionData.rejectionReason = pick([
-            'Créneau non disponible',
-            'Doublon avec une autre session',
-            'Information manquante',
-          ]);
-        }
-
-        // Détails selon le type
-        if (selectedType === 'RCD') {
+        // Détails selon le type (utiliser le type original pour les champs)
+        const origType = result.originalType || result.type;
+        if (origType === 'RCD' || result.type === 'RCD') {
           const replaced = pick(replacedNames);
           sessionData.className = pick(classes);
           sessionData.replacedTeacherPrefix = replaced.prefix;
           sessionData.replacedTeacherLastName = replaced.last;
           sessionData.replacedTeacherFirstName = replaced.first;
           sessionData.subject = teacher.subject || 'Mathématiques';
-        } else if (selectedType === 'DEVOIRS_FAITS') {
+        } else if (origType === 'DEVOIRS_FAITS' || result.type === 'DEVOIRS_FAITS') {
           sessionData.gradeLevel = pick(gradeLevels);
           sessionData.studentCount = Math.floor(Math.random() * 12) + 4;
-        } else if (selectedType === 'AUTRE') {
+        } else if (origType === 'AUTRE') {
           sessionData.description = pick([
             'Accompagnement personnalisé',
             'Tutorat élèves en difficulté',
@@ -219,19 +260,17 @@ async function seedDemoData() {
           await db.insert(sessions).values(sessionData);
           teacherTotal++;
         } catch {
-          // Doublon unique constraint, on ignore
+          // Doublon
         }
       }
     }
 
-    // === DÉBUT MARS : sessions fraîches à différents stades ===
-    const marchDays = getWorkingDays(2026, 2); // Mars 2026
-    // Seulement les premiers jours ouvrés (2-6 mars)
-    const earlyMarch = marchDays.filter(d => d.getDate() <= 6);
+    // === DÉBUT MARS : sessions fraîches à différents stades du workflow ===
+    const marchDays = getWorkingDays(2026, 2);
+    const earlyMarch = marchDays.filter(d => d.getDate() <= 12);
 
     if (earlyMarch.length > 0) {
-      // 2-4 sessions fraîches par enseignant
-      const freshCount = Math.floor(Math.random() * 3) + 2;
+      const freshCount = 2; // 2 sessions fraîches par enseignant
 
       for (let j = 0; j < freshCount; j++) {
         const date = pick(earlyMarch);
@@ -240,13 +279,33 @@ async function seedDemoData() {
         if (usedSlots.has(slotKey)) continue;
         usedSlots.add(slotKey);
 
-        const selectedType = weightedPick([...types], typeWeights);
+        const selectedType = weightedPick([...teacherTypes], teacherTypeWeights);
+        const isPacteSession = isPacte && (selectedType === 'DEVOIRS_FAITS' || selectedType === 'RCD');
 
-        // Statuts variés pour mars (workflow en cours — pas encore validées)
-        const status = weightedPick(
-          ['PENDING_REVIEW', 'PENDING_VALIDATION'] as const,
-          [0.55, 0.45]
-        );
+        // Statut cohérent avec le workflow
+        let status: string;
+        let validationComments: string | undefined;
+
+        if (isPacteSession) {
+          // PACTE : majorité à examiner pour la démo
+          status = weightedPick(
+            ['PENDING_REVIEW', 'VALIDATED'],
+            [0.70, 0.30]
+          );
+        } else {
+          // Hors PACTE : majorité à examiner pour la démo
+          status = weightedPick(
+            ['PENDING_REVIEW', 'PENDING_VALIDATION', 'ON_HOLD', 'VALIDATED'],
+            [0.55, 0.20, 0.10, 0.15]
+          );
+          if (status === 'ON_HOLD') {
+            validationComments = pick([
+              'En attente du prochain conseil budgétaire',
+              'À revoir après les résultats trimestriels',
+              'Budget HSE presque épuisé, à valider en priorité le mois prochain',
+            ]);
+          }
+        }
 
         const sessionData: any = {
           date: formatDate(date),
@@ -259,9 +318,14 @@ async function seedDemoData() {
           createdAt: date,
         };
 
-        // Dates de traçabilité pour mars
-        if (status === 'PENDING_VALIDATION') {
-          sessionData.updatedAt = new Date(date.getTime() + 1 * 24 * 60 * 60 * 1000); // examiné +1j
+        if (status === 'PENDING_VALIDATION' || status === 'ON_HOLD' || status === 'VALIDATED') {
+          sessionData.updatedAt = new Date(date.getTime() + 1 * 24 * 60 * 60 * 1000);
+        }
+        if (status === 'VALIDATED') {
+          sessionData.validatedAt = new Date(date.getTime() + 2 * 24 * 60 * 60 * 1000);
+        }
+        if (validationComments) {
+          sessionData.validationComments = validationComments;
         }
 
         if (selectedType === 'RCD') {
@@ -301,6 +365,11 @@ async function seedDemoData() {
   console.log(`📅 Période: septembre 2025 → début mars 2026`);
   console.log(`🏖️  Vacances respectées (Toussaint, Noël, Hiver Zone B)`);
   console.log(`🏷️  Marqueur: "${DEMO_MARKER}"`);
+  console.log('\n📋 Workflow respecté :');
+  console.log('   - PACTE (DF/RCD) → validées par secrétaire (jamais PENDING_VALIDATION)');
+  console.log('   - Hors PACTE → passent par principal (PENDING_VALIDATION, ON_HOLD, VALIDATED)');
+  console.log('   - HSE → uniquement par conversion principal (originalType = AUTRE)');
+  console.log('   - Enseignant choisit : RCD, Devoirs Faits, Autre (jamais HSE)');
 
   process.exit(0);
 }

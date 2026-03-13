@@ -197,6 +197,7 @@ export default function SecretaryDashboard() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
   const [viewedAttachments, setViewedAttachments] = useState<Set<number>>(new Set()); // Suivre les PJ consultees
+  const [enlargedImage, setEnlargedImage] = useState<string | null>(null); // URL de l'image agrandie
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Action modals
@@ -477,7 +478,13 @@ export default function SecretaryDashboard() {
   // Sessions en cours de transition (pour animation)
   const [transitioningSessions, setTransitioningSessions] = useState<Set<number>>(new Set());
 
-  // Transmettre au principal (PENDING_REVIEW -> PENDING_VALIDATION)
+  // Vérifier si une session est PACTE (enseignant PACTE + type DF ou RCD)
+  const isPacteSession = (session: Session) => {
+    const teacher = teachers.find(t => t.id === session.teacherId);
+    return teacher?.inPacte && (session.type === 'DEVOIRS_FAITS' || session.type === 'RCD');
+  };
+
+  // Transmettre au principal OU valider directement (PACTE)
   const handleTransmit = async (session: Session) => {
     setActionLoading(true);
     try {
@@ -488,9 +495,12 @@ export default function SecretaryDashboard() {
         body: JSON.stringify({ action: 'transmit' }),
       });
       if (response.ok) {
-        // 1. Mettre a jour le statut immediatement (badge change)
+        // 1. Mettre à jour le statut immédiatement (badge change)
+        // PACTE : validation directe → VALIDATED, sinon → PENDING_VALIDATION
+        const pacte = isPacteSession(session);
+        const newStatus = pacte ? 'VALIDATED' : 'PENDING_VALIDATION';
         setSessions(prev => prev.map(s =>
-          s.id === session.id ? { ...s, status: 'PENDING_VALIDATION' } : s
+          s.id === session.id ? { ...s, status: newStatus } : s
         ));
         // 2. Marquer la session comme "en transition" pour l'animation
         setTransitioningSessions(prev => new Set(prev).add(session.id));
@@ -644,7 +654,7 @@ export default function SecretaryDashboard() {
     }
   };
 
-  // Transmettre en lot
+  // Transmettre/Valider en lot (PACTE → VALIDATED, hors PACTE → PENDING_VALIDATION)
   const handleBatchTransmit = async () => {
     if (selectedIds.size === 0) return;
     setBatchActionLoading(true);
@@ -655,21 +665,22 @@ export default function SecretaryDashboard() {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ action: 'verify' }),
+          body: JSON.stringify({ action: 'transmit' }),
         })
       );
 
       await Promise.all(promises);
 
-      // Animation de transition pour toutes les sessions transmises
+      // Animation de transition
       setTransitioningSessions(new Set(selectedIds));
 
-      // Mise a jour du statut
-      setSessions(prev => prev.map(s =>
-        selectedIds.has(s.id) ? { ...s, status: 'PENDING_VALIDATION' } : s
-      ));
+      // Mise à jour du statut selon PACTE ou non
+      setSessions(prev => prev.map(s => {
+        if (!selectedIds.has(s.id)) return s;
+        const pacte = isPacteSession(s);
+        return { ...s, status: pacte ? 'VALIDATED' : 'PENDING_VALIDATION' };
+      }));
 
-      // Apres 2 secondes, retirer les sessions de la transition
       setTimeout(() => {
         setTransitioningSessions(new Set());
       }, 2000);
@@ -735,7 +746,8 @@ export default function SecretaryDashboard() {
       filtered = filtered.filter(s =>
         s.status === 'SENT_FOR_PAYMENT' ||
         s.status === 'REJECTED' ||
-        s.status === 'PENDING_VALIDATION' // Transmises au principal, en attente de décision
+        s.status === 'PENDING_VALIDATION' || // Transmises au principal, en attente de décision
+        s.status === 'ON_HOLD' // Mises en attente par le principal
       );
     }
 
@@ -772,7 +784,7 @@ export default function SecretaryDashboard() {
     pending: sessions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'PENDING_DOCUMENTS').length,
     toPay: sessions.filter(s => s.status === 'VALIDATED').length,
     paid: sessions.filter(s => s.status === 'SENT_FOR_PAYMENT').length,
-    history: sessions.filter(s => s.status === 'SENT_FOR_PAYMENT' || s.status === 'REJECTED' || s.status === 'PENDING_VALIDATION').length,
+    history: sessions.filter(s => s.status === 'SENT_FOR_PAYMENT' || s.status === 'REJECTED' || s.status === 'PENDING_VALIDATION' || s.status === 'ON_HOLD').length,
   };
 
   // Sessions recentes (5 dernieres)
@@ -877,6 +889,132 @@ export default function SecretaryDashboard() {
       </div>
     );
   }
+
+  // Carte de session réutilisable (évite la duplication entre les groupes)
+  const renderSessionCard = (session: Session) => (
+    <div
+      key={session.id}
+      className={`bg-white rounded-xl border p-4 transition-all duration-500 ${
+        transitioningSessions.has(session.id)
+          ? 'border-green-400 bg-green-50 opacity-70 scale-[0.98]'
+          : selectedIds.has(session.id)
+          ? 'border-amber-400 bg-amber-50'
+          : 'border-gray-200 hover:shadow-md'
+      }`}
+    >
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            {((sessionFilter === 'pending' && session.status === 'PENDING_REVIEW') ||
+              (sessionFilter === 'to-pay' && session.status === 'VALIDATED')) && (
+              <button
+                onClick={() => toggleSelection(session.id)}
+                className="text-gray-400 hover:text-amber-600"
+              >
+                {selectedIds.has(session.id) ? (
+                  <CheckSquare className="w-5 h-5 text-amber-600" />
+                ) : (
+                  <Square className="w-5 h-5" />
+                )}
+              </button>
+            )}
+            <User className="w-5 h-5 text-gray-400" />
+            <span className="font-semibold text-gray-900">{session.teacherName}</span>
+            {isPacteSession(session) && (
+              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-100 text-green-700 border border-green-200">PACTE</span>
+            )}
+            {getStatusBadge(session.status)}
+            <span className={`px-2 py-1 text-xs rounded-full border ${getTypeColor(session.type)}`}>
+              {getTypeLabel(session.type)}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4 text-sm text-gray-600">
+            <div className="flex items-center gap-1">
+              <Calendar className="w-4 h-4" />
+              <span>{formatDate(session.date)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
+              <span>{session.timeSlot}</span>
+            </div>
+          </div>
+
+          {session.type === 'RCD' && session.className && (
+            <p className="text-sm text-gray-600">
+              <span className="font-medium">Classe :</span> {session.className}
+              {getReplacedTeacherName(session) && (
+                <span className="ml-3">
+                  <span className="font-medium">Remplace :</span> {getReplacedTeacherName(session)}
+                </span>
+              )}
+            </p>
+          )}
+
+          {session.type === 'DEVOIRS_FAITS' && (
+            <p className="text-sm text-gray-600">
+              {session.studentCount && <span><span className="font-medium">Élèves :</span> {session.studentCount}</span>}
+              {session.gradeLevel && <span className="ml-3"><span className="font-medium">Niveau :</span> {session.gradeLevel}</span>}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => handleViewSession(session)}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <Eye className="w-4 h-4" />
+            Détails
+          </button>
+
+          {session.status === 'PENDING_REVIEW' && (
+            <>
+              <button
+                onClick={() => handleTransmit(session)}
+                disabled={actionLoading}
+                className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                  isPacteSession(session)
+                    ? 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                    : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                }`}
+              >
+                {isPacteSession(session) ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Valider (PACTE)
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Transmettre
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => handleRequestInfo(session)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
+              >
+                <Clock3 className="w-4 h-4" />
+                Demander infos
+              </button>
+            </>
+          )}
+
+          {session.status === 'VALIDATED' && (
+            <button
+              onClick={() => handleMarkPaid(session)}
+              disabled={actionLoading}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+            >
+              <CheckCircle className="w-4 h-4" />
+              Mettre en paiement
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1602,117 +1740,137 @@ export default function SecretaryDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredSessions.map(session => (
-                  <div
-                    key={session.id}
-                    className={`bg-white rounded-xl border p-4 transition-all duration-500 ${
-                      transitioningSessions.has(session.id)
-                        ? 'border-green-400 bg-green-50 opacity-70 scale-[0.98]'
-                        : selectedIds.has(session.id)
-                        ? 'border-amber-400 bg-amber-50'
-                        : 'border-gray-200 hover:shadow-md'
-                    }`}
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      {/* Info */}
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          {/* Checkbox pour selection en lot (PENDING_REVIEW ou VALIDATED selon le filtre) */}
-                          {((sessionFilter === 'pending' && session.status === 'PENDING_REVIEW') ||
-                            (sessionFilter === 'to-pay' && session.status === 'VALIDATED')) && (
+                {/* Regroupement PACTE / À transmettre pour les sessions pending */}
+                {sessionFilter === 'pending' && (() => {
+                  const pendingReview = filteredSessions.filter(s => s.status === 'PENDING_REVIEW');
+                  const pacteSessions = pendingReview.filter(s => isPacteSession(s));
+                  const nonPacteSessions = pendingReview.filter(s => !isPacteSession(s));
+                  const otherSessions = filteredSessions.filter(s => s.status !== 'PENDING_REVIEW');
+
+                  return (
+                    <>
+                      {/* Section PACTE */}
+                      {pacteSessions.length > 0 && (
+                        <>
+                          <div className="flex items-center gap-3 pt-2 pb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-1 text-xs font-bold rounded-lg bg-green-100 text-green-700 border border-green-200">PACTE</span>
+                              <span className="text-sm font-medium text-green-700">Validation directe</span>
+                            </div>
+                            <div className="flex-1 border-t border-green-200" />
+                            <span className="text-xs text-green-600 font-medium">{pacteSessions.length}</span>
+                          </div>
+                          {/* Actions en lot PACTE */}
+                          <div className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2 border border-green-100">
                             <button
-                              onClick={() => toggleSelection(session.id)}
-                              className="text-gray-400 hover:text-amber-600"
+                              onClick={() => {
+                                const pacteIds = pacteSessions.map(s => s.id);
+                                const allSelected = pacteIds.every(id => selectedIds.has(id));
+                                if (allSelected) {
+                                  setSelectedIds(prev => {
+                                    const next = new Set(prev);
+                                    pacteIds.forEach(id => next.delete(id));
+                                    return next;
+                                  });
+                                } else {
+                                  setSelectedIds(prev => new Set([...prev, ...pacteIds]));
+                                }
+                              }}
+                              className="flex items-center gap-2 text-sm text-green-700 hover:text-green-800"
                             >
-                              {selectedIds.has(session.id) ? (
-                                <CheckSquare className="w-5 h-5 text-amber-600" />
+                              {pacteSessions.every(s => selectedIds.has(s.id)) ? (
+                                <CheckSquare className="w-4 h-4" />
                               ) : (
-                                <Square className="w-5 h-5" />
+                                <Square className="w-4 h-4" />
                               )}
+                              Tout sélectionner ({pacteSessions.length})
                             </button>
-                          )}
-                          <User className="w-5 h-5 text-gray-400" />
-                          <span className="font-semibold text-gray-900">{session.teacherName}</span>
-                          {getStatusBadge(session.status)}
-                          <span className={`px-2 py-1 text-xs rounded-full border ${getTypeColor(session.type)}`}>
-                            {getTypeLabel(session.type)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>{formatDate(session.date)}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            <span>{session.timeSlot}</span>
-                          </div>
-                        </div>
-
-                        {session.type === 'RCD' && session.className && (
-                          <p className="text-sm text-gray-600">
-                            <span className="font-medium">Classe:</span> {session.className}
-                            {getReplacedTeacherName(session) && (
-                              <span className="ml-3">
-                                <span className="font-medium">Remplace:</span> {getReplacedTeacherName(session)}
-                              </span>
+                            {pacteSessions.some(s => selectedIds.has(s.id)) && (
+                              <button
+                                onClick={handleBatchTransmit}
+                                disabled={batchActionLoading}
+                                className="px-3 py-1.5 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                {batchActionLoading ? 'Validation...' : `Valider tout (${pacteSessions.filter(s => selectedIds.has(s.id)).length})`}
+                              </button>
                             )}
-                          </p>
-                        )}
+                          </div>
+                          {pacteSessions.map(session => renderSessionCard(session))}
+                        </>
+                      )}
 
-                        {session.type === 'DEVOIRS_FAITS' && (
-                          <p className="text-sm text-gray-600">
-                            {session.studentCount && <span><span className="font-medium">Eleves:</span> {session.studentCount}</span>}
-                            {session.gradeLevel && <span className="ml-3"><span className="font-medium">Niveau:</span> {session.gradeLevel}</span>}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                          onClick={() => handleViewSession(session)}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          <Eye className="w-4 h-4" />
-                          Détails
-                        </button>
-
-                        {session.status === 'PENDING_REVIEW' && (
-                          <>
+                      {/* Section hors PACTE */}
+                      {nonPacteSessions.length > 0 && (
+                        <>
+                          <div className="flex items-center gap-3 pt-4 pb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-1 text-xs font-bold rounded-lg bg-blue-100 text-blue-700 border border-blue-200">À transmettre</span>
+                              <span className="text-sm font-medium text-blue-700">Décision du principal</span>
+                            </div>
+                            <div className="flex-1 border-t border-blue-200" />
+                            <span className="text-xs text-blue-600 font-medium">{nonPacteSessions.length}</span>
+                          </div>
+                          {/* Actions en lot hors PACTE */}
+                          <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2 border border-blue-100">
                             <button
-                              onClick={() => handleTransmit(session)}
-                              disabled={actionLoading}
-                              className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                              onClick={() => {
+                                const nonPacteIds = nonPacteSessions.map(s => s.id);
+                                const allSelected = nonPacteIds.every(id => selectedIds.has(id));
+                                if (allSelected) {
+                                  setSelectedIds(prev => {
+                                    const next = new Set(prev);
+                                    nonPacteIds.forEach(id => next.delete(id));
+                                    return next;
+                                  });
+                                } else {
+                                  setSelectedIds(prev => new Set([...prev, ...nonPacteIds]));
+                                }
+                              }}
+                              className="flex items-center gap-2 text-sm text-blue-700 hover:text-blue-800"
                             >
-                              <Send className="w-4 h-4" />
-                              Transmettre
+                              {nonPacteSessions.every(s => selectedIds.has(s.id)) ? (
+                                <CheckSquare className="w-4 h-4" />
+                              ) : (
+                                <Square className="w-4 h-4" />
+                              )}
+                              Tout sélectionner ({nonPacteSessions.length})
                             </button>
-                            <button
-                              onClick={() => handleRequestInfo(session)}
-                              className="flex items-center gap-2 px-3 py-2 text-sm text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
-                            >
-                              <Clock3 className="w-4 h-4" />
-                              Demander infos
-                            </button>
-                          </>
-                        )}
+                            {nonPacteSessions.some(s => selectedIds.has(s.id)) && (
+                              <button
+                                onClick={handleBatchTransmit}
+                                disabled={batchActionLoading}
+                                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                              >
+                                <Send className="w-4 h-4" />
+                                {batchActionLoading ? 'Transmission...' : `Transmettre (${nonPacteSessions.filter(s => selectedIds.has(s.id)).length})`}
+                              </button>
+                            )}
+                          </div>
+                          {nonPacteSessions.map(session => renderSessionCard(session))}
+                        </>
+                      )}
 
-                        {session.status === 'VALIDATED' && (
-                          <button
-                            onClick={() => handleMarkPaid(session)}
-                            disabled={actionLoading}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Mettre en paiement
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                      {/* Sessions en attente de documents (PENDING_DOCUMENTS) */}
+                      {otherSessions.length > 0 && (
+                        <>
+                          <div className="flex items-center gap-3 pt-4 pb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-1 text-xs font-bold rounded-lg bg-orange-100 text-orange-700 border border-orange-200">En attente</span>
+                              <span className="text-sm font-medium text-orange-700">Documents demandés</span>
+                            </div>
+                            <div className="flex-1 border-t border-orange-200" />
+                            <span className="text-xs text-orange-600 font-medium">{otherSessions.length}</span>
+                          </div>
+                          {otherSessions.map(session => renderSessionCard(session))}
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* Autres filtres : liste simple */}
+                {sessionFilter !== 'pending' && filteredSessions.map(session => renderSessionCard(session))}
               </div>
             )}
           </>
@@ -1832,7 +1990,7 @@ export default function SecretaryDashboard() {
                   Pieces jointes ({attachments.length})
                   {attachments.length > 0 && (
                     <span className="text-green-600 text-sm">
-                      {attachments.filter(a => a.isVerified).length}/{attachments.length} verifiees
+                      {attachments.filter(a => a.isVerified).length}/{attachments.length} vérifiées
                     </span>
                   )}
                 </h4>
@@ -1845,7 +2003,7 @@ export default function SecretaryDashboard() {
                 ) : attachments.length === 0 ? (
                   <div className="bg-amber-50 border border-amber-200 p-6 rounded-lg text-center">
                     <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                    <p className="text-amber-700 font-medium">Aucune piece jointe</p>
+                    <p className="text-amber-700 font-medium">Aucune pièce jointe</p>
                     <p className="text-amber-600 text-sm">Vous pouvez demander des documents à l'enseignant</p>
                   </div>
                 ) : (
@@ -1867,6 +2025,7 @@ export default function SecretaryDashboard() {
                               className="relative bg-gray-100 cursor-pointer group"
                               onClick={() => {
                                 setViewedAttachments(prev => new Set(prev).add(attachment.id));
+                                setEnlargedImage(attachment.url);
                               }}
                             >
                               <img
@@ -1916,11 +2075,11 @@ export default function SecretaryDashboard() {
                                 </span>
                               )}
 
-                              {/* Bouton telecharger */}
+                              {/* Bouton télécharger */}
                               <button
                                 onClick={() => handleDownloadAttachment(attachment.id)}
                                 className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="Telecharger avec nom explicite"
+                                title="Télécharger avec nom explicite"
                               >
                                 <Download className="w-4 h-4" />
                               </button>
@@ -1953,10 +2112,23 @@ export default function SecretaryDashboard() {
                 <button
                   onClick={() => handleTransmit(selectedSession)}
                   disabled={actionLoading}
-                  className="flex-1 min-w-[100px] px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+                  className={`flex-1 min-w-[100px] px-4 py-2 text-white rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                    isPacteSession(selectedSession)
+                      ? 'bg-green-500 hover:bg-green-600'
+                      : 'bg-blue-500 hover:bg-blue-600'
+                  }`}
                 >
-                  <Send className="w-4 h-4" />
-                  Transmettre
+                  {isPacteSession(selectedSession) ? (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Valider (PACTE)
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Transmettre
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -1986,7 +2158,7 @@ export default function SecretaryDashboard() {
                 <textarea
                   value={pendingComment}
                   onChange={(e) => setPendingComment(e.target.value)}
-                  placeholder="Precisez les pieces jointes ou informations necessaires..."
+                  placeholder="Précisez les pièces jointes ou informations nécessaires..."
                   className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
                   rows={4}
                 />
@@ -2179,6 +2351,27 @@ export default function SecretaryDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modale agrandissement image */}
+      {enlargedImage && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 cursor-pointer"
+          onClick={() => setEnlargedImage(null)}
+        >
+          <button
+            onClick={() => setEnlargedImage(null)}
+            className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full transition-colors"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+          <img
+            src={enlargedImage}
+            alt="Pièce jointe agrandie"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 

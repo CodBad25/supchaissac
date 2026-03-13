@@ -67,7 +67,7 @@ router.post('/upload/:sessionId', requireAuth, upload.single('file'), async (req
       return res.status(400).json({ error: validationError });
     }
 
-    // Upload vers Scaleway
+    // Upload vers le stockage local
     const result = await uploadFile(
       file.buffer,
       file.originalname,
@@ -272,8 +272,8 @@ router.get('/session/:sessionId', requireAuth, async (req: Request, res: Respons
     const attachmentsWithSignedUrls = await Promise.all(
       sessionAttachments.map(async (attachment) => {
         try {
-          // Le champ 'filename' contient le chemin S3 (ex: sessions/123/timestamp_file.png)
-          // Passer originalName pour forcer le telechargement avec le bon nom
+          // Le champ 'filename' contient le chemin relatif (ex: sessions/123/timestamp_file.png)
+          // Passer originalName pour forcer le téléchargement avec le bon nom
           const signedUrl = await getSignedDownloadUrl(
             attachment.filename,
             3600,
