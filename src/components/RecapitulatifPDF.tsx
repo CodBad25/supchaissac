@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet, Font, Image, pdf } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image, pdf } from '@react-pdf/renderer';
 
 // ============================================================================
 // TYPES
@@ -429,7 +429,7 @@ const RecapitulatifDocument = ({ teacher, sessions, month, year }: RecapProps) =
 
             {/* Lignes */}
             {sortedSessions.map((session, idx) => (
-              <View key={session.id} style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}>
+              <View key={session.id} style={[styles.tableRow, idx % 2 === 1 ? styles.tableRowAlt : {}]}>
                 <View style={styles.colDate}>
                   <Text style={styles.tableCellBold}>{formatDate(session.date)}</Text>
                   <Text style={[styles.tableCell, { fontSize: 7, color: '#78716c' }]}>{getDayName(session.date)}</Text>

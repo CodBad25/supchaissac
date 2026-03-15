@@ -114,10 +114,10 @@ interface UserInfo {
 interface Teacher {
   id: number;
   name: string;
-  firstName: string;
-  lastName: string;
-  civilite: string;
-  subject: string;
+  firstName?: string;
+  lastName?: string;
+  civilite?: string;
+  subject?: string;
   username: string;
   initials: string;
   inPacte: boolean;
@@ -2409,14 +2409,17 @@ export default function SecretaryDashboard() {
       <RecapModal
         open={showRecapModal}
         onClose={() => setShowRecapModal(false)}
-        teachers={teachers.map(t => ({
-          id: t.id,
-          firstName: t.firstName,
-          lastName: t.lastName,
-          civilite: t.civilite,
-          subject: t.subject,
-          inPacte: t.inPacte,
-        }))}
+        teachers={teachers.map(t => {
+          const parts = t.name.split(' ');
+          return {
+            id: t.id,
+            firstName: t.firstName || parts.slice(0, -1).join(' '),
+            lastName: t.lastName || parts.slice(-1)[0],
+            civilite: t.civilite,
+            subject: t.subject,
+            inPacte: t.inPacte,
+          };
+        })}
         sessions={sessions.map(s => ({
           id: s.id,
           date: s.date,
@@ -2432,7 +2435,7 @@ export default function SecretaryDashboard() {
           replacedTeacherPrefix: s.replacedTeacherPrefix,
           replacedTeacherFirstName: s.replacedTeacherFirstName,
           replacedTeacherLastName: s.replacedTeacherLastName,
-          subject: s.subject,
+          subject: s.replacedTeacherSubject,
           comment: s.comment,
           createdAt: s.createdAt,
         }))}
