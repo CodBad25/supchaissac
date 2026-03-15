@@ -13,6 +13,7 @@ import { ContratsPacte } from '../components/ContratsPacte';
 import GuidedTour, { shouldShowTour } from '../components/GuidedTour';
 import type { TourStep } from '../components/GuidedTour';
 import NotificationBell from '../components/NotificationBell';
+import RecapModal from '../components/RecapModal';
 
 // Steps du tour guidé pour le secrétariat
 const secretaryTourSteps: TourStep[] = [
@@ -113,6 +114,10 @@ interface UserInfo {
 interface Teacher {
   id: number;
   name: string;
+  firstName: string;
+  lastName: string;
+  civilite: string;
+  subject: string;
   username: string;
   initials: string;
   inPacte: boolean;
@@ -191,6 +196,7 @@ export default function SecretaryDashboard() {
   const [pacteFilter, setPacteFilter] = useState<'all' | 'pacte' | 'non-pacte'>('all');
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [showPacteModal, setShowPacteModal] = useState(false);
+  const [showRecapModal, setShowRecapModal] = useState(false);
 
   // Modal states
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -1246,12 +1252,27 @@ export default function SecretaryDashboard() {
               </div>
             )}
 
+            {/* Bouton récapitulatif PDF */}
+            <button
+              onClick={() => setShowRecapModal(true)}
+              className="w-full bg-white rounded-xl border border-gray-200 p-4 hover:border-amber-300 hover:shadow-md transition-all cursor-pointer text-left flex items-center gap-4"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Download className="w-5 h-5 text-amber-700" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900">Récapitulatif mensuel PDF</h3>
+                <p className="text-xs text-gray-500">Générer une fiche par enseignant à faire signer</p>
+              </div>
+              <span className="text-xs text-amber-600 font-medium">Imprimer →</span>
+            </button>
+
             {/* Sessions recentes */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                   <Clock3 className="w-5 h-5 text-gray-600" />
-                  Sessions recentes
+                  Sessions récentes
                 </h3>
                 <button
                   onClick={() => setActiveTab('sessions')}
@@ -2383,6 +2404,39 @@ export default function SecretaryDashboard() {
           onComplete={() => setShowTour(false)}
         />
       )}
+
+      {/* Modale récapitulatif PDF */}
+      <RecapModal
+        open={showRecapModal}
+        onClose={() => setShowRecapModal(false)}
+        teachers={teachers.map(t => ({
+          id: t.id,
+          firstName: t.firstName,
+          lastName: t.lastName,
+          civilite: t.civilite,
+          subject: t.subject,
+          inPacte: t.inPacte,
+        }))}
+        sessions={sessions.map(s => ({
+          id: s.id,
+          date: s.date,
+          timeSlot: s.timeSlot,
+          type: s.type,
+          status: s.status,
+          teacherId: s.teacherId,
+          teacherName: s.teacherName,
+          className: s.className,
+          studentCount: s.studentCount,
+          gradeLevel: s.gradeLevel,
+          description: s.description,
+          replacedTeacherPrefix: s.replacedTeacherPrefix,
+          replacedTeacherFirstName: s.replacedTeacherFirstName,
+          replacedTeacherLastName: s.replacedTeacherLastName,
+          subject: s.subject,
+          comment: s.comment,
+          createdAt: s.createdAt,
+        }))}
+      />
     </div>
   );
 }

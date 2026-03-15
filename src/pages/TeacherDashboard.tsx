@@ -11,7 +11,8 @@ import {
   ArrowRight,
   HelpCircle,
   User,
-  MessageCircle
+  MessageCircle,
+  Download
 } from 'lucide-react';
 import SmartCalendar from '../components/SmartCalendar';
 import SessionModals from '../components/SessionModals';
@@ -21,6 +22,7 @@ import { components, cn, getStatusClasses } from '../styles/theme';
 import { API_BASE_URL } from '../config/api';
 import { useToast } from '../components/ToastProvider';
 import NotificationBell from '../components/NotificationBell';
+import RecapModal from '../components/RecapModal';
 
 // Steps du tour guidé pour les enseignants
 const teacherTourSteps: TourStep[] = [
@@ -104,6 +106,7 @@ const TeacherDashboard: React.FC = () => {
   const [timelineView, setTimelineView] = useState<'semaines' | 'mois'>('semaines');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [expandedRejection, setExpandedRejection] = useState<number | null>(null);
+  const [showRecapModal, setShowRecapModal] = useState(false);
 
   // Récupérer les vraies données utilisateur depuis l'API
   useEffect(() => {
@@ -898,6 +901,21 @@ const TeacherDashboard: React.FC = () => {
               </div>
             )}
 
+            {/* Bouton récapitulatif PDF */}
+            <button
+              onClick={() => setShowRecapModal(true)}
+              className="w-full rounded-2xl bg-white border border-gray-100 p-3 sm:p-4 shadow-sm hover:border-amber-300 hover:shadow-md transition-all cursor-pointer text-left flex items-center gap-3 sm:gap-4"
+            >
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Download className="w-4 h-4 sm:w-5 sm:h-5 text-amber-700" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xs sm:text-sm font-semibold text-gray-900">Mon récapitulatif mensuel</h3>
+                <p className="text-[10px] sm:text-xs text-gray-500">Télécharger le PDF de mes heures</p>
+              </div>
+              <span className="text-[10px] sm:text-xs text-amber-600 font-medium flex-shrink-0">PDF →</span>
+            </button>
+
             {/* Par type (uniquement pour non-PACTE) + Mes semaines */}
             <div className={`grid gap-3 sm:gap-4 ${user?.inPacte ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
               {/* Répartition par type - uniquement pour les non-PACTE */}
@@ -1208,6 +1226,30 @@ const TeacherDashboard: React.FC = () => {
           tourId="teacher"
           steps={teacherTourSteps}
           onComplete={() => setShowTour(false)}
+        />
+      )}
+
+      {/* Modale récapitulatif PDF */}
+      {user && (
+        <RecapModal
+          open={showRecapModal}
+          onClose={() => setShowRecapModal(false)}
+          currentTeacher={{
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            civilite: user.civilite,
+            subject: user.subject,
+            inPacte: user.inPacte,
+          }}
+          sessions={sessions.map(s => ({
+            id: s.id,
+            date: s.date,
+            timeSlot: s.timeSlot,
+            type: s.type,
+            status: s.status,
+            teacherId: user.id,
+          }))}
         />
       )}
     </div>
